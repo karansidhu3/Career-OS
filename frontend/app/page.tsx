@@ -1,92 +1,286 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { api, Job } from '@/lib/api'
-import { Sidebar } from '@/components/Sidebar'
-import { GenerateForm } from '@/components/GenerateForm'
-import { ResultsView } from '@/components/ResultsView'
 
-type View = 'form' | 'results'
+const ease = 'easeOut'
+
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  generated: { bg: 'rgba(139,92,246,0.08)', text: '#7c3aed' },
+  applied:   { bg: 'rgba(16,185,129,0.08)', text: '#059669' },
+  skipped:   { bg: 'rgba(0,0,0,0.04)',      text: '#9ca3af' },
+  interview: { bg: 'rgba(59,130,246,0.08)', text: '#2563eb' },
+  offer:     { bg: 'rgba(245,158,11,0.08)', text: '#d97706' },
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const c = STATUS_COLORS[status] ?? STATUS_COLORS.generated
+  return (
+    <span style={{ background: c.bg, color: c.text }} className="text-xs font-medium px-2 py-0.5 rounded-full capitalize">
+      {status}
+    </span>
+  )
+}
+
+function CompanyAvatar({ name }: { name: string | null }) {
+  return (
+    <div style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)' }} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+      <span className="text-indigo-600 font-semibold text-sm">{(name ?? '?')[0]?.toUpperCase()}</span>
+    </div>
+  )
+}
+
+function ScoreRing({ score }: { score: number }) {
+  const color = score >= 8 ? '#10b981' : score >= 6 ? '#f59e0b' : '#ef4444'
+  return (
+    <div className="flex items-center gap-1">
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      <span style={{ color }} className="text-xs font-semibold">{score}/10</span>
+    </div>
+  )
+}
 
 export default function Home() {
+  const router = useRouter()
   const [jobs, setJobs] = useState<Job[]>([])
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null)
-  const [view, setView] = useState<View>('form')
+  const [jd, setJd] = useState('')
+  const [title, setTitle] = useState('')
+  const [company, setCompany] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const loadJobs = useCallback(async () => {
-    try {
-      const data = await api.listJobs()
-      setJobs(data)
-    } catch {
-      // backend not running — silently skip
-    }
+    try { setJobs(await api.listJobs()) } catch { /* backend offline */ }
   }, [])
 
   useEffect(() => { loadJobs() }, [loadJobs])
 
-  const handleGenerated = (job: Job) => {
-    setJobs((prev) => [job, ...prev])
-    setSelectedJob(job)
-    setView('results')
-  }
+  const thisWeek = jobs.filter((j) => {
+    if (!j.created_at) return false
+    return Date.now() - new Date(j.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+  }).length
 
-  const handleSelect = async (id: number) => {
-    const job = jobs.find((j) => j.id === id) ?? null
-    setSelectedJob(job)
-    setView('results')
-    // Fetch full job in case description/materials were trimmed in list
+  const scoredJobs = jobs.filter(j => j.fit_score != null)
+  const avgScore = scoredJobs.length
+    ? Math.round(scoredJobs.reduce((s, j) => s + (j.fit_score ?? 0), 0) / scoredJobs.length * 10) / 10
+    : null
+
+  const handleGenerate = async () => {
+    if (!jd.trim()) return
+    setLoading(true)
+    setError(null)
     try {
-      const full = await api.getJob(id)
-      setSelectedJob(full)
-    } catch { /* ignore */ }
+      const job = await api.generate({
+        description: jd.trim(),
+        title: title.trim() || undefined,
+        company: company.trim() || undefined,
+      })
+      router.push(`/jobs/${job.id}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed. Is the backend running?')
+      setLoading(false)
+    }
   }
 
-  const handleStatusChange = (updated: Job) => {
-    setJobs((prev) => prev.map((j) => (j.id === updated.id ? updated : j)))
-    setSelectedJob(updated)
-  }
+  const recentJobs = jobs.slice(0, 6)
 
-  const handleNew = () => {
-    setSelectedJob(null)
-    setView('form')
-  }
+  const insights = [
+    avgScore != null
+      ? `Average fit score across ${jobs.length} application${jobs.length !== 1 ? 's' : ''}: ${avgScore}/10`
+      : 'No applications yet — paste a JD below to get started.',
+    jobs.filter(j => j.status === 'applied').length > 0
+      ? `${jobs.filter(j => j.status === 'applied').length} application${jobs.filter(j => j.status === 'applied').length !== 1 ? 's' : ''} marked as applied`
+      : 'Mark applications as applied to track your progress.',
+    jobs.filter(j => j.fit_score != null && j.fit_score >= 8).length > 0
+      ? `${jobs.filter(j => j.fit_score != null && j.fit_score >= 8).length} strong match${jobs.filter(j => j.fit_score != null && j.fit_score >= 8).length !== 1 ? 'es' : ''} (8/10 or above)`
+      : 'Strong matches will appear here as you generate applications.',
+  ]
+
+  const insightColors = [
+    { bg: 'rgba(165,180,252,0.15)', border: 'rgba(165,180,252,0.3)', text: '#4f46e5' },
+    { bg: 'rgba(167,243,208,0.2)',  border: 'rgba(167,243,208,0.4)', text: '#047857' },
+    { bg: 'rgba(253,186,116,0.15)', border: 'rgba(253,186,116,0.3)', text: '#b45309' },
+  ]
 
   return (
-    <div className="flex h-full">
-      <Sidebar
-        jobs={jobs}
-        selectedId={selectedJob?.id ?? null}
-        onSelect={handleSelect}
-        onNew={handleNew}
-      />
+    <div className="px-6 pb-24 max-w-4xl mx-auto">
 
-      <main className="flex-1 overflow-y-auto p-8">
-        {view === 'form' && (
-          <div className="max-w-3xl mx-auto h-full flex flex-col gap-6">
-            <div>
-              <h1 className="text-xl font-semibold text-zinc-100">New Application</h1>
-              <p className="text-sm text-zinc-400 mt-1">
-                Paste a job description and hit Generate. Takes ~15 seconds.
-              </p>
-            </div>
-            <div className="flex-1">
-              <GenerateForm onGenerated={handleGenerated} />
-            </div>
+      {/* Hero */}
+      <section className="pt-16 pb-12 text-center">
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease }}
+          className="text-5xl font-semibold tracking-tight text-neutral-900"
+        >
+          {getGreeting()}, Karan.
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.08, ease }}
+          className="mt-3 text-lg text-neutral-400"
+        >
+          {thisWeek > 0
+            ? `You've generated ${thisWeek} application${thisWeek !== 1 ? 's' : ''} this week.`
+            : 'Paste a job description below to generate tailored materials.'}
+        </motion.p>
+      </section>
+
+      {/* Paste card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, delay: 0.14, ease }}
+      >
+        <div
+          style={{
+            background: 'rgba(255,255,255,0.85)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
+            border: '1px solid rgba(255,255,255,0.9)',
+          }}
+          className="rounded-3xl p-8"
+        >
+          <h2 className="text-lg font-semibold text-neutral-800 mb-5">Paste Job Description</h2>
+
+          <div className="flex gap-3 mb-4">
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Role title"
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }}
+            />
+            <input
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              placeholder="Company"
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }}
+            />
           </div>
-        )}
 
-        {view === 'results' && selectedJob && (
-          <div className="max-w-3xl mx-auto">
+          <textarea
+            value={jd}
+            onChange={e => setJd(e.target.value)}
+            placeholder="Paste a job description here…"
+            rows={8}
+            disabled={loading}
+            className="w-full resize-none rounded-2xl text-sm text-neutral-700 placeholder-neutral-300 p-4 focus:outline-none focus:ring-2 focus:ring-indigo-100 leading-relaxed disabled:opacity-50"
+            style={{ background: 'rgba(0,0,0,0.025)', border: '1px solid rgba(0,0,0,0.06)' }}
+          />
+
+          {error && (
+            <p className="mt-3 text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-xl">{error}</p>
+          )}
+
+          <div className="flex gap-3 mt-5">
             <button
-              onClick={handleNew}
-              className="text-sm text-zinc-500 hover:text-zinc-300 mb-6 transition-colors"
+              onClick={handleGenerate}
+              disabled={loading || !jd.trim()}
+              className="flex-1 py-3 rounded-2xl text-sm font-medium text-neutral-500 transition-all duration-200 disabled:opacity-40"
+              style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)' }}
             >
-              ← New application
+              Analyze Fit
             </button>
-            <ResultsView job={selectedJob} onStatusChange={handleStatusChange} />
+            <button
+              onClick={handleGenerate}
+              disabled={loading || !jd.trim()}
+              className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
+              style={{
+                background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #818cf8, #7c3aed)',
+                boxShadow: loading ? 'none' : '0 4px 16px rgba(129,140,248,0.35)',
+              }}
+            >
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                'Generate Materials →'
+              )}
+            </button>
           </div>
-        )}
-      </main>
+        </div>
+      </motion.div>
+
+      {/* Recent applications */}
+      {recentJobs.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.2, ease }}
+          className="mt-12"
+        >
+          <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">
+            Recent Applications
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+            {recentJobs.map((job, i) => (
+              <motion.button
+                key={job.id}
+                onClick={() => router.push(`/jobs/${job.id}`)}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.24 + i * 0.05, duration: 0.4, ease }}
+                whileHover={{ y: -3 }}
+                className="shrink-0 w-56 text-left p-5 rounded-2xl cursor-pointer"
+                style={{
+                  background: 'rgba(255,255,255,0.9)',
+                  border: '1px solid rgba(255,255,255,0.9)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
+                }}
+              >
+                <CompanyAvatar name={job.company} />
+                <p className="mt-3 text-sm font-semibold text-neutral-800 truncate">{job.title}</p>
+                <p className="text-xs text-neutral-400 truncate mt-0.5">{job.company ?? '—'}</p>
+                <div className="flex items-center justify-between mt-3">
+                  <StatusBadge status={job.status} />
+                  {job.fit_score != null && <ScoreRing score={job.fit_score} />}
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </motion.section>
+      )}
+
+      {/* Resume intelligence */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, delay: 0.28, ease }}
+        className="mt-12"
+      >
+        <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">
+          Resume Intelligence
+        </h2>
+        <div className="grid grid-cols-3 gap-4">
+          {insights.map((text, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.32 + i * 0.06, duration: 0.4, ease }}
+              className="p-5 rounded-2xl"
+              style={{ background: insightColors[i].bg, border: `1px solid ${insightColors[i].border}` }}
+            >
+              <p className="text-sm leading-relaxed" style={{ color: insightColors[i].text }}>{text}</p>
+            </motion.div>
+          ))}
+        </div>
+      </motion.section>
     </div>
   )
 }

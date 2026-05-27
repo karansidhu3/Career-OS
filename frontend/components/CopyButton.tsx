@@ -14,7 +14,12 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
   return (
     <button
       onClick={handleCopy}
-      className="px-3 py-1 text-xs rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors"
+      className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200"
+      style={{
+        background: copied ? 'rgba(16,185,129,0.08)' : 'rgba(0,0,0,0.04)',
+        border: `1px solid ${copied ? 'rgba(16,185,129,0.2)' : 'rgba(0,0,0,0.06)'}`,
+        color: copied ? '#059669' : '#6b7280',
+      }}
     >
       {copied ? '✓ Copied' : label}
     </button>
