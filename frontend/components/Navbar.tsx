@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 const links = [
   { href: '/', label: 'Home' },
   { href: '/applications', label: 'Applications' },
+  { href: '/profile', label: 'Profile' },
 ]
 
 export function Navbar() {
