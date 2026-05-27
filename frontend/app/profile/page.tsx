@@ -389,14 +389,35 @@ function SkillCard({ skill, onSave, onDelete }: { skill: SkillCategory; onSave: 
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<FullProfile | null>(null)
+  const [loadError, setLoadError] = useState(false)
   const [newProjectId, setNewProjectId] = useState<number | null>(null)
   const [newExpId, setNewExpId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
-    try { setProfile(await api.getProfile()) } catch { /* offline */ }
+    try {
+      setLoadError(false)
+      setProfile(await api.getProfile())
+    } catch {
+      setLoadError(true)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <p className="text-neutral-400 text-sm">Could not reach the backend.</p>
+        <button
+          onClick={load}
+          className="px-4 py-2 rounded-xl text-sm font-medium text-white"
+          style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)' }}
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   if (!profile) {
     return (
