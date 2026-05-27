@@ -30,12 +30,13 @@ using his persistent profile DB. Copy into Overleaf, apply on LinkedIn.
 - Mark job as applied / skipped
 - History list: all past generations, filterable by status
 
-### Sprint 4 — Deploy to Railway
-- Backend service: FastAPI on Railway
-- Frontend service: Next.js on Railway
-- Database: Railway Postgres
-- Environment variables configured
-- Both services connected, production-ready
+### Sprint 4 — Deploy to Railway ✅ Done
+- Backend service: FastAPI on Railway (railway.toml + nixpacks)
+- Frontend service: Next.js on Railway (railway.toml + nixpacks)
+- Database: Railway Postgres (DATABASE_URL env var)
+- CORS driven by ALLOWED_ORIGINS env var (comma-separated)
+- Seed runs automatically on startup (idempotent)
+- .env.example files in backend/ and frontend/ for reference
 
 ---
 
