@@ -47,6 +47,26 @@ async def _run_generation(job_id: int, jd_text: str) -> None:
             await db.commit()
 
 
+def _to_latin1(text: str) -> str:
+    """
+    Replace common Unicode typographic characters with ASCII equivalents so
+    fpdf2's built-in Helvetica (latin-1 only) doesn't crash.
+    Any character still outside latin-1 after replacements is dropped.
+    """
+    return (
+        text
+        .replace('—', '--')    # em dash  —
+        .replace('–', '-')     # en dash  –
+        .replace('‘', "'")     # left single quote  '
+        .replace('’', "'")     # right single quote  '
+        .replace('“', '"')     # left double quote  "
+        .replace('”', '"')     # right double quote  "
+        .replace('…', '...')   # ellipsis  …
+        .replace(' ', ' ')     # non-breaking space
+        .encode('latin-1', errors='ignore').decode('latin-1')
+    )
+
+
 def _build_cover_letter_pdf(job: Job) -> bytes:
     pdf = FPDF()
     pdf.set_margins(25, 25, 25)
@@ -61,7 +81,7 @@ def _build_cover_letter_pdf(job: Job) -> bytes:
     pdf.set_text_color(120, 120, 120)
     pdf.cell(
         0, 6,
-        "karansidhu5550@gmail.com  ·  +1 (250) 509-2500  ·  linkedin.com/in/karan-sidhu3  ·  github.com/karansidhu3",
+        "karansidhu5550@gmail.com  |  +1 (250) 509-2500  |  linkedin.com/in/karan-sidhu3  |  github.com/karansidhu3",
         new_x="LMARGIN", new_y="NEXT",
     )
     pdf.ln(2)
@@ -73,9 +93,9 @@ def _build_cover_letter_pdf(job: Job) -> bytes:
     if job.title or job.company:
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(0, 0, 0)
-        header = job.title or ""
+        header = _to_latin1(job.title or "")
         if job.company:
-            header += f" — {job.company}"
+            header += f" - {_to_latin1(job.company)}"
         pdf.cell(0, 8, header, new_x="LMARGIN", new_y="NEXT")
         pdf.ln(4)
 
@@ -84,7 +104,7 @@ def _build_cover_letter_pdf(job: Job) -> bytes:
     pdf.set_text_color(30, 30, 30)
     paragraphs = [p.strip() for p in (job.cover_letter or "").split("\n\n") if p.strip()]
     for para in paragraphs:
-        pdf.multi_cell(0, 6, para)
+        pdf.multi_cell(0, 6, _to_latin1(para))
         pdf.ln(5)
 
     return bytes(pdf.output())
