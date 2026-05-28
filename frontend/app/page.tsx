@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 
+function isAbortError(e: unknown): boolean {
+  return e instanceof DOMException && e.name === 'AbortError'
+}
+
 const ease = 'easeOut'
 const ESTIMATED_SECONDS = 18
 
@@ -58,6 +62,7 @@ export default function Home() {
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Restore JD from sessionStorage on mount
   useEffect(() => {
@@ -96,15 +101,34 @@ export default function Home() {
     if (!jd.trim()) return
     setLoading(true)
     setError(null)
+    abortRef.current = new AbortController()
     try {
-      const job = await api.generate({ description: jd.trim() })
+      const job = await api.generate({ description: jd.trim() }, abortRef.current.signal)
       sessionStorage.removeItem('careeros-jd')
       router.push(`/jobs/${job.id}`)
     } catch (e) {
+      if (isAbortError(e)) { setLoading(false); return }
       setError(e instanceof Error ? e.message : 'Generation failed. Is the backend running?')
       setLoading(false)
     }
   }
+
+  const handleCancel = () => {
+    abortRef.current?.abort()
+    setLoading(false)
+  }
+
+  // Cmd+Enter / Ctrl+Enter to generate
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !loading) {
+        handleGenerate()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, jd])
 
   const progress = Math.min((elapsed / ESTIMATED_SECONDS) * 100, 96)
   const recentJobs = jobs.slice(0, 6)
@@ -182,20 +206,30 @@ export default function Home() {
                   Generating… {elapsed}s
                 </>
               ) : (
-                'Generate Materials →'
+                <>Generate Materials <span className="opacity-40 font-normal text-xs ml-1">⌘↵</span></>
               )}
             </button>
 
-            {/* Progress bar */}
+            {/* Progress bar + cancel */}
             {loading && (
-              <div className="w-full rounded-full overflow-hidden" style={{ height: 3, background: 'rgba(0,0,0,0.06)' }}>
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: 'linear-gradient(90deg, #818cf8, #7c3aed)' }}
-                  initial={{ width: '0%' }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 1, ease: 'linear' }}
-                />
+              <div className="space-y-2">
+                <div className="w-full rounded-full overflow-hidden" style={{ height: 3, background: 'rgba(0,0,0,0.06)' }}>
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ background: 'linear-gradient(90deg, #818cf8, #7c3aed)' }}
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 1, ease: 'linear' }}
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <button
+                    onClick={handleCancel}
+                    className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
           </div>

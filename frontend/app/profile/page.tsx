@@ -2,23 +2,32 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api, FullProfile, Project, Experience, SkillCategory, Education, PersonalInfo } from '@/lib/api'
+import { api, FullProfile, Project, Experience, SkillCategory } from '@/lib/api'
 
 const ease = 'easeOut'
 
 // ---- Shared UI ----
 
-function SectionHeader({ title, onAdd }: { title: string; onAdd?: () => void }) {
+function SectionHeader({
+  title,
+  onAdd,
+  adding,
+}: {
+  title: string
+  onAdd?: () => void
+  adding?: boolean
+}) {
   return (
     <div className="flex items-center justify-between mb-4">
       <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">{title}</h2>
       {onAdd && (
         <button
           onClick={onAdd}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
+          disabled={adding}
+          className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all disabled:opacity-40"
           style={{ background: 'rgba(129,140,248,0.1)', color: '#6366f1' }}
         >
-          + Add
+          {adding ? 'Adding…' : '+ Add'}
         </button>
       )}
     </div>
@@ -111,6 +120,19 @@ function Bullets({ bullets }: { bullets: string[] }) {
   )
 }
 
+function SavedFlash() {
+  return (
+    <motion.span
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0 }}
+      className="text-xs text-green-500 font-medium"
+    >
+      Saved ✓
+    </motion.span>
+  )
+}
+
 function card(extra = '') {
   return {
     className: `rounded-2xl p-6 ${extra}`,
@@ -124,28 +146,62 @@ function card(extra = '') {
   }
 }
 
+function ReorderButtons({
+  onUp,
+  onDown,
+  canUp,
+  canDown,
+}: {
+  onUp: () => void
+  onDown: () => void
+  canUp: boolean
+  canDown: boolean
+}) {
+  const btnCls = "text-neutral-300 hover:text-neutral-600 transition-colors disabled:opacity-20 disabled:cursor-default p-0.5 rounded"
+  return (
+    <div className="flex flex-col gap-0.5">
+      <button onClick={onUp} disabled={!canUp} className={btnCls} title="Move up">▲</button>
+      <button onClick={onDown} disabled={!canDown} className={btnCls} title="Move down">▼</button>
+    </div>
+  )
+}
+
 // ---- Projects section ----
 
 function ProjectCard({
   project,
   onSave,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
   startEditing,
 }: {
   project: Project
   onSave: (data: Omit<Project, 'id'>) => Promise<void>
   onDelete: () => Promise<void>
+  onMoveUp: () => void
+  onMoveDown: () => void
+  canMoveUp: boolean
+  canMoveDown: boolean
   startEditing?: boolean
 }) {
   const [editing, setEditing] = useState(startEditing ?? false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
   const [name, setName] = useState(project.name)
   const [tech, setTech] = useState(project.tech.join(', '))
   const [startDate, setStartDate] = useState(project.start_date ?? '')
   const [endDate, setEndDate] = useState(project.end_date ?? '')
   const [bullets, setBullets] = useState(project.bullets.join('\n'))
-  const [githubUrl, setGithubUrl] = useState('')
+
+  useEffect(() => {
+    if (!savedFlash) return
+    const t = setTimeout(() => setSavedFlash(false), 2000)
+    return () => clearTimeout(t)
+  }, [savedFlash])
 
   const save = async () => {
     setSaving(true)
@@ -159,6 +215,7 @@ function ProjectCard({
         sort_order: project.sort_order,
       })
       setEditing(false)
+      setSavedFlash(true)
     } finally {
       setSaving(false)
     }
@@ -171,7 +228,7 @@ function ProjectCard({
   }
 
   return (
-    <motion.div layout {...card()} className={`rounded-2xl p-6`} style={card().style}>
+    <motion.div layout {...card()} className="rounded-2xl p-6" style={card().style}>
       <AnimatePresence mode="wait">
         {editing ? (
           <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
@@ -215,7 +272,10 @@ function ProjectCard({
           </motion.div>
         ) : (
           <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              {/* Reorder arrows */}
+              <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
+
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-neutral-800">{project.name}</h3>
@@ -228,13 +288,17 @@ function ProjectCard({
                 {project.tech.length > 0 && <TechTags tags={project.tech} />}
                 {project.bullets.length > 0 && <Bullets bullets={project.bullets} />}
               </div>
-              <button
-                onClick={() => setEditing(true)}
-                className="shrink-0 text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors"
-                style={{ background: 'rgba(0,0,0,0.04)' }}
-              >
-                Edit
-              </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors"
+                  style={{ background: 'rgba(0,0,0,0.04)' }}
+                >
+                  Edit
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -249,21 +313,36 @@ function ExperienceCard({
   exp,
   onSave,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
   startEditing,
 }: {
   exp: Experience
   onSave: (data: Omit<Experience, 'id'>) => Promise<void>
   onDelete: () => Promise<void>
+  onMoveUp: () => void
+  onMoveDown: () => void
+  canMoveUp: boolean
+  canMoveDown: boolean
   startEditing?: boolean
 }) {
   const [editing, setEditing] = useState(startEditing ?? false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
   const [company, setCompany] = useState(exp.company)
   const [role, setRole] = useState(exp.role)
   const [startDate, setStartDate] = useState(exp.start_date ?? '')
   const [endDate, setEndDate] = useState(exp.end_date ?? '')
   const [bullets, setBullets] = useState(exp.bullets.join('\n'))
+
+  useEffect(() => {
+    if (!savedFlash) return
+    const t = setTimeout(() => setSavedFlash(false), 2000)
+    return () => clearTimeout(t)
+  }, [savedFlash])
 
   const save = async () => {
     setSaving(true)
@@ -276,6 +355,7 @@ function ExperienceCard({
         sort_order: exp.sort_order,
       })
       setEditing(false)
+      setSavedFlash(true)
     } finally {
       setSaving(false)
     }
@@ -315,7 +395,8 @@ function ExperienceCard({
           </motion.div>
         ) : (
           <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-0.5">
                   <h3 className="font-semibold text-neutral-800">{exp.role}</h3>
@@ -326,9 +407,12 @@ function ExperienceCard({
                 </p>
                 <Bullets bullets={exp.bullets} />
               </div>
-              <button onClick={() => setEditing(true)} className="shrink-0 text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors" style={{ background: 'rgba(0,0,0,0.04)' }}>
-                Edit
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
+                <button onClick={() => setEditing(true)} className="text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors" style={{ background: 'rgba(0,0,0,0.04)' }}>
+                  Edit
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -339,17 +423,33 @@ function ExperienceCard({
 
 // ---- Skills section ----
 
-function SkillCard({ skill, onSave, onDelete }: { skill: SkillCategory; onSave: (d: Omit<SkillCategory, 'id'>) => Promise<void>; onDelete: () => Promise<void> }) {
+function SkillCard({
+  skill,
+  onSave,
+  onDelete,
+}: {
+  skill: SkillCategory
+  onSave: (d: Omit<SkillCategory, 'id'>) => Promise<void>
+  onDelete: () => Promise<void>
+}) {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
   const [category, setCategory] = useState(skill.category)
   const [items, setItems] = useState(skill.items.join(', '))
+
+  useEffect(() => {
+    if (!savedFlash) return
+    const t = setTimeout(() => setSavedFlash(false), 2000)
+    return () => clearTimeout(t)
+  }, [savedFlash])
 
   const save = async () => {
     setSaving(true)
     try {
       await onSave({ category, items: items.split(',').map(s => s.trim()).filter(Boolean), sort_order: skill.sort_order })
       setEditing(false)
+      setSavedFlash(true)
     } finally { setSaving(false) }
   }
 
@@ -365,7 +465,12 @@ function SkillCard({ skill, onSave, onDelete }: { skill: SkillCategory; onSave: 
               </div>
             </div>
             <div className="flex items-center justify-between pt-1">
-              <button onClick={async () => { if (confirm('Delete this category?')) await onDelete() }} className="text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
+              <button
+                onClick={async () => { if (confirm('Delete this skill category?')) await onDelete() }}
+                className="text-xs text-red-400 hover:text-red-600 transition-colors"
+              >
+                Delete
+              </button>
               <div className="flex gap-2"><CancelButton onClick={() => setEditing(false)} /><SaveButton saving={saving} onClick={save} /></div>
             </div>
           </motion.div>
@@ -376,7 +481,10 @@ function SkillCard({ skill, onSave, onDelete }: { skill: SkillCategory; onSave: 
                 <p className="text-xs font-semibold text-neutral-400 mb-2">{skill.category}</p>
                 <TechTags tags={skill.items} />
               </div>
-              <button onClick={() => setEditing(true)} className="shrink-0 text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors" style={{ background: 'rgba(0,0,0,0.04)' }}>Edit</button>
+              <div className="flex items-center gap-2 shrink-0">
+                <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
+                <button onClick={() => setEditing(true)} className="text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors" style={{ background: 'rgba(0,0,0,0.04)' }}>Edit</button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -392,6 +500,9 @@ export default function ProfilePage() {
   const [loadError, setLoadError] = useState(false)
   const [newProjectId, setNewProjectId] = useState<number | null>(null)
   const [newExpId, setNewExpId] = useState<number | null>(null)
+  const [addingProject, setAddingProject] = useState(false)
+  const [addingExp, setAddingExp] = useState(false)
+  const [addingSkill, setAddingSkill] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -427,18 +538,59 @@ export default function ProfilePage() {
     )
   }
 
+  // ---- Reorder helpers ----
+
+  const swapProjectOrder = async (idxA: number, idxB: number) => {
+    const a = profile.projects[idxA]
+    const b = profile.projects[idxB]
+    const { id: _ia, ...restA } = a
+    const { id: _ib, ...restB } = b
+    await Promise.all([
+      api.updateProject(a.id, { ...restA, sort_order: b.sort_order }),
+      api.updateProject(b.id, { ...restB, sort_order: a.sort_order }),
+    ])
+    const updated = [...profile.projects]
+    updated[idxA] = { ...a, sort_order: b.sort_order }
+    updated[idxB] = { ...b, sort_order: a.sort_order }
+    updated.sort((x, y) => x.sort_order - y.sort_order)
+    setProfile(prev => prev ? { ...prev, projects: updated } : prev)
+  }
+
+  const swapExpOrder = async (idxA: number, idxB: number) => {
+    const a = profile.experience[idxA]
+    const b = profile.experience[idxB]
+    const { id: _ia, ...restA } = a
+    const { id: _ib, ...restB } = b
+    await Promise.all([
+      api.updateExperience(a.id, { ...restA, sort_order: b.sort_order }),
+      api.updateExperience(b.id, { ...restB, sort_order: a.sort_order }),
+    ])
+    const updated = [...profile.experience]
+    updated[idxA] = { ...a, sort_order: b.sort_order }
+    updated[idxB] = { ...b, sort_order: a.sort_order }
+    updated.sort((x, y) => x.sort_order - y.sort_order)
+    setProfile(prev => prev ? { ...prev, experience: updated } : prev)
+  }
+
   // ---- Projects handlers ----
+
   const addProject = async () => {
-    const p = await api.createProject({
-      name: 'New Project',
-      tech: [],
-      start_date: null,
-      end_date: null,
-      bullets: [],
-      sort_order: (profile.projects.at(-1)?.sort_order ?? -1) + 1,
-    })
-    setProfile(prev => prev ? { ...prev, projects: [...prev.projects, p] } : prev)
-    setNewProjectId(p.id)
+    if (addingProject) return
+    setAddingProject(true)
+    try {
+      const p = await api.createProject({
+        name: 'New Project',
+        tech: [],
+        start_date: null,
+        end_date: null,
+        bullets: [],
+        sort_order: (profile.projects.at(-1)?.sort_order ?? -1) + 1,
+      })
+      setProfile(prev => prev ? { ...prev, projects: [...prev.projects, p] } : prev)
+      setNewProjectId(p.id)
+    } finally {
+      setAddingProject(false)
+    }
   }
 
   const saveProject = async (id: number, data: Omit<Project, 'id'>) => {
@@ -453,17 +605,24 @@ export default function ProfilePage() {
   }
 
   // ---- Experience handlers ----
+
   const addExperience = async () => {
-    const e = await api.createExperience({
-      company: 'Company',
-      role: 'Role',
-      start_date: null,
-      end_date: null,
-      bullets: [],
-      sort_order: (profile.experience.at(-1)?.sort_order ?? -1) + 1,
-    })
-    setProfile(prev => prev ? { ...prev, experience: [...prev.experience, e] } : prev)
-    setNewExpId(e.id)
+    if (addingExp) return
+    setAddingExp(true)
+    try {
+      const e = await api.createExperience({
+        company: 'Company',
+        role: 'Role',
+        start_date: null,
+        end_date: null,
+        bullets: [],
+        sort_order: (profile.experience.at(-1)?.sort_order ?? -1) + 1,
+      })
+      setProfile(prev => prev ? { ...prev, experience: [...prev.experience, e] } : prev)
+      setNewExpId(e.id)
+    } finally {
+      setAddingExp(false)
+    }
   }
 
   const saveExperience = async (id: number, data: Omit<Experience, 'id'>) => {
@@ -478,13 +637,20 @@ export default function ProfilePage() {
   }
 
   // ---- Skills handlers ----
+
   const addSkill = async () => {
-    const s = await api.createSkillCategory({
-      category: 'New Category',
-      items: [],
-      sort_order: (profile.skills.at(-1)?.sort_order ?? -1) + 1,
-    })
-    setProfile(prev => prev ? { ...prev, skills: [...prev.skills, s] } : prev)
+    if (addingSkill) return
+    setAddingSkill(true)
+    try {
+      const s = await api.createSkillCategory({
+        category: 'New Category',
+        items: [],
+        sort_order: (profile.skills.at(-1)?.sort_order ?? -1) + 1,
+      })
+      setProfile(prev => prev ? { ...prev, skills: [...prev.skills, s] } : prev)
+    } finally {
+      setAddingSkill(false)
+    }
   }
 
   const saveSkill = async (id: number, data: Omit<SkillCategory, 'id'>) => {
@@ -507,7 +673,7 @@ export default function ProfilePage() {
       >
         <h1 className="text-3xl font-semibold text-neutral-900">Profile</h1>
         <p className="text-neutral-400 mt-1 text-sm">
-          Your profile feeds every resume and cover letter Claude generates.
+          Your profile feeds every resume and cover letter Claude generates. Edit any card, use the arrows to reorder.
         </p>
       </motion.div>
 
@@ -518,10 +684,10 @@ export default function ProfilePage() {
         transition={{ duration: 0.45, delay: 0.06, ease }}
         className="mb-10"
       >
-        <SectionHeader title="Projects" onAdd={addProject} />
+        <SectionHeader title="Projects" onAdd={addProject} adding={addingProject} />
         <div className="space-y-3">
           <AnimatePresence>
-            {profile.projects.map(p => (
+            {profile.projects.map((p, i) => (
               <motion.div
                 key={p.id}
                 initial={{ opacity: 0, y: 12 }}
@@ -534,6 +700,10 @@ export default function ProfilePage() {
                   startEditing={p.id === newProjectId}
                   onSave={data => saveProject(p.id, data)}
                   onDelete={() => deleteProject(p.id)}
+                  onMoveUp={() => swapProjectOrder(i, i - 1)}
+                  onMoveDown={() => swapProjectOrder(i, i + 1)}
+                  canMoveUp={i > 0}
+                  canMoveDown={i < profile.projects.length - 1}
                 />
               </motion.div>
             ))}
@@ -548,10 +718,10 @@ export default function ProfilePage() {
         transition={{ duration: 0.45, delay: 0.1, ease }}
         className="mb-10"
       >
-        <SectionHeader title="Experience" onAdd={addExperience} />
+        <SectionHeader title="Experience" onAdd={addExperience} adding={addingExp} />
         <div className="space-y-3">
           <AnimatePresence>
-            {profile.experience.map(e => (
+            {profile.experience.map((e, i) => (
               <motion.div
                 key={e.id}
                 initial={{ opacity: 0, y: 12 }}
@@ -564,6 +734,10 @@ export default function ProfilePage() {
                   startEditing={e.id === newExpId}
                   onSave={data => saveExperience(e.id, data)}
                   onDelete={() => deleteExperience(e.id)}
+                  onMoveUp={() => swapExpOrder(i, i - 1)}
+                  onMoveDown={() => swapExpOrder(i, i + 1)}
+                  canMoveUp={i > 0}
+                  canMoveDown={i < profile.experience.length - 1}
                 />
               </motion.div>
             ))}
@@ -578,7 +752,7 @@ export default function ProfilePage() {
         transition={{ duration: 0.45, delay: 0.14, ease }}
         className="mb-10"
       >
-        <SectionHeader title="Skills" onAdd={addSkill} />
+        <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
         <div className="space-y-3">
           <AnimatePresence>
             {profile.skills.map(s => (
@@ -600,7 +774,7 @@ export default function ProfilePage() {
         </div>
       </motion.section>
 
-      {/* Education — rarely changes, no add button */}
+      {/* Education — rarely changes */}
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}

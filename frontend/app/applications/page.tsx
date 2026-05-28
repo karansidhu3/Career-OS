@@ -14,6 +14,19 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 }
 
 const FILTERS = ['all', 'generated', 'applied', 'skipped'] as const
+
+function relativeDate(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return mins <= 1 ? 'Just now' : `${mins}m ago`
+  const hrs = Math.floor(diff / 3600000)
+  if (hrs < 24) return hrs === 1 ? '1h ago' : `${hrs}h ago`
+  const days = Math.floor(diff / 86400000)
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}w ago`
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 type Filter = typeof FILTERS[number]
 
 export default function ApplicationsPage() {
@@ -136,7 +149,7 @@ export default function ApplicationsPage() {
 
                 {/* Date */}
                 <span className="text-xs text-neutral-300 shrink-0">
-                  {job.created_at ? new Date(job.created_at).toLocaleDateString() : ''}
+                  {job.created_at ? relativeDate(job.created_at) : ''}
                 </span>
               </motion.button>
             )

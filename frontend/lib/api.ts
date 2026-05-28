@@ -104,14 +104,14 @@ function json(method: string, body: unknown): RequestInit {
 
 export const api = {
   // Jobs
-  generate: (body: GenerateRequest) =>
-    request<Job>('/admin/jobs/generate', json('POST', body)),
+  generate: (body: GenerateRequest, signal?: AbortSignal) =>
+    request<Job>('/admin/jobs/generate', { ...json('POST', body), signal }),
   listJobs: () => request<Job[]>('/admin/jobs'),
   getJob: (id: number) => request<Job>(`/admin/jobs/${id}`),
   updateStatus: (id: number, status: string) =>
     request<Job>(`/admin/jobs/${id}/status?status=${status}`, { method: 'PATCH' }),
-  regenerate: (id: number) =>
-    request<Job>(`/admin/jobs/${id}/regenerate`, { method: 'POST' }),
+  regenerate: (id: number, signal?: AbortSignal) =>
+    request<Job>(`/admin/jobs/${id}/regenerate`, { method: 'POST', signal }),
   coverLetterPdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/cover-letter.pdf`,
 
   // Profile

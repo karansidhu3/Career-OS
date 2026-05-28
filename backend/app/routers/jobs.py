@@ -142,7 +142,7 @@ async def get_job(id: int, db: AsyncSession = Depends(get_db)):
 
 @router.patch("/{id}/status", response_model=JobRead)
 async def update_status(id: int, status: str, db: AsyncSession = Depends(get_db)):
-    if status not in {"generated", "applied", "skipped"}:
+    if status not in {"generated", "applied", "skipped", "interview", "offer"}:
         raise HTTPException(status_code=400, detail="Invalid status")
     job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
     if not job:

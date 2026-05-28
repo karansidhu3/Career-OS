@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
@@ -151,6 +151,42 @@ function CoverLetterTab({ job }: { job: Job }) {
   )
 }
 
+function JdCollapsible({ description }: { description: string }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mt-4"
+      style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.05)' }}
+    >
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full px-5 py-3.5 flex items-center justify-between text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+      >
+        <span>View original job description</span>
+        <span>{expanded ? '▲' : '▼'}</span>
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pb-5 max-h-[400px] overflow-y-auto">
+              <pre className="text-xs text-neutral-500 leading-relaxed whitespace-pre-wrap">
+                {description}
+              </pre>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export default function JobPage() {
   const params = useParams()
   const router = useRouter()
@@ -160,6 +196,7 @@ export default function JobPage() {
   const [updating, setUpdating] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [tab, setTab] = useState<'resume' | 'cover'>('resume')
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     api.getJob(id)
@@ -178,8 +215,19 @@ export default function JobPage() {
   const handleRegenerate = async () => {
     if (!job) return
     setRegenerating(true)
-    try { setJob(await api.regenerate(job.id)) }
-    finally { setRegenerating(false) }
+    abortRef.current = new AbortController()
+    try {
+      setJob(await api.regenerate(job.id, abortRef.current.signal))
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
+  const handleCancelRegenerate = () => {
+    abortRef.current?.abort()
+    setRegenerating(false)
   }
 
   if (loading) {
@@ -205,7 +253,7 @@ export default function JobPage() {
         className="pt-8 mb-6"
       >
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.back()}
           className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1"
         >
           ← Back
@@ -224,19 +272,29 @@ export default function JobPage() {
             <span className="text-sm font-medium" style={{ color: statusInfo.color }}>
               {statusInfo.label}
             </span>
-            <button
-              onClick={handleRegenerate}
-              disabled={regenerating || updating}
-              className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40 transition-all"
-              style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
-            >
-              {regenerating ? (
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />
-                  Regenerating…
-                </span>
-              ) : 'Regenerate'}
-            </button>
+
+            {/* Regenerate / Cancel */}
+            {regenerating ? (
+              <button
+                onClick={handleCancelRegenerate}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5"
+                style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
+              >
+                <span className="w-3 h-3 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />
+                Cancel
+              </button>
+            ) : (
+              <button
+                onClick={handleRegenerate}
+                disabled={updating}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40 transition-all"
+                style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
+              >
+                Regenerate
+              </button>
+            )}
+
+            {/* Status action buttons */}
             {job.status === 'generated' && (
               <>
                 <button
@@ -256,6 +314,26 @@ export default function JobPage() {
                   Skip
                 </button>
               </>
+            )}
+            {job.status === 'applied' && (
+              <button
+                onClick={() => handleStatus('interview')}
+                disabled={updating}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
+                style={{ background: 'linear-gradient(135deg, #60a5fa, #2563eb)', boxShadow: '0 4px 12px rgba(37,99,235,0.25)' }}
+              >
+                Got Interview
+              </button>
+            )}
+            {job.status === 'interview' && (
+              <button
+                onClick={() => handleStatus('offer')}
+                disabled={updating}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
+                style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)', boxShadow: '0 4px 12px rgba(217,119,6,0.25)' }}
+              >
+                Got Offer 🎉
+              </button>
             )}
           </div>
         </div>
@@ -304,6 +382,9 @@ export default function JobPage() {
             }
           </motion.div>
         </AnimatePresence>
+
+        {/* JD collapsible — always at bottom */}
+        {job.description && <JdCollapsible description={job.description} />}
       </motion.div>
     </div>
   )
