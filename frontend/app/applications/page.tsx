@@ -13,9 +13,13 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   offer:     { bg: 'rgba(245,158,11,0.08)',  text: '#d97706' },
 }
 
+const FILTERS = ['all', 'generated', 'applied', 'skipped'] as const
+type Filter = typeof FILTERS[number]
+
 export default function ApplicationsPage() {
   const router = useRouter()
   const [jobs, setJobs] = useState<Job[]>([])
+  const [filter, setFilter] = useState<Filter>('all')
 
   const load = useCallback(async () => {
     try { setJobs(await api.listJobs()) } catch { /* offline */ }
@@ -23,29 +27,63 @@ export default function ApplicationsPage() {
 
   useEffect(() => { load() }, [load])
 
+  const filtered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter)
+  const totalCost = jobs.reduce((s, j) => s + (j.cost_usd ?? 0), 0)
+
   return (
     <div className="px-6 pb-24 max-w-4xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
-        className="pt-10 mb-8"
+        className="pt-10 mb-6"
       >
-        <h1 className="text-3xl font-semibold text-neutral-900">Applications</h1>
-        <p className="text-neutral-400 mt-1">{jobs.length} total</p>
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold text-neutral-900">Applications</h1>
+            <p className="text-neutral-400 mt-1 text-sm">{jobs.length} total</p>
+          </div>
+          {totalCost > 0 && (
+            <p className="text-xs text-neutral-300 mb-1">~${totalCost.toFixed(3)} spent</p>
+          )}
+        </div>
+
+        {/* Filter tabs */}
+        {jobs.length > 0 && (
+          <div className="flex gap-1 mt-5 p-1 rounded-2xl w-fit" style={{ background: 'rgba(0,0,0,0.04)' }}>
+            {FILTERS.map(f => {
+              const count = f === 'all' ? jobs.length : jobs.filter(j => j.status === f).length
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className="px-4 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 capitalize"
+                  style={filter === f
+                    ? { background: '#fff', color: '#1c1c1e', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }
+                    : { color: '#9ca3af' }
+                  }
+                >
+                  {f} {count > 0 && <span className="ml-1 opacity-60">{count}</span>}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </motion.div>
 
-      {jobs.length === 0 ? (
+      {filtered.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="text-center py-24 text-neutral-300 text-sm"
         >
-          No applications yet. Go to Home and paste a job description.
+          {jobs.length === 0
+            ? 'No applications yet. Go to Home and paste a job description.'
+            : `No ${filter} applications.`}
         </motion.div>
       ) : (
         <div className="grid gap-3">
-          {jobs.map((job, i) => {
+          {filtered.map((job, i) => {
             const c = STATUS_COLORS[job.status] ?? STATUS_COLORS.generated
             const score = job.fit_score
             const scoreColor = score == null ? '#9ca3af' : score >= 8 ? '#059669' : score >= 6 ? '#d97706' : '#dc2626'

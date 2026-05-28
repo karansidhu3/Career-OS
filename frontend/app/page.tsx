@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 
 const ease = 'easeOut'
+const ESTIMATED_SECONDS = 18
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -54,7 +55,31 @@ export default function Home() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [jd, setJd] = useState('')
   const [loading, setLoading] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Restore JD from sessionStorage on mount
+  useEffect(() => {
+    const saved = sessionStorage.getItem('careeros-jd')
+    if (saved) setJd(saved)
+  }, [])
+
+  const handleJdChange = (value: string) => {
+    setJd(value)
+    sessionStorage.setItem('careeros-jd', value)
+  }
+
+  // Elapsed timer while generating
+  useEffect(() => {
+    if (loading) {
+      setElapsed(0)
+      timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000)
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [loading])
 
   const loadJobs = useCallback(async () => {
     try { setJobs(await api.listJobs()) } catch { /* backend offline */ }
@@ -67,17 +92,13 @@ export default function Home() {
     return Date.now() - new Date(j.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
   }).length
 
-  const scoredJobs = jobs.filter(j => j.fit_score != null)
-  const avgScore = scoredJobs.length
-    ? Math.round(scoredJobs.reduce((s, j) => s + (j.fit_score ?? 0), 0) / scoredJobs.length * 10) / 10
-    : null
-
   const handleGenerate = async () => {
     if (!jd.trim()) return
     setLoading(true)
     setError(null)
     try {
       const job = await api.generate({ description: jd.trim() })
+      sessionStorage.removeItem('careeros-jd')
       router.push(`/jobs/${job.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed. Is the backend running?')
@@ -85,25 +106,8 @@ export default function Home() {
     }
   }
 
+  const progress = Math.min((elapsed / ESTIMATED_SECONDS) * 100, 96)
   const recentJobs = jobs.slice(0, 6)
-
-  const insights = [
-    avgScore != null
-      ? `Average fit score across ${jobs.length} application${jobs.length !== 1 ? 's' : ''}: ${avgScore}/10`
-      : 'No applications yet — paste a JD below to get started.',
-    jobs.filter(j => j.status === 'applied').length > 0
-      ? `${jobs.filter(j => j.status === 'applied').length} application${jobs.filter(j => j.status === 'applied').length !== 1 ? 's' : ''} marked as applied`
-      : 'Mark applications as applied to track your progress.',
-    jobs.filter(j => j.fit_score != null && j.fit_score >= 8).length > 0
-      ? `${jobs.filter(j => j.fit_score != null && j.fit_score >= 8).length} strong match${jobs.filter(j => j.fit_score != null && j.fit_score >= 8).length !== 1 ? 'es' : ''} (8/10 or above)`
-      : 'Strong matches will appear here as you generate applications.',
-  ]
-
-  const insightColors = [
-    { bg: 'rgba(165,180,252,0.15)', border: 'rgba(165,180,252,0.3)', text: '#4f46e5' },
-    { bg: 'rgba(167,243,208,0.2)',  border: 'rgba(167,243,208,0.4)', text: '#047857' },
-    { bg: 'rgba(253,186,116,0.15)', border: 'rgba(253,186,116,0.3)', text: '#b45309' },
-  ]
 
   return (
     <div className="px-6 pb-24 max-w-4xl mx-auto">
@@ -150,8 +154,8 @@ export default function Home() {
 
           <textarea
             value={jd}
-            onChange={e => setJd(e.target.value)}
-            placeholder="Paste a job description here…"
+            onChange={e => handleJdChange(e.target.value)}
+            placeholder="Paste the full job description here — Claude will extract the role, score the fit, and generate a tailored resume + cover letter in ~18 seconds."
             rows={8}
             disabled={loading}
             className="w-full resize-none rounded-2xl text-sm text-neutral-700 placeholder-neutral-300 p-4 focus:outline-none focus:ring-2 focus:ring-indigo-100 leading-relaxed disabled:opacity-50"
@@ -162,7 +166,7 @@ export default function Home() {
             <p className="mt-3 text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-xl">{error}</p>
           )}
 
-          <div className="mt-5">
+          <div className="mt-5 space-y-3">
             <button
               onClick={handleGenerate}
               disabled={loading || !jd.trim()}
@@ -175,12 +179,25 @@ export default function Home() {
               {loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  Generating…
+                  Generating… {elapsed}s
                 </>
               ) : (
                 'Generate Materials →'
               )}
             </button>
+
+            {/* Progress bar */}
+            {loading && (
+              <div className="w-full rounded-full overflow-hidden" style={{ height: 3, background: 'rgba(0,0,0,0.06)' }}>
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: 'linear-gradient(90deg, #818cf8, #7c3aed)' }}
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 1, ease: 'linear' }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
@@ -193,9 +210,17 @@ export default function Home() {
           transition={{ duration: 0.55, delay: 0.2, ease }}
           className="mt-12"
         >
-          <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">
-            Recent Applications
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">
+              Recent Applications
+            </h2>
+            <button
+              onClick={() => router.push('/applications')}
+              className="text-xs text-indigo-400 hover:text-indigo-600 transition-colors"
+            >
+              View all →
+            </button>
+          </div>
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
             {recentJobs.map((job, i) => (
               <motion.button
@@ -224,32 +249,6 @@ export default function Home() {
           </div>
         </motion.section>
       )}
-
-      {/* Resume intelligence */}
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, delay: 0.28, ease }}
-        className="mt-12"
-      >
-        <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">
-          Resume Intelligence
-        </h2>
-        <div className="grid grid-cols-3 gap-4">
-          {insights.map((text, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.32 + i * 0.06, duration: 0.4, ease }}
-              className="p-5 rounded-2xl"
-              style={{ background: insightColors[i].bg, border: `1px solid ${insightColors[i].border}` }}
-            >
-              <p className="text-sm leading-relaxed" style={{ color: insightColors[i].text }}>{text}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.section>
     </div>
   )
 }
