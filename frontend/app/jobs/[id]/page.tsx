@@ -6,29 +6,22 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  generated: { label: 'Generated',  color: '#7c3aed' },
-  applied:   { label: 'Applied',    color: '#059669' },
-  skipped:   { label: 'Skipped',    color: '#9ca3af' },
-  interview: { label: 'Interview',  color: '#2563eb' },
-  offer:     { label: 'Offer',      color: '#d97706' },
-}
-
 function FitCard({ job }: { job: Job }) {
   const score = job.fit_score ?? 0
   const label = score >= 8 ? 'Strong Match' : score >= 6 ? 'Good Match' : 'Weak Match'
-  const color = score >= 8
-    ? { bg: 'rgba(16,185,129,0.07)', accent: '#059669', ring: 'rgba(16,185,129,0.2)' }
-    : score >= 6
-    ? { bg: 'rgba(245,158,11,0.07)', accent: '#d97706', ring: 'rgba(245,158,11,0.2)' }
-    : { bg: 'rgba(239,68,68,0.07)', accent: '#dc2626', ring: 'rgba(239,68,68,0.2)' }
+  const color =
+    score >= 8
+      ? { bg: 'rgba(16,185,129,0.07)', accent: '#059669', ring: 'rgba(16,185,129,0.2)' }
+      : score >= 6
+      ? { bg: 'rgba(245,158,11,0.07)', accent: '#d97706', ring: 'rgba(245,158,11,0.2)' }
+      : { bg: 'rgba(239,68,68,0.07)', accent: '#dc2626', ring: 'rgba(239,68,68,0.2)' }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-      className="rounded-3xl p-6 mb-3"
+      className="rounded-2xl p-6"
       style={{ background: color.bg, border: `1px solid ${color.ring}` }}
     >
       <div className="flex items-start justify-between gap-6">
@@ -65,38 +58,27 @@ function FitCard({ job }: { job: Job }) {
   )
 }
 
-function ResumeTab({ job }: { job: Job }) {
+function ResumeSection({ job }: { job: Job }) {
   const [expanded, setExpanded] = useState(false)
+  if (!job.resume_latex) return null
 
   return (
-    <div className="space-y-5">
-      {/* Download actions */}
-      <div
-        className="rounded-2xl p-6"
-        style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-      >
-        <p className="text-sm font-semibold text-neutral-800 mb-1">Resume</p>
-        <p className="text-xs text-neutral-400 mb-4">
-          Download the compiled PDF, or copy the LaTeX source into Overleaf if you want to tweak it.
-        </p>
-        <div className="flex items-center gap-2 flex-wrap">
-          {job.resume_latex && (
-            <a
-              href={api.resumePdfUrl(job.id)}
-              download
-              className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-              style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)', boxShadow: '0 4px 12px rgba(129,140,248,0.3)' }}
-            >
-              Download PDF
-            </a>
-          )}
-          {job.resume_latex && (
-            <CopyButton text={job.resume_latex} label="Copy .tex" />
-          )}
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Resume</p>
+        <div className="flex items-center gap-2">
+          <a
+            href={api.resumePdfUrl(job.id)}
+            download
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+            style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)', boxShadow: '0 4px 12px rgba(129,140,248,0.3)' }}
+          >
+            Download PDF
+          </a>
+          <CopyButton text={job.resume_latex} label="Copy .tex" />
         </div>
       </div>
 
-      {/* Collapsible preview */}
       <div
         className="rounded-2xl overflow-hidden"
         style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.05)' }}
@@ -130,33 +112,29 @@ function ResumeTab({ job }: { job: Job }) {
   )
 }
 
-function CoverLetterTab({ job }: { job: Job }) {
+function CoverLetterSection({ job }: { job: Job }) {
   const paragraphs = (job.cover_letter ?? '').split(/\n\n+/).map(p => p.trim()).filter(Boolean)
+  if (!paragraphs.length) return null
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-    >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.04]">
-        <p className="text-sm font-semibold text-neutral-700">Cover Letter</p>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Cover Letter</p>
         <div className="flex items-center gap-2">
-          {job.cover_letter && (
-            <a
-              href={api.coverLetterPdfUrl(job.id)}
-              download
-              className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200"
-              style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
-            >
-              Download PDF
-            </a>
-          )}
-          {job.cover_letter && <CopyButton text={job.cover_letter} label="Copy" />}
+          <a
+            href={api.coverLetterPdfUrl(job.id)}
+            download
+            className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200"
+            style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
+          >
+            Download PDF
+          </a>
+          <CopyButton text={job.cover_letter!} label="Copy" />
         </div>
       </div>
-      <div className="px-8 py-7 max-w-2xl">
+      <div className="max-w-2xl">
         {paragraphs.map((para, i) => (
-          <p key={i} className="text-[15px] text-neutral-700 leading-[1.75] mb-5 last:mb-0">
+          <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">
             {para}
           </p>
         ))}
@@ -165,12 +143,12 @@ function CoverLetterTab({ job }: { job: Job }) {
   )
 }
 
-function JdCollapsible({ description }: { description: string }) {
+function JdSection({ description }: { description: string }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
     <div
-      className="rounded-2xl overflow-hidden mt-4"
+      className="rounded-2xl overflow-hidden"
       style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.05)' }}
     >
       <button
@@ -201,6 +179,17 @@ function JdCollapsible({ description }: { description: string }) {
   )
 }
 
+function Divider() {
+  return <div className="border-t border-neutral-100 my-8" />
+}
+
+function getGenMessage(elapsed: number): string {
+  if (elapsed < 5) return 'Reading…'
+  if (elapsed < 12) return 'Scoring fit…'
+  if (elapsed < 22) return 'Writing your resume…'
+  return 'Polishing the cover letter…'
+}
+
 export default function JobPage() {
   const params = useParams()
   const router = useRouter()
@@ -209,7 +198,6 @@ export default function JobPage() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
-  const [tab, setTab] = useState<'resume' | 'cover'>('resume')
   const [genElapsed, setGenElapsed] = useState(0)
 
   useEffect(() => {
@@ -272,19 +260,32 @@ export default function JobPage() {
     return (
       <div className="px-6 pb-24 max-w-3xl mx-auto">
         <div className="pt-8 mb-10">
-          <button onClick={() => router.back()} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1">
+          <button
+            onClick={() => router.back()}
+            className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1"
+          >
             ← Back
           </button>
         </div>
         <div className="flex flex-col items-center py-20 gap-5">
-          <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-100" />
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
+          <div className="relative w-12 h-12">
+            <div className="absolute inset-0 rounded-full border-[3px] border-indigo-100" />
+            <div className="absolute inset-0 rounded-full border-[3px] border-indigo-500 border-t-transparent animate-spin" />
           </div>
           <div className="text-center">
-            <p className="text-neutral-700 font-medium">Generating your materials</p>
-            <p className="text-sm text-neutral-400 mt-1">Claude is writing your resume and cover letter…</p>
-            <p className="text-xs text-neutral-300 mt-3">{genElapsed}s elapsed</p>
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={getGenMessage(genElapsed)}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.3 }}
+                className="text-neutral-700 font-medium"
+              >
+                {getGenMessage(genElapsed)}
+              </motion.p>
+            </AnimatePresence>
+            <p className="text-xs text-neutral-300 mt-2">{genElapsed}s</p>
           </div>
         </div>
       </div>
@@ -296,12 +297,18 @@ export default function JobPage() {
     return (
       <div className="px-6 pb-24 max-w-3xl mx-auto">
         <div className="pt-8 mb-10">
-          <button onClick={() => router.back()} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1">
+          <button
+            onClick={() => router.back()}
+            className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1"
+          >
             ← Back
           </button>
         </div>
         <div className="flex flex-col items-center py-20 gap-5">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.08)' }}>
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(239,68,68,0.08)' }}
+          >
             <span className="text-red-400 text-2xl">✕</span>
           </div>
           <div className="text-center">
@@ -321,8 +328,7 @@ export default function JobPage() {
     )
   }
 
-  const statusInfo = STATUS_MAP[job.status] ?? STATUS_MAP.generated
-
+  // --- Normal view ---
   return (
     <div className="px-6 pb-24 max-w-3xl mx-auto">
 
@@ -331,11 +337,11 @@ export default function JobPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4 }}
-        className="pt-8 mb-6"
+        className="pt-8 mb-8"
       >
         <button
           onClick={() => router.back()}
-          className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1"
+          className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-4 flex items-center gap-1"
         >
           ← Back
         </button>
@@ -344,16 +350,9 @@ export default function JobPage() {
           <div>
             <h1 className="text-2xl font-semibold text-neutral-900">{job.title}</h1>
             {job.company && <p className="text-neutral-400 mt-0.5">{job.company}</p>}
-            {job.cost_usd != null && (
-              <p className="text-xs text-neutral-300 mt-1">~${job.cost_usd.toFixed(4)} to generate</p>
-            )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            <span className="text-sm font-medium" style={{ color: statusInfo.color }}>
-              {statusInfo.label}
-            </span>
-
             {/* Regenerate */}
             <button
               onClick={handleRegenerate}
@@ -361,7 +360,9 @@ export default function JobPage() {
               className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40 transition-all flex items-center gap-1.5"
               style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
             >
-              {regenerating && <span className="w-3 h-3 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />}
+              {regenerating && (
+                <span className="w-3 h-3 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />
+              )}
               {regenerating ? 'Starting…' : 'Regenerate'}
             </button>
 
@@ -413,49 +414,28 @@ export default function JobPage() {
       {/* Fit card */}
       {job.fit_score != null && <FitCard job={job} />}
 
-      {/* Tab switcher */}
+      {/* Single-scroll content */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.18, duration: 0.4 }}
-        className="mt-6"
+        transition={{ delay: 0.15, duration: 0.4 }}
       >
-        <div
-          className="flex gap-1 p-1 rounded-2xl mb-5 w-fit"
-          style={{ background: 'rgba(0,0,0,0.04)' }}
-        >
-          {(['resume', 'cover'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className="px-5 py-2 rounded-xl text-sm font-medium transition-all duration-200"
-              style={tab === t
-                ? { background: '#fff', color: '#1c1c1e', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }
-                : { color: '#9ca3af' }
-              }
-            >
-              {t === 'resume' ? 'Resume' : 'Cover Letter'}
-            </button>
-          ))}
-        </div>
+        <Divider />
+        <ResumeSection job={job} />
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
-          >
-            {tab === 'resume'
-              ? <ResumeTab job={job} />
-              : <CoverLetterTab job={job} />
-            }
-          </motion.div>
-        </AnimatePresence>
+        {job.cover_letter && (
+          <>
+            <Divider />
+            <CoverLetterSection job={job} />
+          </>
+        )}
 
-        {/* JD collapsible — always at bottom */}
-        {job.description && <JdCollapsible description={job.description} />}
+        {job.description && (
+          <>
+            <Divider />
+            <JdSection description={job.description} />
+          </>
+        )}
       </motion.div>
     </div>
   )

@@ -13,7 +13,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   offer:     { bg: 'rgba(245,158,11,0.08)',  text: '#d97706' },
 }
 
-const FILTERS = ['all', 'generated', 'applied', 'skipped'] as const
+const FILTERS = ['all', 'generated', 'applied', 'interview', 'offer', 'skipped'] as const
 
 function relativeDate(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
