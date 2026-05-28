@@ -1,3 +1,5 @@
+import asyncio
+import re
 import anthropic
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -244,6 +246,17 @@ def _format_profile(
     return "\n".join(lines)
 
 
+def _preprocess_jd(text: str, max_chars: int = 6000) -> str:
+    """Strip HTML tags, collapse whitespace, truncate to max_chars."""
+    text = re.sub(r'<[^>]+>', ' ', text)          # strip HTML tags
+    text = re.sub(r'[ \t]+', ' ', text)            # collapse horizontal whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)         # max 2 consecutive newlines
+    text = text.strip()
+    if len(text) > max_chars:
+        text = text[:max_chars] + '\n\n[truncated — full posting was longer]'
+    return text
+
+
 async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
     personal = (await db.execute(select(PersonalInfo).limit(1))).scalar_one_or_none()
     education = (await db.execute(select(Education))).scalars().all()
@@ -261,37 +274,47 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
         personal, list(education), list(experience), list(projects), list(skills)
     )
 
+    jd_text = _preprocess_jd(jd_text)
+
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-    response = await client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=6000,
-        system=[
-            {
-                "type": "text",
-                "text": SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=[
-            {
-                "role": "user",
-                "content": [
+    try:
+        response = await asyncio.wait_for(
+            client.messages.create(
+                model=CLAUDE_MODEL,
+                max_tokens=6000,
+                system=[
                     {
                         "type": "text",
-                        "text": profile_text,
+                        "text": SYSTEM_PROMPT,
                         "cache_control": {"type": "ephemeral"},
-                    },
-                    {
-                        "type": "text",
-                        "text": f"\n\n=== JOB DESCRIPTION ===\n\n{jd_text}",
-                    },
+                    }
                 ],
-            }
-        ],
-        tools=[GENERATE_TOOL],
-        tool_choice={"type": "tool", "name": "generate_application_materials"},
-    )
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": profile_text,
+                                "cache_control": {"type": "ephemeral"},
+                            },
+                            {
+                                "type": "text",
+                                "text": f"\n\n=== JOB DESCRIPTION ===\n\n{jd_text}",
+                            },
+                        ],
+                    }
+                ],
+                tools=[GENERATE_TOOL],
+                tool_choice={"type": "tool", "name": "generate_application_materials"},
+            ),
+            timeout=25.0,
+        )
+    except asyncio.TimeoutError:
+        raise ValueError(
+            "Generation timed out after 25s. Try a shorter job description."
+        )
 
     tool_use = next(b for b in response.content if b.type == "tool_use")
     usage = response.usage

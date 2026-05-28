@@ -71,7 +71,10 @@ def _build_cover_letter_pdf(job: Job) -> bytes:
 
 @router.post("/generate", response_model=JobRead, status_code=201)
 async def generate_job(body: JobGenerateRequest, db: AsyncSession = Depends(get_db)):
-    result = await generate_materials(db, body.description)
+    try:
+        result = await generate_materials(db, body.description)
+    except ValueError as e:
+        raise HTTPException(status_code=504, detail=str(e))
 
     job = Job(
         description=body.description,
@@ -93,7 +96,10 @@ async def regenerate_job(id: int, db: AsyncSession = Depends(get_db)):
     if not job.description:
         raise HTTPException(status_code=400, detail="No JD stored for this job")
 
-    result = await generate_materials(db, job.description)
+    try:
+        result = await generate_materials(db, job.description)
+    except ValueError as e:
+        raise HTTPException(status_code=504, detail=str(e))
     _apply_result(job, result)
     job.status = "generated"
     await db.commit()
