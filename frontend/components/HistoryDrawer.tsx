@@ -67,7 +67,7 @@ function HistoryRow({ job, onClick }: { job: Job; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-4 py-2.5 rounded-xl flex items-center gap-3 transition-colors hover:bg-black/[0.03] group"
+      className="w-full text-left px-4 py-2.5 rounded-xl flex items-center gap-3 transition-colors hover:bg-black/[0.045] group"
     >
       {/* Special marker */}
       <div className="shrink-0 w-1.5 h-1.5 rounded-full" style={{
@@ -195,7 +195,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
               {/* Pinned — interview & offer */}
               {pinned.length > 0 && (
                 <div className="mb-3">
-                  <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider px-4 mb-1">
+                  <p className="text-[11px] font-medium text-amber-400 uppercase tracking-[0.06em] px-4 mb-1">
                     Interview / Offer
                   </p>
                   {pinned.map(({ job }) => (
@@ -208,7 +208,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
               {recent.length > 0 && (
                 <div className="mb-3">
                   {(pinned.length > 0 || older.length > 0) && (
-                    <p className="text-[10px] font-semibold text-neutral-300 uppercase tracking-wider px-4 mb-1">
+                    <p className="text-[11px] font-medium text-neutral-300 uppercase tracking-[0.06em] px-4 mb-1">
                       Recent
                     </p>
                   )}

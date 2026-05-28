@@ -39,7 +39,7 @@ export function Navbar() {
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             background: 'rgba(250, 250, 248, 0.88)',
-            border: '1px solid rgba(255,255,255,0.65)',
+            border: '1px solid rgba(0,0,0,0.07)',
             boxShadow: '0 4px 24px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04)',
           }}
           className="rounded-2xl px-4 py-2.5 flex items-center justify-between"

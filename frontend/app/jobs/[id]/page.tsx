@@ -65,7 +65,7 @@ function ResumeSection({ job }: { job: Job }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Resume</p>
+        <p className="text-xs text-neutral-400 tracking-[0.04em]">Resume</p>
         <div className="flex items-center gap-2">
           <a
             href={api.resumePdfUrl(job.id)}
@@ -119,7 +119,7 @@ function CoverLetterSection({ job }: { job: Job }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Cover Letter</p>
+        <p className="text-xs text-neutral-400 tracking-[0.04em]">Cover letter</p>
         <div className="flex items-center gap-2">
           <a
             href={api.coverLetterPdfUrl(job.id)}
@@ -267,25 +267,39 @@ export default function JobPage() {
             ← Back
           </button>
         </div>
-        <div className="flex flex-col items-center py-20 gap-5">
-          <div className="relative w-12 h-12">
-            <div className="absolute inset-0 rounded-full border-[3px] border-indigo-100" />
-            <div className="absolute inset-0 rounded-full border-[3px] border-indigo-500 border-t-transparent animate-spin" />
+        <div
+          className="flex flex-col items-center justify-center gap-6"
+          style={{ minHeight: 'calc(100vh - 200px)' }}
+        >
+          <div className="relative flex items-center justify-center">
+            <div
+              className="absolute rounded-full"
+              style={{
+                width: 120,
+                height: 120,
+                background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)',
+                filter: 'blur(20px)',
+              }}
+            />
+            <div className="relative w-12 h-12">
+              <div className="absolute inset-0 rounded-full border-[2.5px] border-indigo-100" />
+              <div className="absolute inset-0 rounded-full border-[2.5px] border-indigo-400 border-t-transparent animate-spin" />
+            </div>
           </div>
           <div className="text-center">
             <AnimatePresence mode="wait">
               <motion.p
                 key={getGenMessage(genElapsed)}
-                initial={{ opacity: 0, y: 4 }}
+                initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.3 }}
-                className="text-neutral-700 font-medium"
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="text-[15px] text-neutral-600 font-medium"
               >
                 {getGenMessage(genElapsed)}
               </motion.p>
             </AnimatePresence>
-            <p className="text-xs text-neutral-300 mt-2">{genElapsed}s</p>
+            <p className="text-xs text-neutral-300 mt-2 tabular-nums">{genElapsed}s</p>
           </div>
         </div>
       </div>
@@ -304,7 +318,10 @@ export default function JobPage() {
             ← Back
           </button>
         </div>
-        <div className="flex flex-col items-center py-20 gap-5">
+        <div
+          className="flex flex-col items-center justify-center gap-5"
+          style={{ minHeight: 'calc(100vh - 200px)' }}
+        >
           <div
             className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{ background: 'rgba(239,68,68,0.08)' }}
@@ -348,8 +365,8 @@ export default function JobPage() {
 
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-neutral-900">{job.title}</h1>
-            {job.company && <p className="text-neutral-400 mt-0.5">{job.company}</p>}
+            <h1 className="text-2xl font-semibold text-neutral-900 tracking-tight">{job.title}</h1>
+            {job.company && <p className="text-[15px] text-neutral-400 mt-1">{job.company}</p>}
           </div>
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">

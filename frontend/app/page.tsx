@@ -349,8 +349,8 @@ export default function Home() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25 }}
           >
-            <div className="pt-20">
-              {/* Textarea — no card wrapper */}
+            <div className="pt-10">
+              {/* Textarea — primary input surface */}
               <textarea
                 ref={textareaRef}
                 value={jd}
@@ -358,23 +358,23 @@ export default function Home() {
                 placeholder="Paste job description…"
                 rows={9}
                 disabled={submitting}
-                className="w-full resize-none rounded-2xl text-sm text-neutral-700 placeholder-neutral-300 px-4 py-3.5 focus:outline-none transition-all leading-relaxed disabled:opacity-50"
+                className="jd-textarea w-full resize-none rounded-2xl text-[15px] text-neutral-700 placeholder-neutral-300/80 px-5 py-4 focus:outline-none transition-all leading-relaxed disabled:opacity-50"
                 style={{
-                  background: 'rgba(255,255,255,0.7)',
+                  background: 'rgba(255,255,255,0.95)',
                   border: '1px solid rgba(0,0,0,0.07)',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03)',
                 }}
               />
 
               {/* Generate button */}
-              <div className="mt-4">
+              <div className="mt-3">
                 <button
                   onClick={handleGenerate}
                   disabled={submitting || !jd.trim()}
-                  className="w-full py-3 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
+                  className="w-full py-3.5 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
                   style={{
-                    background: submitting ? '#a5b4fc' : 'linear-gradient(135deg, #818cf8, #6366f1)',
-                    boxShadow: submitting ? 'none' : '0 4px 16px rgba(99,102,241,0.3)',
+                    background: submitting ? 'rgba(99,102,241,0.6)' : 'linear-gradient(135deg, #818cf8, #6366f1)',
+                    boxShadow: submitting ? 'none' : '0 1px 2px rgba(99,102,241,0.2), 0 4px 14px rgba(99,102,241,0.25)',
                   }}
                 >
                   {submitting ? (
@@ -385,7 +385,7 @@ export default function Home() {
                   ) : (
                     <>
                       Generate
-                      <span className="opacity-35 font-normal text-xs ml-0.5">⌘↵</span>
+                      <span className="opacity-30 font-normal text-xs ml-0.5">⌘↵</span>
                     </>
                   )}
                 </button>
@@ -397,22 +397,22 @@ export default function Home() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.15, duration: 0.4 }}
-                  className="mt-10 border-t border-neutral-100 pt-6"
+                  className="mt-8 pt-5 border-t border-neutral-100/80"
                 >
                   {recentJobs.map(job => (
                     <Link
                       key={job.id}
                       href={`/jobs/${job.id}`}
-                      className="flex items-center justify-between py-2 group"
+                      className="flex items-center justify-between py-2.5 group"
                     >
-                      <span className="text-sm text-neutral-400 group-hover:text-neutral-600 transition-colors truncate mr-6">
+                      <span className="text-sm text-neutral-500 group-hover:text-neutral-700 transition-colors truncate mr-6">
                         {job.title || 'Untitled'}
                         {job.company ? ` — ${job.company}` : ''}
                         {(job.status === 'interview' || job.status === 'offer') && (
-                          <span className="ml-2 text-amber-400 text-xs">✦</span>
+                          <span className="ml-2 text-amber-400/80 text-xs">✦</span>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-neutral-300 group-hover:text-neutral-400 transition-colors">
+                      <span className="shrink-0 text-xs text-neutral-400 group-hover:text-neutral-500 transition-colors tabular-nums">
                         {job.fit_score != null ? `${job.fit_score}/10  ` : ''}
                         {job.created_at ? relativeDate(job.created_at) : ''}
                       </span>
@@ -433,33 +433,48 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
           >
-            <div className="flex flex-col items-center pt-40 pb-24">
-              {/* Subtle spinner */}
-              <div className="relative w-10 h-10 mb-8">
-                <div className="absolute inset-0 rounded-full border-2 border-indigo-100" />
-                <div className="absolute inset-0 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+            <div
+              className="flex flex-col items-center justify-center gap-6"
+              style={{ minHeight: 'calc(100vh - 180px)' }}
+            >
+              {/* Spinner with ambient atmosphere */}
+              <div className="relative flex items-center justify-center">
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    width: 120,
+                    height: 120,
+                    background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)',
+                    filter: 'blur(20px)',
+                  }}
+                />
+                <div className="relative w-12 h-12">
+                  <div className="absolute inset-0 rounded-full border-[2.5px] border-indigo-100" />
+                  <div className="absolute inset-0 rounded-full border-[2.5px] border-indigo-400 border-t-transparent animate-spin" />
+                </div>
               </div>
 
               {/* Cycling message */}
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={getGenMessage(genElapsed)}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-base text-neutral-600 font-medium text-center"
-                >
-                  {getGenMessage(genElapsed)}
-                </motion.p>
-              </AnimatePresence>
+              <div className="text-center">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={getGenMessage(genElapsed)}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    className="text-[15px] text-neutral-600 font-medium"
+                  >
+                    {getGenMessage(genElapsed)}
+                  </motion.p>
+                </AnimatePresence>
+                <p className="text-xs text-neutral-300 mt-2 tabular-nums">{genElapsed}s</p>
+              </div>
 
-              <p className="text-xs text-neutral-300 mt-3">{genElapsed}s</p>
-
-              {/* Abandon — resets to idle, result still available in history */}
+              {/* Abandon */}
               <button
                 onClick={() => setAppState({ mode: 'idle' })}
-                className="mt-8 text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
+                className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
               >
                 cancel
               </button>
@@ -491,11 +506,11 @@ export default function Home() {
             </div>
 
             {/* Title */}
-            <h1 className="text-3xl font-semibold text-neutral-900 leading-tight">
+            <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
               {appState.job.title}
             </h1>
             {appState.job.company && (
-              <p className="text-neutral-400 mt-1">{appState.job.company}</p>
+              <p className="text-[15px] text-neutral-400 mt-1.5">{appState.job.company}</p>
             )}
 
             <div className="mt-5">
@@ -552,8 +567,8 @@ export default function Home() {
             {appState.job.cover_letter && (
               <>
                 <div className="flex items-center justify-between mb-5">
-                  <span className="text-xs text-neutral-400 font-medium">Cover Letter</span>
-                  <CopyButton text={appState.job.cover_letter} label="Copy text" />
+                  <span className="text-xs text-neutral-400 tracking-[0.04em]">Cover letter</span>
+                  <CopyButton text={appState.job.cover_letter} label="Copy" />
                 </div>
                 <CoverLetterSection job={appState.job} />
                 <Divider />
@@ -593,7 +608,10 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
           >
-            <div className="flex flex-col items-center pt-40 pb-24 gap-4">
+            <div
+              className="flex flex-col items-center justify-center gap-4"
+              style={{ minHeight: 'calc(100vh - 180px)' }}
+            >
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center"
                 style={{ background: 'rgba(239,68,68,0.08)' }}

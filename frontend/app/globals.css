@@ -13,8 +13,31 @@ body {
   color: #1C1C1E;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+/* Refined scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* JD textarea — custom focus ring without browser chrome */
+.jd-textarea:focus {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
 }
