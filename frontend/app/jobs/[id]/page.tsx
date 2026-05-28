@@ -70,16 +70,30 @@ function ResumeTab({ job }: { job: Job }) {
 
   return (
     <div className="space-y-5">
-      {/* Copy button — primary action */}
+      {/* Download actions */}
       <div
-        className="rounded-2xl p-6 flex items-center justify-between"
+        className="rounded-2xl p-6"
         style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
       >
-        <div>
-          <p className="text-sm font-semibold text-neutral-800">Resume (.tex)</p>
-          <p className="text-xs text-neutral-400 mt-0.5">Copy into Overleaf → compile → done</p>
+        <p className="text-sm font-semibold text-neutral-800 mb-1">Resume</p>
+        <p className="text-xs text-neutral-400 mb-4">
+          Download the compiled PDF, or copy the LaTeX source into Overleaf if you want to tweak it.
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          {job.resume_latex && (
+            <a
+              href={api.resumePdfUrl(job.id)}
+              download
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+              style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)', boxShadow: '0 4px 12px rgba(129,140,248,0.3)' }}
+            >
+              Download PDF
+            </a>
+          )}
+          {job.resume_latex && (
+            <CopyButton text={job.resume_latex} label="Copy .tex" />
+          )}
         </div>
-        {job.resume_latex && <CopyButton text={job.resume_latex} label="Copy .tex" />}
       </div>
 
       {/* Collapsible preview */}

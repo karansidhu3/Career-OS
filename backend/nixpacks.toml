@@ -1,0 +1,6 @@
+# Add Tectonic (modern LaTeX engine) for server-side resume PDF compilation.
+# Tectonic fetches only the TeX packages it needs from the internet on first use
+# and caches them under /tmp/tectonic-cache (persists for the life of the container).
+
+[phases.setup]
+nixPkgs = ["tectonic"]

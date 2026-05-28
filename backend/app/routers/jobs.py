@@ -10,6 +10,7 @@ from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
 from app.schemas.job import JobGenerateRequest, JobRead
 from app.services.generation import generate_materials
+from app.services.pdf import compile_latex_to_pdf
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -128,6 +129,32 @@ async def regenerate_job(
 
     background_tasks.add_task(_run_generation, job.id, job.description)
     return job
+
+
+@router.get("/{id}/resume.pdf")
+async def download_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
+    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    if not job or not job.resume_latex:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    try:
+        pdf_bytes = await compile_latex_to_pdf(job.resume_latex)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=503,
+            detail="PDF compilation not available (tectonic not installed on this server)",
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    company = (job.company or "company").replace(" ", "-").lower()
+    filename = f"resume-{company}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{id}/cover-letter.pdf")

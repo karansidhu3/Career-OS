@@ -20,7 +20,7 @@ LATEX_TEMPLATE = r"""
 \usepackage[usenames,dvipsnames]{color}
 \usepackage{verbatim}
 \usepackage{enumitem}
-\usepackage[pdftex]{hyperref}
+\usepackage{hyperref}
 \usepackage{fancyhdr}
 \usepackage{fontawesome5}
 
