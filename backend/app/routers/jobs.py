@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 
 from fpdf import FPDF
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -69,43 +70,69 @@ def _to_latin1(text: str) -> str:
 
 def _build_cover_letter_pdf(job: Job) -> bytes:
     pdf = FPDF()
-    pdf.set_margins(25, 25, 25)
+    pdf.set_margins(28, 28, 28)
     pdf.add_page()
 
-    # Name
-    pdf.set_font("Helvetica", "B", 16)
+    # ── Header: name ──────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 17)
+    pdf.set_text_color(20, 20, 20)
     pdf.cell(0, 10, "Karanveer Sidhu", new_x="LMARGIN", new_y="NEXT")
 
-    # Contact
+    # Contact line
     pdf.set_font("Helvetica", "", 9)
-    pdf.set_text_color(120, 120, 120)
+    pdf.set_text_color(110, 110, 110)
     pdf.cell(
-        0, 6,
+        0, 5,
         "karansidhu5550@gmail.com  |  +1 (250) 509-2500  |  linkedin.com/in/karan-sidhu3  |  github.com/karansidhu3",
         new_x="LMARGIN", new_y="NEXT",
     )
-    pdf.ln(2)
-    pdf.set_draw_color(210, 210, 210)
-    pdf.line(25, pdf.get_y(), 185, pdf.get_y())
-    pdf.ln(8)
+    pdf.ln(3)
+    pdf.set_draw_color(190, 190, 190)
+    pdf.line(28, pdf.get_y(), 182, pdf.get_y())
+    pdf.ln(10)
 
-    # Role / company
+    # ── Date ──────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(50, 50, 50)
+    date_str = datetime.date.today().strftime("%B %d, %Y")
+    pdf.cell(0, 6, date_str, new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(7)
+
+    # ── Re: line ──────────────────────────────────────────────────────
     if job.title or job.company:
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_text_color(0, 0, 0)
-        header = _to_latin1(job.title or "")
+        re_parts = []
+        if job.title:
+            re_parts.append(_to_latin1(job.title))
         if job.company:
-            header += f" - {_to_latin1(job.company)}"
-        pdf.cell(0, 8, header, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(4)
+            re_parts.append(_to_latin1(job.company))
+        re_line = "Re: " + " -- ".join(re_parts)
+        pdf.set_font("Helvetica", "I", 10)
+        pdf.set_text_color(60, 60, 60)
+        pdf.cell(0, 6, re_line, new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(7)
 
-    # Body
+    # ── Salutation ────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(20, 20, 20)
+    pdf.cell(0, 6, "Dear Hiring Manager,", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(6)
+
+    # ── Body paragraphs (justified) ───────────────────────────────────
     pdf.set_font("Helvetica", "", 11)
     pdf.set_text_color(30, 30, 30)
     paragraphs = [p.strip() for p in (job.cover_letter or "").split("\n\n") if p.strip()]
     for para in paragraphs:
-        pdf.multi_cell(0, 6, _to_latin1(para))
+        pdf.multi_cell(0, 6.5, _to_latin1(para), align="J")
         pdf.ln(5)
+
+    # ── Closing ───────────────────────────────────────────────────────
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(30, 30, 30)
+    pdf.cell(0, 6, "Sincerely,", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, "Karanveer Sidhu", new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())
 

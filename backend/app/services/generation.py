@@ -34,7 +34,7 @@ LATEX_TEMPLATE = r"""
 \addtolength{\evensidemargin}{-0.5in}
 \addtolength{\textwidth}{1in}
 \addtolength{\topmargin}{-.7in}
-\addtolength{\textheight}{1.0in}
+\addtolength{\textheight}{1.4in}
 
 \urlstyle{same}
 \raggedbottom
@@ -42,8 +42,8 @@ LATEX_TEMPLATE = r"""
 \setlength{\tabcolsep}{0in}
 
 \titleformat{\section}{
-  \vspace{-6pt}\scshape\raggedright\large
-}{}{0em}{}[\color{black}\titlerule \vspace{-4pt}]
+  \vspace{-8pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
 
 \newcommand{\iconlink}[1]{#1}
 \newcommand{\resumeItem}[2]{
@@ -60,9 +60,9 @@ LATEX_TEMPLATE = r"""
 }
 \newcommand{\resumeSubItem}[2]{\resumeItem{#1}{#2}\vspace{-4pt}}
 \renewcommand{\labelitemii}{$\circ$}
-\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*]}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*, topsep=0pt, itemsep=-1pt]}
 \newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
-\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[itemsep=-3pt, topsep=1pt]}
 \newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
 \newcommand{\projectSubheading}[5]{
   \vspace{-1pt}\item
@@ -174,6 +174,36 @@ PROJECTS SECTION:
 - The tech stack line under each project should mirror JD vocabulary where truthful
   (e.g. if profile says "PostgreSQL" and JD says "relational databases", use both)
 - Cut projects that don't add signal. An ML project doesn't belong on a pure frontend role
+
+━━━ ONE-PAGE HARD LIMIT ━━━
+
+The resume must fit on exactly one page. Enforce this strictly through content discipline:
+- Experience roles: max 3 bullets each
+- Projects: max 2 bullets each
+- Projects section: include at most 3 projects total
+- Bullet length: aim for 15 words or fewer — tight, punchy, no run-on sentences
+- If something needs to be cut, cut the weakest bullet, never shrink content to 4+ projects
+- The LaTeX margins and spacing are already set for one page — trust them and keep bullets concise
+
+━━━ LANGUAGE RULES ━━━
+
+Everything you write — resume bullets and cover letter — must sound like a person wrote it.
+
+BANNED. Never use any of these:
+- Em dash (—) anywhere. Use a comma, a period, or rewrite the clause.
+- "leveraging", "harnessing", "spearheading", "championing", "orchestrating", "fostering"
+- "demonstrated", "showcased", "exhibited"
+- "furthermore", "moreover", "thus", "hence", "consequently"
+- "cutting-edge", "state-of-the-art", "innovative", "robust", "scalable" (unless quoting the JD)
+- "passionate about", "strong foundation in", "deep understanding of", "proven track record"
+- Padding adverbs: "truly", "highly", "greatly", "deeply", "effectively", "successfully"
+- Adjectival filler before a noun: "dynamic", "impactful", "results-driven"
+
+DO instead:
+- Contractions are fine and natural: "it's", "I've", "didn't", "I'm"
+- Short sentences. Vary length. Long, then short. Mix it up.
+- Start bullets with different verbs — vary them across roles and projects
+- Say what happened directly — let the facts impress, not the adjectives
 
 ━━━ COVER LETTER ━━━
 
