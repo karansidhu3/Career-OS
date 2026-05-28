@@ -1,10 +1,12 @@
+import asyncio
+
 from fpdf import FPDF
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
 from app.schemas.job import JobGenerateRequest, JobRead
 from app.services.generation import generate_materials
@@ -24,6 +26,24 @@ def _apply_result(job: Job, result: dict) -> None:
     job.output_tokens = result.get("output_tokens")
     job.cache_read_tokens = result.get("cache_read_tokens")
     job.cache_write_tokens = result.get("cache_write_tokens")
+
+
+async def _run_generation(job_id: int, jd_text: str) -> None:
+    """Background task: call Claude, write results to DB. No HTTP proxy timeout concern here."""
+    async with AsyncSessionLocal() as db:
+        job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
+        if not job:
+            return
+        try:
+            result = await generate_materials(db, jd_text)
+            _apply_result(job, result)
+            job.status = "generated"
+        except Exception as exc:
+            # Mark as failed so the UI can show a retry
+            job.status = "failed"
+            job.title = job.title if job.title != "Generating…" else "Generation failed"
+        finally:
+            await db.commit()
 
 
 def _build_cover_letter_pdf(job: Job) -> bytes:
@@ -70,40 +90,43 @@ def _build_cover_letter_pdf(job: Job) -> bytes:
 
 
 @router.post("/generate", response_model=JobRead, status_code=201)
-async def generate_job(body: JobGenerateRequest, db: AsyncSession = Depends(get_db)):
-    try:
-        result = await generate_materials(db, body.description)
-    except ValueError as e:
-        raise HTTPException(status_code=504, detail=str(e))
-
+async def generate_job(
+    body: JobGenerateRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create the job record immediately (status=processing), kick off generation in the background."""
     job = Job(
         description=body.description,
         url=body.url or None,
-        status="generated",
+        title="Generating…",
+        status="processing",
     )
-    _apply_result(job, result)
     db.add(job)
     await db.commit()
     await db.refresh(job)
+
+    background_tasks.add_task(_run_generation, job.id, body.description)
     return job
 
 
 @router.post("/{id}/regenerate", response_model=JobRead)
-async def regenerate_job(id: int, db: AsyncSession = Depends(get_db)):
+async def regenerate_job(
+    id: int,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
     job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
     if not job.description:
         raise HTTPException(status_code=400, detail="No JD stored for this job")
 
-    try:
-        result = await generate_materials(db, job.description)
-    except ValueError as e:
-        raise HTTPException(status_code=504, detail=str(e))
-    _apply_result(job, result)
-    job.status = "generated"
+    job.status = "processing"
     await db.commit()
     await db.refresh(job)
+
+    background_tasks.add_task(_run_generation, job.id, job.description)
     return job
 
 

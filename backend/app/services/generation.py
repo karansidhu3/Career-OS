@@ -309,12 +309,10 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
                 tools=[GENERATE_TOOL],
                 tool_choice={"type": "tool", "name": "generate_application_materials"},
             ),
-            timeout=25.0,
+            timeout=120.0,
         )
     except asyncio.TimeoutError:
-        raise ValueError(
-            "Generation timed out after 25s. Try a shorter job description."
-        )
+        raise ValueError("Generation timed out after 120s.")
 
     tool_use = next(b for b in response.content if b.type == "tool_use")
     usage = response.usage

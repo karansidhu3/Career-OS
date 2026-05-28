@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
@@ -196,7 +196,7 @@ export default function JobPage() {
   const [updating, setUpdating] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [tab, setTab] = useState<'resume' | 'cover'>('resume')
-  const abortRef = useRef<AbortController | null>(null)
+  const [genElapsed, setGenElapsed] = useState(0)
 
   useEffect(() => {
     api.getJob(id)
@@ -204,6 +204,26 @@ export default function JobPage() {
       .catch(() => router.push('/'))
       .finally(() => setLoading(false))
   }, [id, router])
+
+  // Poll while processing
+  useEffect(() => {
+    if (!job || job.status !== 'processing') return
+    const poll = setInterval(async () => {
+      try {
+        const updated = await api.getJob(id)
+        setJob(updated)
+      } catch { /* keep polling */ }
+    }, 2500)
+    return () => clearInterval(poll)
+  }, [job?.status, id])
+
+  // Elapsed timer while processing
+  useEffect(() => {
+    if (job?.status !== 'processing') { setGenElapsed(0); return }
+    setGenElapsed(0)
+    const t = setInterval(() => setGenElapsed(s => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [job?.status])
 
   const handleStatus = async (status: string) => {
     if (!job) return
@@ -215,19 +235,12 @@ export default function JobPage() {
   const handleRegenerate = async () => {
     if (!job) return
     setRegenerating(true)
-    abortRef.current = new AbortController()
     try {
-      setJob(await api.regenerate(job.id, abortRef.current.signal))
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return
+      const updated = await api.regenerate(job.id)
+      setJob(updated) // status will be "processing", polling takes over
     } finally {
       setRegenerating(false)
     }
-  }
-
-  const handleCancelRegenerate = () => {
-    abortRef.current?.abort()
-    setRegenerating(false)
   }
 
   if (loading) {
@@ -239,6 +252,60 @@ export default function JobPage() {
   }
 
   if (!job) return null
+
+  // --- Processing state ---
+  if (job.status === 'processing') {
+    return (
+      <div className="px-6 pb-24 max-w-3xl mx-auto">
+        <div className="pt-8 mb-10">
+          <button onClick={() => router.back()} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1">
+            ← Back
+          </button>
+        </div>
+        <div className="flex flex-col items-center py-20 gap-5">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-100" />
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
+          </div>
+          <div className="text-center">
+            <p className="text-neutral-700 font-medium">Generating your materials</p>
+            <p className="text-sm text-neutral-400 mt-1">Claude is writing your resume and cover letter…</p>
+            <p className="text-xs text-neutral-300 mt-3">{genElapsed}s elapsed</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // --- Failed state ---
+  if (job.status === 'failed') {
+    return (
+      <div className="px-6 pb-24 max-w-3xl mx-auto">
+        <div className="pt-8 mb-10">
+          <button onClick={() => router.back()} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1">
+            ← Back
+          </button>
+        </div>
+        <div className="flex flex-col items-center py-20 gap-5">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.08)' }}>
+            <span className="text-red-400 text-2xl">✕</span>
+          </div>
+          <div className="text-center">
+            <p className="text-neutral-700 font-medium">Generation failed</p>
+            <p className="text-sm text-neutral-400 mt-1">Claude didn't respond in time. Try again.</p>
+          </div>
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            className="px-5 py-2.5 rounded-2xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
+            style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)', boxShadow: '0 4px 16px rgba(129,140,248,0.35)' }}
+          >
+            {regenerating ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const statusInfo = STATUS_MAP[job.status] ?? STATUS_MAP.generated
 
@@ -273,26 +340,16 @@ export default function JobPage() {
               {statusInfo.label}
             </span>
 
-            {/* Regenerate / Cancel */}
-            {regenerating ? (
-              <button
-                onClick={handleCancelRegenerate}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5"
-                style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
-              >
-                <span className="w-3 h-3 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />
-                Cancel
-              </button>
-            ) : (
-              <button
-                onClick={handleRegenerate}
-                disabled={updating}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40 transition-all"
-                style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
-              >
-                Regenerate
-              </button>
-            )}
+            {/* Regenerate */}
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating || updating}
+              className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40 transition-all flex items-center gap-1.5"
+              style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
+            >
+              {regenerating && <span className="w-3 h-3 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />}
+              {regenerating ? 'Starting…' : 'Regenerate'}
+            </button>
 
             {/* Status action buttons */}
             {job.status === 'generated' && (

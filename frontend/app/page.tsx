@@ -10,7 +10,6 @@ function isAbortError(e: unknown): boolean {
 }
 
 const ease = 'easeOut'
-const ESTIMATED_SECONDS = 18
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -59,9 +58,7 @@ export default function Home() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [jd, setJd] = useState('')
   const [loading, setLoading] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   // Restore JD from sessionStorage on mount
@@ -74,17 +71,6 @@ export default function Home() {
     setJd(value)
     sessionStorage.setItem('careeros-jd', value)
   }
-
-  // Elapsed timer while generating
-  useEffect(() => {
-    if (loading) {
-      setElapsed(0)
-      timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000)
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [loading])
 
   const loadJobs = useCallback(async () => {
     try { setJobs(await api.listJobs()) } catch { /* backend offline */ }
@@ -130,7 +116,6 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, jd])
 
-  const progress = Math.min((elapsed / ESTIMATED_SECONDS) * 100, 96)
   const recentJobs = jobs.slice(0, 6)
 
   return (
@@ -203,33 +188,22 @@ export default function Home() {
               {loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  Generating… {elapsed}s
+                  Creating job…
                 </>
               ) : (
                 <>Generate Materials <span className="opacity-40 font-normal text-xs ml-1">⌘↵</span></>
               )}
             </button>
 
-            {/* Progress bar + cancel */}
+            {/* Cancel while POST is in flight */}
             {loading && (
-              <div className="space-y-2">
-                <div className="w-full rounded-full overflow-hidden" style={{ height: 3, background: 'rgba(0,0,0,0.06)' }}>
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ background: 'linear-gradient(90deg, #818cf8, #7c3aed)' }}
-                    initial={{ width: '0%' }}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ duration: 1, ease: 'linear' }}
-                  />
-                </div>
-                <div className="flex justify-center">
-                  <button
-                    onClick={handleCancel}
-                    className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
+              <div className="flex justify-center">
+                <button
+                  onClick={handleCancel}
+                  className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             )}
           </div>
