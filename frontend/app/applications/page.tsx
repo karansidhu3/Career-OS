@@ -111,17 +111,17 @@ export default function ApplicationsPage() {
                 whileHover={{ y: -2 }}
                 className="text-left w-full px-6 py-5 rounded-2xl flex items-center gap-4 transition-shadow duration-200"
                 style={{
-                  background: 'rgba(255,255,255,0.85)',
-                  border: '1px solid rgba(255,255,255,0.9)',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                  background: 'var(--c-surface)',
+                  border: '1px solid var(--c-border)',
+                  boxShadow: 'var(--c-shadow-sm)',
                 }}
               >
                 {/* Company avatar */}
                 <div
-                  style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)' }}
+                  style={{ background: 'var(--c-accent-dim)' }}
                   className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                 >
-                  <span className="text-indigo-600 font-semibold text-sm">
+                  <span className="font-semibold text-sm" style={{ color: 'var(--c-accent)' }}>
                     {(job.company ?? job.title)[0]?.toUpperCase() ?? '?'}
                   </span>
                 </div>

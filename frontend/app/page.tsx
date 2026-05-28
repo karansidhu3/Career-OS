@@ -124,7 +124,7 @@ function LatexSection({ latex }: { latex: string }) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'rgba(0,0,0,0.02)' }}>
+            <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
               <pre className="text-xs font-mono text-neutral-400 leading-relaxed whitespace-pre-wrap break-all">
                 {latex}
               </pre>
@@ -156,7 +156,7 @@ function JdSection({ description }: { description: string }) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'rgba(0,0,0,0.02)' }}>
+            <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
               <pre className="text-xs text-neutral-400 leading-relaxed whitespace-pre-wrap">
                 {description}
               </pre>
@@ -202,7 +202,7 @@ function InterviewFlag({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
 // ─── Divider ─────────────────────────────────────────────────────────────────
 
 function Divider() {
-  return <div className="border-t border-neutral-100 my-8" />
+  return <div className="my-8" style={{ borderTop: '1px solid var(--c-border)' }} />
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -358,11 +358,11 @@ export default function Home() {
                 placeholder="Paste job description…"
                 rows={9}
                 disabled={submitting}
-                className="jd-textarea w-full resize-none rounded-2xl text-[15px] text-neutral-700 placeholder-neutral-300/80 px-5 py-4 focus:outline-none transition-all leading-relaxed disabled:opacity-50"
+                className="jd-textarea w-full resize-none rounded-2xl text-[15px] text-neutral-700 placeholder-neutral-400/60 px-5 py-4 focus:outline-none transition-all leading-relaxed disabled:opacity-50"
                 style={{
-                  background: 'rgba(255,255,255,0.95)',
-                  border: '1px solid rgba(0,0,0,0.07)',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03)',
+                  background: 'var(--c-surface-raised)',
+                  border: '1px solid var(--c-border)',
+                  boxShadow: 'var(--c-shadow-md)',
                 }}
               />
 
@@ -373,8 +373,8 @@ export default function Home() {
                   disabled={submitting || !jd.trim()}
                   className="w-full py-3.5 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
                   style={{
-                    background: submitting ? 'rgba(99,102,241,0.6)' : 'linear-gradient(135deg, #818cf8, #6366f1)',
-                    boxShadow: submitting ? 'none' : '0 1px 2px rgba(99,102,241,0.2), 0 4px 14px rgba(99,102,241,0.25)',
+                    background: submitting ? 'var(--c-accent)' : 'var(--c-btn-bg)',
+                    boxShadow: submitting ? 'none' : 'var(--c-btn-shadow)',
                   }}
                 >
                   {submitting ? (
@@ -397,7 +397,8 @@ export default function Home() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.15, duration: 0.4 }}
-                  className="mt-8 pt-5 border-t border-neutral-100/80"
+                  className="mt-8 pt-5"
+                  style={{ borderTop: '1px solid var(--c-border)' }}
                 >
                   {recentJobs.map(job => (
                     <Link
@@ -444,13 +445,13 @@ export default function Home() {
                   style={{
                     width: 120,
                     height: 120,
-                    background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)',
+                    background: 'radial-gradient(circle, var(--c-accent-dim) 0%, transparent 70%)',
                     filter: 'blur(20px)',
                   }}
                 />
                 <div className="relative w-12 h-12">
-                  <div className="absolute inset-0 rounded-full border-[2.5px] border-indigo-100" />
-                  <div className="absolute inset-0 rounded-full border-[2.5px] border-indigo-400 border-t-transparent animate-spin" />
+                  <div className="absolute inset-0 rounded-full" style={{ border: '2.5px solid var(--c-accent-dim)' }} />
+                  <div className="absolute inset-0 rounded-full animate-spin" style={{ border: '2.5px solid var(--c-accent)', borderTopColor: 'transparent' }} />
                 </div>
               </div>
 
@@ -527,8 +528,8 @@ export default function Home() {
                   download
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
                   style={{
-                    background: 'linear-gradient(135deg, #818cf8, #6366f1)',
-                    boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                    background: 'var(--c-btn-bg)',
+                    boxShadow: 'var(--c-btn-shadow)',
                   }}
                 >
                   Download Resume
@@ -545,10 +546,10 @@ export default function Home() {
                   download
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-medium transition-all"
                   style={{
-                    background: 'rgba(255,255,255,0.8)',
-                    border: '1px solid rgba(0,0,0,0.08)',
-                    color: '#4b5563',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+                    background: 'var(--c-surface-raised)',
+                    border: '1px solid var(--c-border)',
+                    color: 'inherit',
+                    boxShadow: 'var(--c-shadow-sm)',
                   }}
                 >
                   Download Cover Letter
@@ -635,8 +636,8 @@ export default function Home() {
                     disabled={submitting}
                     className="px-5 py-2.5 rounded-2xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
                     style={{
-                      background: 'linear-gradient(135deg, #818cf8, #6366f1)',
-                      boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
+                      background: 'var(--c-btn-bg)',
+                      boxShadow: 'var(--c-btn-shadow)',
                     }}
                   >
                     {submitting ? 'Retrying…' : 'Try again'}

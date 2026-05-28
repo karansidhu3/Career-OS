@@ -1,43 +1,133 @@
 @import "tailwindcss";
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+/* ─── Design Token System ────────────────────────────────────── */
+:root {
+  /* Accent */
+  --c-accent:        #3B82F6;
+  --c-accent-dim:    rgba(59, 130, 246, 0.1);
+  --c-accent-border: rgba(59, 130, 246, 0.2);
+
+  /* Primary button */
+  --c-btn-bg:     linear-gradient(180deg, #5B93FF 0%, #3B82F6 100%);
+  --c-btn-shadow: 0 1px 2px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(59, 130, 246, 0.22);
+
+  /* Surfaces */
+  --c-surface:       rgba(255, 255, 255, 0.82);
+  --c-surface-raised: rgba(255, 255, 255, 0.94);
+
+  /* Borders */
+  --c-border:        rgba(0, 0, 0, 0.07);
+  --c-border-subtle: rgba(0, 0, 0, 0.05);
+
+  /* Shadows */
+  --c-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --c-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.07), 0 1px 4px rgba(0, 0, 0, 0.04);
+
+  /* Navbar */
+  --c-navbar:        rgba(245, 245, 247, 0.82);
+  --c-navbar-shadow: 0 4px 24px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  /* Icon hover */
+  --c-icon-hover: rgba(0, 0, 0, 0.05);
 }
 
-html, body {
-  height: 100%;
-}
-
+/* ─── Base ───────────────────────────────────────────────────── */
 body {
-  background-color: #FAFAF8;
+  background-color: #F5F5F7;
   color: #1C1C1E;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-::selection {
-  background: rgba(99, 102, 241, 0.12);
+::selection { background: rgba(59, 130, 246, 0.14); }
+
+/* ─── Atmospheric depth ──────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 50% at 50% -8%,  rgba(59, 130, 246, 0.055) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 90% 110%, rgba(99, 102, 241, 0.030) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* Refined scrollbars */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.18);
-}
+/* ─── Scrollbars ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
 
-/* JD textarea — custom focus ring without browser chrome */
+/* ─── JD textarea focus ring ─────────────────────────────────── */
 .jd-textarea:focus {
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05) !important;
-  border-color: rgba(99, 102, 241, 0.2) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12), 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(59, 130, 246, 0.22) !important;
+}
+
+/* ─── Dark mode ──────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-accent:        #58A6FF;
+    --c-accent-dim:    rgba(88, 166, 255, 0.12);
+    --c-accent-border: rgba(88, 166, 255, 0.25);
+
+    --c-btn-bg:     linear-gradient(180deg, #2472D4 0%, #1A5FBF 100%);
+    --c-btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
+
+    --c-surface:        rgba(22, 27, 34, 0.85);
+    --c-surface-raised: rgba(28, 33, 40, 0.95);
+
+    --c-border:        rgba(240, 246, 252, 0.1);
+    --c-border-subtle: rgba(240, 246, 252, 0.06);
+
+    --c-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --c-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.4);
+
+    --c-navbar:        rgba(13, 17, 23, 0.82);
+    --c-navbar-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.04);
+
+    --c-icon-hover: rgba(255, 255, 255, 0.07);
+  }
+
+  body {
+    background-color: #0D1117;
+    color: #E6EDF3;
+  }
+
+  ::selection { background: rgba(88, 166, 255, 0.2); }
+
+  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
+
+  .jd-textarea:focus {
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15), 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(88, 166, 255, 0.28) !important;
+  }
+
+  body::before {
+    background:
+      radial-gradient(ellipse 90% 50% at 50% -8%,  rgba(88, 166, 255, 0.06) 0%, transparent 65%),
+      radial-gradient(ellipse 60% 40% at 90% 110%, rgba(59, 130, 246, 0.04) 0%, transparent 60%);
+  }
+
+  /* ── Invert Tailwind neutral scale ─────────────────────────── */
+  /* text-neutral-*, bg-neutral-*, border-neutral-* all adapt     */
+  :root {
+    --color-neutral-950: #F0F6FC;
+    --color-neutral-900: #E6EDF3;
+    --color-neutral-800: #C9D1D9;
+    --color-neutral-700: #B1BAC4;
+    --color-neutral-600: #8B949E;
+    --color-neutral-500: #6E7681;
+    --color-neutral-400: #484F58;
+    --color-neutral-300: #30363D;
+    --color-neutral-200: #21262D;
+    --color-neutral-100: #161B22;
+    --color-neutral-50:  #0D1117;
+  }
 }

@@ -25,7 +25,7 @@ function SectionHeader({
           onClick={onAdd}
           disabled={adding}
           className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all disabled:opacity-40"
-          style={{ background: 'rgba(129,140,248,0.1)', color: '#6366f1' }}
+          style={{ background: 'var(--c-accent-dim)', color: 'var(--c-accent)' }}
         >
           {adding ? 'Adding…' : '+ Add'}
         </button>
@@ -40,7 +40,7 @@ function SaveButton({ saving, onClick }: { saving: boolean; onClick: () => void 
       onClick={onClick}
       disabled={saving}
       className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50 transition-all"
-      style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)', boxShadow: '0 2px 8px rgba(129,140,248,0.3)' }}
+      style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
     >
       {saving ? 'Saving…' : 'Save'}
     </button>
@@ -99,7 +99,7 @@ function TechTags({ tags }: { tags: string[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {tags.map(t => (
-        <span key={t} className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(129,140,248,0.1)', color: '#6366f1' }}>
+        <span key={t} className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--c-accent-dim)', color: 'var(--c-accent)' }}>
           {t}
         </span>
       ))}
@@ -137,11 +137,11 @@ function card(extra = '') {
   return {
     className: `rounded-2xl p-6 ${extra}`,
     style: {
-      background: 'rgba(255,255,255,0.85)',
+      background: 'var(--c-surface)',
       backdropFilter: 'blur(20px)',
       WebkitBackdropFilter: 'blur(20px)',
-      border: '1px solid rgba(255,255,255,0.9)',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+      border: '1px solid var(--c-border)',
+      boxShadow: 'var(--c-shadow-md)',
     } as React.CSSProperties,
   }
 }

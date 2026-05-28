@@ -71,7 +71,7 @@ function ResumeSection({ job }: { job: Job }) {
             href={api.resumePdfUrl(job.id)}
             download
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)', boxShadow: '0 4px 12px rgba(129,140,248,0.3)' }}
+            style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
           >
             Download PDF
           </a>
@@ -81,7 +81,7 @@ function ResumeSection({ job }: { job: Job }) {
 
       <div
         className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.05)' }}
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border-subtle)' }}
       >
         <button
           onClick={() => setExpanded(v => !v)}
@@ -149,7 +149,7 @@ function JdSection({ description }: { description: string }) {
   return (
     <div
       className="rounded-2xl overflow-hidden"
-      style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.05)' }}
+      style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border-subtle)' }}
     >
       <button
         onClick={() => setExpanded(v => !v)}
@@ -180,7 +180,7 @@ function JdSection({ description }: { description: string }) {
 }
 
 function Divider() {
-  return <div className="border-t border-neutral-100 my-8" />
+  return <div className="my-8" style={{ borderTop: '1px solid var(--c-border)' }} />
 }
 
 function getGenMessage(elapsed: number): string {
@@ -248,7 +248,7 @@ export default function JobPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+        <div className="w-8 h-8 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
       </div>
     )
   }
@@ -282,8 +282,8 @@ export default function JobPage() {
               }}
             />
             <div className="relative w-12 h-12">
-              <div className="absolute inset-0 rounded-full border-[2.5px] border-indigo-100" />
-              <div className="absolute inset-0 rounded-full border-[2.5px] border-indigo-400 border-t-transparent animate-spin" />
+              <div className="absolute inset-0 rounded-full" style={{ border: '2.5px solid var(--c-accent-dim)' }} />
+              <div className="absolute inset-0 rounded-full animate-spin" style={{ border: '2.5px solid var(--c-accent)', borderTopColor: 'transparent' }} />
             </div>
           </div>
           <div className="text-center">
@@ -336,7 +336,7 @@ export default function JobPage() {
             onClick={handleRegenerate}
             disabled={regenerating}
             className="px-5 py-2.5 rounded-2xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
-            style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)', boxShadow: '0 4px 16px rgba(129,140,248,0.35)' }}
+            style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
           >
             {regenerating ? 'Retrying…' : 'Retry'}
           </button>

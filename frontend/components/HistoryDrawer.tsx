@@ -166,15 +166,15 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
             className="fixed top-0 right-0 h-full z-[61] flex flex-col"
             style={{
               width: 320,
-              background: 'rgba(250,250,248,0.97)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              borderLeft: '1px solid rgba(0,0,0,0.06)',
-              boxShadow: '-8px 0 32px rgba(0,0,0,0.06)',
+              background: 'var(--c-surface-raised)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              borderLeft: '1px solid var(--c-border)',
+              boxShadow: '-8px 0 40px rgba(0,0,0,0.12)',
             }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-100">
+            <div className="flex items-center justify-between px-5 pt-5 pb-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
               <span className="text-sm font-semibold text-neutral-800">History</span>
               <button
                 onClick={onClose}
@@ -248,7 +248,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
 
             {/* Footer */}
             {hasAny && (
-              <div className="px-5 py-4 border-t border-neutral-100">
+              <div className="px-5 py-4" style={{ borderTop: '1px solid var(--c-border)' }}>
                 <button
                   onClick={() => { onClose(); router.push('/applications') }}
                   className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"

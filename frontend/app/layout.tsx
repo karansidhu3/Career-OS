@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        <div className="relative min-h-screen" style={{ background: '#FAFAF8' }}>
+        <div className="relative min-h-screen">
           <Blobs />
           <Navbar />
           <main className="relative z-10 pt-24">
