@@ -40,10 +40,20 @@ using his persistent profile DB. Copy into Overleaf, apply on LinkedIn.
 
 ---
 
+## Post-launch improvements ✅ Done
+
+- Auto-extract job title + company from JD (no manual input fields)
+- Token usage tracking per generation (input, output, cache read/write)
+- Cost estimate per generation (`cost_usd` computed from token counts, shown on results page)
+- Cover letter PDF download endpoint (`GET /admin/jobs/{id}/cover-letter.pdf`)
+- Regenerate button on results page (re-runs generation with stored JD)
+- Removed duplicate fit rationale card
+- Merged "Analyze Fit" + "Generate Materials" into single button
+
 ## Later (when new projects ship)
 
 When Karan finishes a new polished project:
-1. Add it to the profile DB via `POST /admin/profile/projects`
+1. Add it to the profile DB via the Profile page
 2. All future generations automatically include it
 3. No code changes needed
 

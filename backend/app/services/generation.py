@@ -176,8 +176,16 @@ GENERATE_TOOL = {
                 "type": "string",
                 "description": "Cover letter tailored to this job. Plain text, 3 paragraphs.",
             },
+            "job_title": {
+                "type": "string",
+                "description": "The job title extracted from the job description.",
+            },
+            "job_company": {
+                "type": "string",
+                "description": "The company name extracted from the job description.",
+            },
         },
-        "required": ["fit_score", "fit_rationale", "resume_latex", "cover_letter"],
+        "required": ["fit_score", "fit_rationale", "resume_latex", "cover_letter", "job_title", "job_company"],
     },
 }
 
@@ -286,4 +294,11 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
     )
 
     tool_use = next(b for b in response.content if b.type == "tool_use")
-    return tool_use.input
+    usage = response.usage
+    return {
+        **tool_use.input,
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0) or 0,
+        "cache_write_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+    }

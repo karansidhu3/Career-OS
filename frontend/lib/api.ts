@@ -14,12 +14,15 @@ export interface Job {
   fit_rationale: string[] | null
   resume_latex: string | null
   cover_letter: string | null
+  input_tokens: number | null
+  output_tokens: number | null
+  cache_read_tokens: number | null
+  cache_write_tokens: number | null
+  cost_usd: number | null
 }
 
 export interface GenerateRequest {
   description: string
-  title?: string
-  company?: string
   url?: string
 }
 
@@ -107,6 +110,9 @@ export const api = {
   getJob: (id: number) => request<Job>(`/admin/jobs/${id}`),
   updateStatus: (id: number, status: string) =>
     request<Job>(`/admin/jobs/${id}/status?status=${status}`, { method: 'PATCH' }),
+  regenerate: (id: number) =>
+    request<Job>(`/admin/jobs/${id}/regenerate`, { method: 'POST' }),
+  coverLetterPdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/cover-letter.pdf`,
 
   // Profile
   getProfile: () => request<FullProfile>('/admin/profile'),

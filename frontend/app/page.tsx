@@ -53,8 +53,6 @@ export default function Home() {
   const router = useRouter()
   const [jobs, setJobs] = useState<Job[]>([])
   const [jd, setJd] = useState('')
-  const [title, setTitle] = useState('')
-  const [company, setCompany] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,11 +77,7 @@ export default function Home() {
     setLoading(true)
     setError(null)
     try {
-      const job = await api.generate({
-        description: jd.trim(),
-        title: title.trim() || undefined,
-        company: company.trim() || undefined,
-      })
+      const job = await api.generate({ description: jd.trim() })
       router.push(`/jobs/${job.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed. Is the backend running?')
@@ -154,23 +148,6 @@ export default function Home() {
         >
           <h2 className="text-lg font-semibold text-neutral-800 mb-5">Paste Job Description</h2>
 
-          <div className="flex gap-3 mb-4">
-            <input
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="Role title"
-              className="flex-1 px-4 py-2.5 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-              style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }}
-            />
-            <input
-              value={company}
-              onChange={e => setCompany(e.target.value)}
-              placeholder="Company"
-              className="flex-1 px-4 py-2.5 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-              style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }}
-            />
-          </div>
-
           <textarea
             value={jd}
             onChange={e => setJd(e.target.value)}
@@ -185,19 +162,11 @@ export default function Home() {
             <p className="mt-3 text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-xl">{error}</p>
           )}
 
-          <div className="flex gap-3 mt-5">
+          <div className="mt-5">
             <button
               onClick={handleGenerate}
               disabled={loading || !jd.trim()}
-              className="flex-1 py-3 rounded-2xl text-sm font-medium text-neutral-500 transition-all duration-200 disabled:opacity-40"
-              style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)' }}
-            >
-              Analyze Fit
-            </button>
-            <button
-              onClick={handleGenerate}
-              disabled={loading || !jd.trim()}
-              className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
               style={{
                 background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #818cf8, #7c3aed)',
                 boxShadow: loading ? 'none' : '0 4px 16px rgba(129,140,248,0.35)',

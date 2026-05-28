@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 
@@ -17,20 +17,19 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 function FitCard({ job }: { job: Job }) {
   const score = job.fit_score ?? 0
   const label = score >= 8 ? 'Strong Match' : score >= 6 ? 'Good Match' : 'Weak Match'
-  const color = score >= 8 ? { bg: 'rgba(16,185,129,0.07)', accent: '#059669', ring: 'rgba(16,185,129,0.2)' }
-              : score >= 6 ? { bg: 'rgba(245,158,11,0.07)', accent: '#d97706', ring: 'rgba(245,158,11,0.2)' }
-              : { bg: 'rgba(239,68,68,0.07)', accent: '#dc2626', ring: 'rgba(239,68,68,0.2)' }
+  const color = score >= 8
+    ? { bg: 'rgba(16,185,129,0.07)', accent: '#059669', ring: 'rgba(16,185,129,0.2)' }
+    : score >= 6
+    ? { bg: 'rgba(245,158,11,0.07)', accent: '#d97706', ring: 'rgba(245,158,11,0.2)' }
+    : { bg: 'rgba(239,68,68,0.07)', accent: '#dc2626', ring: 'rgba(239,68,68,0.2)' }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-      className="rounded-3xl p-6 mb-6"
-      style={{
-        background: color.bg,
-        border: `1px solid ${color.ring}`,
-      }}
+      className="rounded-3xl p-6 mb-3"
+      style={{ background: color.bg, border: `1px solid ${color.ring}` }}
     >
       <div className="flex items-start justify-between gap-6">
         <div className="flex-1">
@@ -54,7 +53,6 @@ function FitCard({ job }: { job: Job }) {
             </ul>
           )}
         </div>
-        {/* Score arc visual */}
         <div className="shrink-0 relative w-16 h-16 flex items-center justify-center">
           <svg width="64" height="64" viewBox="0 0 64 64" className="absolute inset-0 -rotate-90">
             <circle cx="32" cy="32" r="26" fill="none" stroke={color.ring} strokeWidth="6" />
@@ -72,34 +70,6 @@ function FitCard({ job }: { job: Job }) {
   )
 }
 
-function ChangesCard({ job }: { job: Job }) {
-  if (!job.fit_rationale?.length) return null
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3, duration: 0.4 }}
-      className="rounded-2xl p-5 mb-6"
-      style={{
-        background: 'rgba(255,255,255,0.7)',
-        border: '1px solid rgba(0,0,0,0.06)',
-      }}
-    >
-      <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-3">
-        Why materials were tailored this way
-      </p>
-      <ul className="space-y-2">
-        {job.fit_rationale.map((b, i) => (
-          <li key={i} className="flex gap-2 text-sm text-neutral-600">
-            <span className="text-indigo-400 shrink-0">→</span>
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-    </motion.div>
-  )
-}
-
 export default function JobPage() {
   const params = useParams()
   const router = useRouter()
@@ -107,6 +77,7 @@ export default function JobPage() {
   const [job, setJob] = useState<Job | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
 
   useEffect(() => {
     api.getJob(id)
@@ -118,11 +89,15 @@ export default function JobPage() {
   const handleStatus = async (status: string) => {
     if (!job) return
     setUpdating(true)
-    try {
-      setJob(await api.updateStatus(job.id, status))
-    } finally {
-      setUpdating(false)
-    }
+    try { setJob(await api.updateStatus(job.id, status)) }
+    finally { setUpdating(false) }
+  }
+
+  const handleRegenerate = async () => {
+    if (!job) return
+    setRegenerating(true)
+    try { setJob(await api.regenerate(job.id)) }
+    finally { setRegenerating(false) }
   }
 
   if (loading) {
@@ -164,10 +139,23 @@ export default function JobPage() {
         </div>
 
         {/* Status + actions */}
-        <div className="flex items-center gap-2 shrink-0 pt-6">
+        <div className="flex items-center gap-2 shrink-0 pt-6 flex-wrap justify-end">
           <span className="text-sm font-medium" style={{ color: statusInfo.color }}>
             {statusInfo.label}
           </span>
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating || updating}
+            className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-40 transition-all"
+            style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
+          >
+            {regenerating ? (
+              <span className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />
+                Regenerating…
+              </span>
+            ) : 'Regenerate'}
+          </button>
           {job.status === 'generated' && (
             <>
               <button
@@ -194,8 +182,12 @@ export default function JobPage() {
       {/* Fit card */}
       {job.fit_score != null && <FitCard job={job} />}
 
-      {/* Changes card */}
-      <ChangesCard job={job} />
+      {/* Cost chip */}
+      {job.cost_usd != null && (
+        <p className="text-xs text-neutral-400 text-right mb-5">
+          Generation cost ~${job.cost_usd.toFixed(4)}
+        </p>
+      )}
 
       {/* Split view */}
       <motion.div
@@ -240,7 +232,23 @@ export default function JobPage() {
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.04]">
             <span className="text-sm font-semibold text-neutral-700">Cover Letter</span>
-            {job.cover_letter && <CopyButton text={job.cover_letter} label="Copy" />}
+            <div className="flex items-center gap-2">
+              {job.cover_letter && (
+                <a
+                  href={api.coverLetterPdfUrl(job.id)}
+                  download
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200"
+                  style={{
+                    background: 'rgba(0,0,0,0.04)',
+                    border: '1px solid rgba(0,0,0,0.06)',
+                    color: '#6b7280',
+                  }}
+                >
+                  Download PDF
+                </a>
+              )}
+              {job.cover_letter && <CopyButton text={job.cover_letter} label="Copy" />}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-6">
             <p className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap">
