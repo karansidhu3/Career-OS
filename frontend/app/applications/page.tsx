@@ -73,11 +73,11 @@ function AppRow({ job, i }: { job: Job; i: number }) {
         <p className="text-[13.5px] font-medium text-neutral-700 group-hover:text-neutral-900 truncate transition-colors leading-snug">
           {job.title}
           {job.company && (
-            <span className="font-normal text-neutral-400"> · {job.company}</span>
+            <span className="font-normal text-neutral-500"> · {job.company}</span>
           )}
         </p>
         {signal && (
-          <p className="text-xs text-neutral-300 truncate mt-0.5 group-hover:text-neutral-400 transition-colors">
+          <p className="text-xs text-neutral-500 truncate mt-0.5 group-hover:text-neutral-600 transition-colors">
             {signal}
           </p>
         )}
@@ -89,7 +89,7 @@ function AppRow({ job, i }: { job: Job; i: number }) {
       </span>
 
       {/* Date */}
-      <span className="text-xs text-neutral-300 shrink-0">
+      <span className="text-xs text-neutral-500 shrink-0">
         {job.created_at ? relativeDate(job.created_at) : ''}
       </span>
     </motion.button>
@@ -135,11 +135,11 @@ export default function ApplicationsPage() {
         className="pt-10 mb-6"
       >
         <h1 className="text-3xl font-semibold text-neutral-900">Applications</h1>
-        <p className="text-neutral-400 mt-1 text-sm">{jobs.length} total</p>
+        <p className="text-neutral-600 mt-1 text-sm">{jobs.length} total</p>
 
         {/* Filter tabs — only show tabs with items */}
         {jobs.length > 0 && (
-          <div className="flex gap-1 mt-5 p-1 rounded-2xl w-fit" style={{ background: 'rgba(0,0,0,0.04)' }}>
+          <div className="flex gap-1 mt-5 p-1 rounded-2xl w-fit" style={{ background: 'var(--c-surface)' }}>
             {FILTERS.map(f => {
               const count = f === 'all' ? jobs.length : jobs.filter(j => j.status === f).length
               if (count === 0 && f !== 'all') return null
@@ -147,10 +147,12 @@ export default function ApplicationsPage() {
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className="px-4 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 capitalize"
+                  className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 capitalize ${
+                    filter === f ? 'text-neutral-900' : 'text-neutral-500'
+                  }`}
                   style={filter === f
-                    ? { background: '#fff', color: '#1c1c1e', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }
-                    : { color: '#9ca3af' }
+                    ? { background: 'var(--c-surface-raised)', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }
+                    : undefined
                   }
                 >
                   {f} <span className="opacity-50">{count}</span>
@@ -165,7 +167,7 @@ export default function ApplicationsPage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-center py-24 text-neutral-300 text-sm"
+          className="text-center py-24 text-neutral-500 text-sm"
         >
           {jobs.length === 0
             ? 'No applications yet. Go to Home and paste a job description.'

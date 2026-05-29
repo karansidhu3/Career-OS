@@ -30,12 +30,12 @@ function FitCard({ job }: { job: Job }) {
       {/* Score + collapsible rationale */}
       <div className="flex items-center gap-4">
         {score > 0 && (
-          <span className="text-xs text-neutral-400 tabular-nums">{score}/10</span>
+          <span className="text-xs text-neutral-500 tabular-nums">{score}/10</span>
         )}
         {job.fit_rationale && job.fit_rationale.length > 0 && (
           <button
             onClick={() => setShowRationale(v => !v)}
-            className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
+            className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
           >
             {showRationale ? 'rationale ↑' : 'rationale ↓'}
           </button>
@@ -52,8 +52,8 @@ function FitCard({ job }: { job: Job }) {
             className="mt-3 space-y-1.5 overflow-hidden"
           >
             {job.fit_rationale.map((b, i) => (
-              <li key={i} className="flex gap-2 text-sm text-neutral-500">
-                <span className="text-neutral-300 shrink-0 mt-0.5 select-none">·</span>
+              <li key={i} className="flex gap-2 text-sm text-neutral-600">
+                <span className="text-neutral-500 shrink-0 mt-0.5 select-none">·</span>
                 <span className="leading-relaxed">{b}</span>
               </li>
             ))}
@@ -71,7 +71,7 @@ function ResumeSection({ job }: { job: Job }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-300">Resume</span>
+        <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Resume</span>
         <div className="flex items-center gap-2">
           <motion.a
             href={api.resumePdfUrl(job.id)}
@@ -89,7 +89,7 @@ function ResumeSection({ job }: { job: Job }) {
       <div>
         <button
           onClick={() => setExpanded(v => !v)}
-          className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+          className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
         >
           {expanded ? 'Hide source ↑' : 'LaTeX source ↓'}
         </button>
@@ -133,7 +133,7 @@ function CoverLetterSection({ job }: { job: Job }) {
           href={api.coverLetterPdfUrl(job.id)}
           download
           whileTap={{ scale: 0.97 }}
-          className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors"
+          className="text-xs text-neutral-500 hover:text-neutral-800 transition-colors"
         >
           Download PDF
         </motion.a>
@@ -153,7 +153,7 @@ function JdSection({ description }: { description: string }) {
     >
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full px-5 py-3.5 flex items-center justify-between text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+        className="w-full px-5 py-3.5 flex items-center justify-between text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
       >
         <span>View original job description</span>
         <span>{expanded ? '▲' : '▼'}</span>
@@ -262,7 +262,7 @@ export default function JobPage() {
         <div className="pt-8 mb-10">
           <button
             onClick={() => router.back()}
-            className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1"
+            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-3 flex items-center gap-1"
           >
             ← Applications
           </button>
@@ -299,7 +299,7 @@ export default function JobPage() {
                 {getGenMessage(genElapsed)}
               </motion.p>
             </AnimatePresence>
-            <p className="text-xs text-neutral-300 mt-2 tabular-nums">{genElapsed}s</p>
+            <p className="text-xs text-neutral-500 mt-2 tabular-nums">{genElapsed}s</p>
           </div>
         </div>
       </div>
@@ -313,7 +313,7 @@ export default function JobPage() {
         <div className="pt-8 mb-10">
           <button
             onClick={() => router.back()}
-            className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1"
+            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-3 flex items-center gap-1"
           >
             ← Applications
           </button>
@@ -330,7 +330,7 @@ export default function JobPage() {
           </div>
           <div className="text-center">
             <p className="text-neutral-700 font-medium">Generation failed</p>
-            <p className="text-sm text-neutral-400 mt-1">Claude didn't respond in time. Try again.</p>
+            <p className="text-sm text-neutral-500 mt-1">Claude didn't respond in time. Try again.</p>
           </div>
           <motion.button
             onClick={handleRegenerate}
@@ -359,7 +359,7 @@ export default function JobPage() {
       >
         <button
           onClick={() => router.back()}
-          className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-4 flex items-center gap-1"
+          className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1"
         >
           ← Applications
         </button>
@@ -367,7 +367,7 @@ export default function JobPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-neutral-900 tracking-tight">{job.title}</h1>
-            {job.company && <p className="text-[15px] text-neutral-400 mt-1">{job.company}</p>}
+            {job.company && <p className="text-[15px] text-neutral-600 mt-1">{job.company}</p>}
           </div>
 
           <div className="flex items-center gap-4 shrink-0">
@@ -380,7 +380,7 @@ export default function JobPage() {
                   Mark applied
                 </button>
                 <button onClick={() => handleStatus('skipped')} disabled={updating}
-                  className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+                  className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors">
                   Skip
                 </button>
               </>
@@ -401,7 +401,7 @@ export default function JobPage() {
             )}
             {/* Regenerate — always available */}
             <button onClick={handleRegenerate} disabled={regenerating || updating}
-              className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+              className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               {regenerating && <span className="w-3 h-3 rounded-full animate-spin" style={{ border: '1.5px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />}
               {regenerating ? 'Starting…' : 'Regenerate'}
             </button>

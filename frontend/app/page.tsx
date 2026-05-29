@@ -55,7 +55,7 @@ function LatexSection({ latex }: { latex: string }) {
       <div className="flex items-center justify-between">
         <button
           onClick={() => setExpanded(v => !v)}
-          className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+          className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
         >
           {expanded ? 'Hide LaTeX source ↑' : 'LaTeX source ↓'}
         </button>
@@ -71,7 +71,7 @@ function LatexSection({ latex }: { latex: string }) {
             className="overflow-hidden"
           >
             <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
-              <pre className="text-xs font-mono text-neutral-400 leading-relaxed whitespace-pre-wrap break-all">
+              <pre className="text-xs font-mono text-neutral-500 leading-relaxed whitespace-pre-wrap break-all">
                 {latex}
               </pre>
             </div>
@@ -89,7 +89,7 @@ function JdSection({ description }: { description: string }) {
     <div>
       <button
         onClick={() => setExpanded(v => !v)}
-        className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
+        className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
       >
         {expanded ? 'Hide job description ↑' : 'Original job description ↓'}
       </button>
@@ -103,7 +103,7 @@ function JdSection({ description }: { description: string }) {
             className="overflow-hidden"
           >
             <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
-              <pre className="text-xs text-neutral-400 leading-relaxed whitespace-pre-wrap">
+              <pre className="text-xs text-neutral-500 leading-relaxed whitespace-pre-wrap">
                 {description}
               </pre>
             </div>
@@ -138,7 +138,7 @@ function InterviewFlag({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
         }
       }}
       disabled={flagging}
-      className="text-xs text-neutral-300 hover:text-neutral-500 disabled:opacity-40 transition-colors"
+      className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
     >
       {flagging ? 'Saving…' : '✦ Flag as interview'}
     </button>
@@ -352,13 +352,12 @@ export default function Home() {
 
               {/* ── Workspace zone — glass focal point ── */}
               <div
-                className="rounded-2xl relative"
+                className="rounded-2xl relative cursor-text"
+                onClick={() => textareaRef.current?.focus()}
                 style={{
                   background: 'var(--c-glass-bg)',
                   border: '1px solid var(--c-glass-border)',
                   boxShadow: 'var(--c-glass-shadow)',
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
                 }}
               >
                 {/* Writing surface */}
@@ -372,7 +371,7 @@ export default function Home() {
                     onChange={e => handleJdChange(e.target.value)}
                     placeholder="Paste a job description…"
                     disabled={submitting}
-                    className="jd-textarea w-full text-[15px] text-neutral-800 placeholder-neutral-400 focus:outline-none leading-relaxed disabled:opacity-40"
+                    className="jd-textarea w-full text-[15px] text-neutral-800 placeholder-neutral-500 focus:outline-none leading-relaxed disabled:opacity-40"
                     style={{ background: 'transparent', border: 'none', padding: '0' }}
                   />
                 </div>
@@ -383,7 +382,7 @@ export default function Home() {
                     onClick={handleGenerate}
                     disabled={submitting || !jd.trim()}
                     whileTap={{ scale: 0.97 }}
-                    className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 disabled:opacity-30 transition-colors"
+                    className="flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 disabled:opacity-30 transition-colors"
                   >
                     {submitting ? (
                       <>
@@ -467,7 +466,7 @@ export default function Home() {
                           <span className="ml-2 text-amber-400/80 text-xs">✦</span>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-neutral-500 group-hover:text-neutral-600 transition-colors tabular-nums">
+                      <span className="shrink-0 text-xs text-neutral-600 group-hover:text-neutral-700 transition-colors tabular-nums">
                         {job.created_at ? relativeDate(job.created_at) : ''}
                       </span>
                     </Link>
@@ -523,13 +522,13 @@ export default function Home() {
                     {getGenMessage(genElapsed)}
                   </motion.p>
                 </AnimatePresence>
-                <p className="text-xs text-neutral-300 mt-2 tabular-nums">{genElapsed}s</p>
+                <p className="text-xs text-neutral-500 mt-2 tabular-nums">{genElapsed}s</p>
               </div>
 
               {/* Abandon */}
               <button
                 onClick={() => setAppState({ mode: 'idle' })}
-                className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
+                className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
               >
                 Cancel
               </button>
@@ -550,13 +549,13 @@ export default function Home() {
             <div className="pt-8 mb-8">
               <button
                 onClick={resetToIdle}
-                className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors flex items-center gap-1.5"
+                className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 12H5M12 19l-7-7 7-7" />
                 </svg>
                 New application
-                <span className="text-xs text-neutral-300 font-normal ml-1">⌘N</span>
+                <span className="text-xs text-neutral-500 font-normal ml-1">⌘N</span>
               </button>
             </div>
 
@@ -566,13 +565,13 @@ export default function Home() {
                 {appState.job.title}
               </h1>
               {appState.job.fit_score != null && (
-                <span className="text-xs text-neutral-300 tabular-nums">
+                <span className="text-xs text-neutral-500 tabular-nums">
                   {appState.job.fit_score}/10
                 </span>
               )}
             </div>
             {appState.job.company && (
-              <p className="text-[15px] text-neutral-400 mb-0">{appState.job.company}</p>
+              <p className="text-[15px] text-neutral-600 mb-0">{appState.job.company}</p>
             )}
 
             {/* Strategic note — the centerpiece */}
@@ -583,7 +582,7 @@ export default function Home() {
                 transition={{ ...spring.gentle, delay: 0.1 }}
                 className="mt-8"
               >
-                <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-300 mb-3">
+                <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-3">
                   what this reveals
                 </p>
                 <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl">
@@ -631,7 +630,7 @@ export default function Home() {
                     href={api.coverLetterPdfUrl(appState.job.id)}
                     download
                     whileTap={{ scale: 0.98 }}
-                    className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors"
+                    className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors"
                   >
                     Download cover letter ↓
                   </motion.a>

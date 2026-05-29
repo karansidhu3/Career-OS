@@ -87,10 +87,12 @@ def _build_cover_letter_pdf(job: Job) -> bytes:
         "karansidhu5550@gmail.com  |  +1 (250) 509-2500  |  linkedin.com/in/karan-sidhu3  |  github.com/karansidhu3",
         new_x="LMARGIN", new_y="NEXT",
     )
-    pdf.ln(3)
-    pdf.set_draw_color(190, 190, 190)
+    pdf.ln(2)
+    pdf.set_draw_color(210, 210, 210)
+    pdf.set_line_width(0.2)
     pdf.line(28, pdf.get_y(), 182, pdf.get_y())
-    pdf.ln(10)
+    pdf.set_line_width(0.2)
+    pdf.ln(9)
 
     # ── Date ──────────────────────────────────────────────────────────
     pdf.set_font("Helvetica", "", 10)
@@ -118,20 +120,20 @@ def _build_cover_letter_pdf(job: Job) -> bytes:
     pdf.cell(0, 6, "Dear Hiring Manager,", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(6)
 
-    # ── Body paragraphs (justified) ───────────────────────────────────
+    # ── Body paragraphs (left-aligned) ────────────────────────────────
     pdf.set_font("Helvetica", "", 11)
     pdf.set_text_color(30, 30, 30)
     paragraphs = [p.strip() for p in (job.cover_letter or "").split("\n\n") if p.strip()]
     for para in paragraphs:
-        pdf.multi_cell(0, 6.5, _to_latin1(para), align="J")
+        pdf.multi_cell(0, 7.0, _to_latin1(para), align="L")
         pdf.ln(5)
 
     # ── Closing ───────────────────────────────────────────────────────
-    pdf.ln(4)
+    pdf.ln(2)
     pdf.set_font("Helvetica", "", 11)
     pdf.set_text_color(30, 30, 30)
     pdf.cell(0, 6, "Sincerely,", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(10)
+    pdf.ln(5)
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 6, "Karanveer Sidhu", new_x="LMARGIN", new_y="NEXT")
 
