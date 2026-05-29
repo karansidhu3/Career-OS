@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { SectionLabel } from '@/components/SectionLabel'
+import { spring } from '@/lib/motion'
 import { relativeDate } from '@/lib/utils'
 
 // Status text — CSS tokens where semantic color exists
@@ -59,7 +60,7 @@ function AppRow({ job, i }: { job: Job; i: number }) {
       onClick={() => router.push(`/jobs/${job.id}`)}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: i * 0.025, duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+      transition={{ ...spring.standard, delay: i * 0.025 }}
       className="w-full text-left flex items-center gap-3 py-3.5 group transition-colors"
     >
       {/* Active status marker */}
@@ -136,7 +137,7 @@ export default function ApplicationsPage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+        transition={spring.gentle}
         className="pt-10 mb-6"
       >
         <h1 className="text-3xl font-semibold text-neutral-900">Applications</h1>

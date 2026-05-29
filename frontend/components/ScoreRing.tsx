@@ -32,9 +32,11 @@ function scoreTokens(score: number) {
 type ScoreRingProps = {
   score: number
   size?: RingSize
+  /** Fires a sonar-ping celebration on mount when score ≥ 8 */
+  celebrate?: boolean
 }
 
-export function ScoreRing({ score, size = 96 }: ScoreRingProps) {
+export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
   const { r, sw, fontSize, fontWeight } = CONFIG[size]
   const center = size / 2
   const circumference = 2 * Math.PI * r
@@ -44,6 +46,21 @@ export function ScoreRing({ score, size = 96 }: ScoreRingProps) {
 
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      {/* Celebration ping — one outward pulse for strong matches */}
+      {celebrate && score >= 8 && (
+        <motion.div
+          initial={{ opacity: 0.55, scale: 1 }}
+          animate={{ opacity: 0, scale: 1.55 }}
+          transition={{ duration: 1.4, ease: 'easeOut', delay: 0.75 }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            border: `2px solid var(--c-success)`,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       {/* SVG ring — rotated so arc starts at top */}
       <svg
         width={size}

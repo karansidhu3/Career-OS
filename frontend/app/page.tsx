@@ -8,6 +8,7 @@ import { CopyButton } from '@/components/CopyButton'
 import { SectionLabel } from '@/components/SectionLabel'
 import { AutoTextarea } from '@/components/AutoTextarea'
 import { ScoreRing } from '@/components/ScoreRing'
+import { spring } from '@/lib/motion'
 import { relativeDate } from '@/lib/utils'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -293,7 +294,7 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
+            transition={spring.gentle}
           >
             <div className="pt-10">
               {/* Textarea — primary input surface */}
@@ -343,7 +344,7 @@ export default function Home() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 0.15, duration: 0.4 }}
+                  transition={{ ...spring.gentle, delay: 0.2 }}
                   className="mt-8 pt-5"
                   style={{ borderTop: '1px solid var(--c-border)' }}
                 >
@@ -379,7 +380,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={spring.gentle}
           >
             <div
               className="flex flex-col items-center justify-center gap-6"
@@ -411,7 +412,7 @@ export default function Home() {
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    transition={spring.snappy}
                     className="text-[15px] text-neutral-600 font-medium"
                   >
                     {getGenMessage(genElapsed)}
@@ -442,7 +443,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+              transition={spring.standard}
             >
               {/* Full-width header */}
               <div className="pt-8 mb-8">
@@ -471,7 +472,7 @@ export default function Home() {
                 {/* Left column — score hero */}
                 <div className="mb-8 md:mb-0">
                   {appState.job.fit_score != null && (
-                    <ScoreRing score={score} size={96} />
+                    <ScoreRing score={score} size={96} celebrate />
                   )}
                   <p className="mt-3 text-sm font-semibold" style={{ color: scoreColor }}>
                     {scoreLabel}
@@ -580,7 +581,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={spring.gentle}
           >
             <div
               className="flex flex-col items-center justify-center gap-4"

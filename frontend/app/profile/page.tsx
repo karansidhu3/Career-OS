@@ -4,8 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, FullProfile, Project, Experience, SkillCategory } from '@/lib/api'
 import { SectionLabel } from '@/components/SectionLabel'
-
-const ease = 'easeOut'
+import { spring } from '@/lib/motion'
 
 // ---- Shared UI ----
 
@@ -123,10 +122,12 @@ function Bullets({ bullets }: { bullets: string[] }) {
 function SavedFlash() {
   return (
     <motion.span
-      initial={{ opacity: 0, scale: 0.9 }}
+      initial={{ opacity: 0, scale: 0.85 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0 }}
-      className="text-xs text-green-500 font-medium"
+      transition={spring.snappy}
+      className="text-xs font-medium"
+      style={{ color: 'var(--c-success)' }}
     >
       Saved ✓
     </motion.span>
@@ -668,7 +669,7 @@ export default function ProfilePage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease }}
+        transition={spring.gentle}
         className="pt-10 mb-10"
       >
         <h1 className="text-3xl font-semibold text-neutral-900">Profile</h1>
@@ -681,7 +682,7 @@ export default function ProfilePage() {
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.06, ease }}
+        transition={{ ...spring.gentle, delay: 0.06 }}
         className="mb-10"
       >
         <SectionHeader title="Projects" onAdd={addProject} adding={addingProject} />
@@ -693,7 +694,7 @@ export default function ProfilePage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97 }}
-                transition={{ duration: 0.3 }}
+                transition={spring.standard}
               >
                 <ProjectCard
                   project={p}
@@ -715,7 +716,7 @@ export default function ProfilePage() {
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.1, ease }}
+        transition={{ ...spring.gentle, delay: 0.1 }}
         className="mb-10"
       >
         <SectionHeader title="Experience" onAdd={addExperience} adding={addingExp} />
@@ -727,7 +728,7 @@ export default function ProfilePage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97 }}
-                transition={{ duration: 0.3 }}
+                transition={spring.standard}
               >
                 <ExperienceCard
                   exp={e}
@@ -749,7 +750,7 @@ export default function ProfilePage() {
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.14, ease }}
+        transition={{ ...spring.gentle, delay: 0.14 }}
         className="mb-10"
       >
         <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
@@ -761,7 +762,7 @@ export default function ProfilePage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97 }}
-                transition={{ duration: 0.3 }}
+                transition={spring.standard}
               >
                 <SkillCard
                   skill={s}
@@ -778,7 +779,7 @@ export default function ProfilePage() {
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.18, ease }}
+        transition={{ ...spring.gentle, delay: 0.18 }}
         className="mb-10"
       >
         <SectionHeader title="Education" />

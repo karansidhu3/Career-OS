@@ -7,6 +7,7 @@ import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { SectionLabel } from '@/components/SectionLabel'
 import { ScoreRing } from '@/components/ScoreRing'
+import { spring } from '@/lib/motion'
 
 function FitCard({ job }: { job: Job }) {
   const score = job.fit_score ?? 0
@@ -19,7 +20,7 @@ function FitCard({ job }: { job: Job }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+      transition={spring.standard}
       className="rounded-2xl p-6 flex items-start gap-6"
       style={{ background: tokenBg, border: `1px solid ${tokenBorder}` }}
     >
@@ -278,7 +279,7 @@ export default function JobPage() {
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
-                transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+                transition={spring.snappy}
                 className="text-[15px] text-neutral-600 font-medium"
               >
                 {getGenMessage(genElapsed)}
@@ -339,7 +340,7 @@ export default function JobPage() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.4 }}
+        transition={spring.gentle}
         className="pt-8 mb-8"
       >
         <button
@@ -425,7 +426,7 @@ export default function JobPage() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15, duration: 0.4 }}
+        transition={{ ...spring.gentle, delay: 0.12 }}
       >
         <Divider />
         <ResumeSection job={job} />
