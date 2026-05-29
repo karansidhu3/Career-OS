@@ -180,7 +180,7 @@ function ProjectCard({
 }) {
   const [editing, setEditing] = useState(startEditing ?? false)
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [name, setName] = useState(project.name)
   const [tech, setTech] = useState(project.tech.join(', '))
@@ -210,12 +210,6 @@ function ProjectCard({
     } finally {
       setSaving(false)
     }
-  }
-
-  const del = async () => {
-    if (!confirm(`Delete "${project.name}"?`)) return
-    setDeleting(true)
-    await onDelete()
   }
 
   return (
@@ -248,12 +242,41 @@ function ProjectCard({
               />
             </Field>
             <div className="flex items-center justify-between pt-1">
-              <button onClick={del} disabled={deleting}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40">
-                {deleting ? 'Deleting…' : 'Delete project'}
-              </button>
+              <AnimatePresence mode="wait" initial={false}>
+                {!confirmDelete ? (
+                  <motion.button
+                    key="del"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    transition={{ duration: 0.1 }}
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-xs text-neutral-400 hover:text-red-400 transition-colors"
+                  >
+                    Delete project
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="confirm"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    transition={{ duration: 0.1 }}
+                    className="flex items-center gap-3"
+                  >
+                    <button
+                      onClick={() => { setConfirmDelete(false); onDelete() }}
+                      className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                    >
+                      Confirm delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="flex gap-2">
-                <CancelButton onClick={() => setEditing(false)} />
+                <CancelButton onClick={() => { setEditing(false); setConfirmDelete(false) }} />
                 <SaveButton saving={saving} onClick={save} />
               </div>
             </div>
@@ -313,7 +336,7 @@ function ExperienceCard({
 }) {
   const [editing, setEditing] = useState(startEditing ?? false)
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [company, setCompany] = useState(exp.company)
   const [role, setRole] = useState(exp.role)
@@ -344,12 +367,6 @@ function ExperienceCard({
     }
   }
 
-  const del = async () => {
-    if (!confirm(`Delete "${exp.role} at ${exp.company}"?`)) return
-    setDeleting(true)
-    await onDelete()
-  }
-
   return (
     <motion.div layout className="py-5 group" style={itemBorder}>
       <AnimatePresence mode="wait">
@@ -367,12 +384,41 @@ function ExperienceCard({
               <TextArea value={bullets} onChange={setBullets} rows={4} placeholder="Built a platform that..." />
             </Field>
             <div className="flex items-center justify-between pt-1">
-              <button onClick={del} disabled={deleting}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40">
-                {deleting ? 'Deleting…' : 'Delete'}
-              </button>
+              <AnimatePresence mode="wait" initial={false}>
+                {!confirmDelete ? (
+                  <motion.button
+                    key="del"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    transition={{ duration: 0.1 }}
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-xs text-neutral-400 hover:text-red-400 transition-colors"
+                  >
+                    Delete
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="confirm"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    transition={{ duration: 0.1 }}
+                    className="flex items-center gap-3"
+                  >
+                    <button
+                      onClick={() => { setConfirmDelete(false); onDelete() }}
+                      className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                    >
+                      Confirm delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="flex gap-2">
-                <CancelButton onClick={() => setEditing(false)} />
+                <CancelButton onClick={() => { setEditing(false); setConfirmDelete(false) }} />
                 <SaveButton saving={saving} onClick={save} />
               </div>
             </div>
@@ -407,6 +453,45 @@ function ExperienceCard({
 }
 
 // ---- Skills section ----
+
+function SkillDeleteButton({ onDelete }: { onDelete: () => void }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      {!confirmDelete ? (
+        <motion.button
+          key="del"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.1 }}
+          onClick={() => setConfirmDelete(true)}
+          className="text-xs text-neutral-400 hover:text-red-400 transition-colors"
+        >
+          Delete
+        </motion.button>
+      ) : (
+        <motion.div
+          key="confirm"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.1 }}
+          className="flex items-center gap-3"
+        >
+          <button
+            onClick={() => { setConfirmDelete(false); onDelete() }}
+            className="text-xs text-red-400 hover:text-red-600 transition-colors"
+          >
+            Confirm delete
+          </button>
+          <button
+            onClick={() => setConfirmDelete(false)}
+            className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+          >
+            Cancel
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
 
 function SkillCard({
   skill,
@@ -450,11 +535,7 @@ function SkillCard({
               </div>
             </div>
             <div className="flex items-center justify-between pt-1">
-              <button
-                onClick={async () => { if (confirm('Delete this skill category?')) await onDelete() }}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                Delete
-              </button>
+              <SkillDeleteButton onDelete={onDelete} />
               <div className="flex gap-2">
                 <CancelButton onClick={() => setEditing(false)} />
                 <SaveButton saving={saving} onClick={save} />
@@ -590,8 +671,11 @@ export default function ProfilePage() {
   }
 
   const deleteProject = async (id: number) => {
-    await api.deleteProject(id)
+    const snapshot = profile!.projects
     setProfile(prev => prev ? { ...prev, projects: prev.projects.filter(p => p.id !== id) } : prev)
+    try { await api.deleteProject(id) } catch {
+      setProfile(prev => prev ? { ...prev, projects: snapshot } : prev)
+    }
   }
 
   // ---- Experience handlers ----
@@ -622,8 +706,11 @@ export default function ProfilePage() {
   }
 
   const deleteExperience = async (id: number) => {
-    await api.deleteExperience(id)
+    const snapshot = profile!.experience
     setProfile(prev => prev ? { ...prev, experience: prev.experience.filter(e => e.id !== id) } : prev)
+    try { await api.deleteExperience(id) } catch {
+      setProfile(prev => prev ? { ...prev, experience: snapshot } : prev)
+    }
   }
 
   // ---- Skills handlers ----
@@ -649,8 +736,11 @@ export default function ProfilePage() {
   }
 
   const deleteSkill = async (id: number) => {
-    await api.deleteSkillCategory(id)
+    const snapshot = profile!.skills
     setProfile(prev => prev ? { ...prev, skills: prev.skills.filter(s => s.id !== id) } : prev)
+    try { await api.deleteSkillCategory(id) } catch {
+      setProfile(prev => prev ? { ...prev, skills: snapshot } : prev)
+    }
   }
 
   return (
@@ -677,10 +767,12 @@ export default function ProfilePage() {
             {profile.projects.map((p, i) => (
               <motion.div
                 key={p.id}
+                layout
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97 }}
-                transition={spring.standard}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ ...spring.standard, height: { duration: 0.22, ease: [0.25, 0, 0, 1] } }}
+                className="overflow-hidden"
               >
                 <ProjectCard
                   project={p}
@@ -711,10 +803,12 @@ export default function ProfilePage() {
             {profile.experience.map((e, i) => (
               <motion.div
                 key={e.id}
+                layout
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97 }}
-                transition={spring.standard}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ ...spring.standard, height: { duration: 0.22, ease: [0.25, 0, 0, 1] } }}
+                className="overflow-hidden"
               >
                 <ExperienceCard
                   exp={e}
@@ -745,10 +839,12 @@ export default function ProfilePage() {
             {profile.skills.map(s => (
               <motion.div
                 key={s.id}
+                layout
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97 }}
-                transition={spring.standard}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ ...spring.standard, height: { duration: 0.22, ease: [0.25, 0, 0, 1] } }}
+                className="overflow-hidden"
               >
                 <SkillCard
                   skill={s}

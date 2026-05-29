@@ -665,14 +665,18 @@ export default function Home() {
               <>
                 <Divider />
                 <CoverLetterSection job={appState.job} />
-                <div className="mt-5 flex items-center gap-5">
+                <div className="mt-5 flex items-center gap-4 flex-wrap">
                   <motion.a
                     href={api.coverLetterPdfUrl(appState.job.id)}
                     download
-                    whileTap={{ scale: 0.98 }}
-                    className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors"
+                    whileTap={{ scale: 0.97 }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
+                    style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
                   >
-                    Download cover letter ↓
+                    Download Cover Letter
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
                   </motion.a>
                   <CopyButton text={appState.job.cover_letter} label="Copy" />
                 </div>

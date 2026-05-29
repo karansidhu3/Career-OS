@@ -93,7 +93,7 @@ _COVER_LETTER_LATEX = r"""\documentclass[11pt]{article}
   \AtPageUpperLeft{\rule[-1.30in]{\paperwidth}{1.30in}}%
 }
 
-\vspace*{0.12in}
+\vspace*{0.04in}
 \begin{center}
 {\fontsize{26}{30}\selectfont\scshape Karanveer Sidhu}\\[5pt]
 {\small\color[RGB]{80,80,80}

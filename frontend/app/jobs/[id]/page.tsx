@@ -129,14 +129,18 @@ function CoverLetterSection({ job }: { job: Job }) {
           </p>
         ))}
       </div>
-      <div className="mt-5 flex items-center gap-3">
+      <div className="mt-5 flex items-center gap-4 flex-wrap">
         <motion.a
           href={api.coverLetterPdfUrl(job.id)}
           download
           whileTap={{ scale: 0.97 }}
-          className="text-xs text-neutral-500 hover:text-neutral-800 transition-colors"
+          className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center gap-2"
+          style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
         >
-          Download PDF
+          Download Cover Letter
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
         </motion.a>
         <CopyButton text={job.cover_letter!} label="Copy" />
       </div>
