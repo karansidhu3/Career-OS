@@ -159,7 +159,18 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false)
   const [genElapsed, setGenElapsed] = useState(0)
   const [recentJobs, setRecentJobs] = useState<Job[]>([])
-  const [insights, setInsights] = useState<CandidacyInsights | null>(null)
+  const [insights, setInsights] = useState<CandidacyInsights | null>(() => {
+    // Populate from cache synchronously so layout is stable on first render
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = localStorage.getItem('careeros-insights-v1')
+      if (raw) {
+        const { data, ts } = JSON.parse(raw) as { data: CandidacyInsights; ts: number }
+        if (Date.now() - ts < 60 * 60 * 1000) return data
+      }
+    } catch {}
+    return null
+  })
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -402,32 +413,34 @@ export default function Home() {
               <AnimatePresence>
                 {insights && insights.count > 0 && (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ ...spring.gentle, delay: 0.15 }}
-                    className="mt-10"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.38, ease: [0.25, 0, 0, 1] }}
+                    className="overflow-hidden"
                   >
-                    {(() => {
-                      const headline = insights.count < 3
-                        ? `${insights.count} application${insights.count === 1 ? '' : 's'}`
-                        : (insights.headline ?? `${insights.count} applications`)
-                      const detail = insights.count < 3
-                        ? `Apply to ${3 - insights.count} more for a candidacy read.`
-                        : insights.observation
-                      return (
-                        <>
-                          <p className="text-3xl font-semibold text-neutral-800 tracking-tight leading-tight mb-3">
-                            {headline}
-                          </p>
-                          {detail && (
-                            <p className="text-sm text-neutral-600 leading-relaxed max-w-lg">
-                              {detail}
+                    <div className="mt-10">
+                      {(() => {
+                        const headline = insights.count < 3
+                          ? `${insights.count} application${insights.count === 1 ? '' : 's'}`
+                          : (insights.headline ?? `${insights.count} applications`)
+                        const detail = insights.count < 3
+                          ? `Apply to ${3 - insights.count} more for a candidacy read.`
+                          : insights.observation
+                        return (
+                          <>
+                            <p className="text-3xl font-semibold text-neutral-800 tracking-tight leading-tight mb-3">
+                              {headline}
                             </p>
-                          )}
-                        </>
-                      )
-                    })()}
+                            {detail && (
+                              <p className="text-sm text-neutral-600 leading-relaxed max-w-lg">
+                                {detail}
+                              </p>
+                            )}
+                          </>
+                        )
+                      })()}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
