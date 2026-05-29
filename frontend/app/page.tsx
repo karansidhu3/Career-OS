@@ -183,11 +183,30 @@ export default function Home() {
     } catch { /* offline */ }
   }, [])
 
-  // ── Load candidacy insights ──
-  const loadInsights = useCallback(async () => {
+  // ── Load candidacy insights — with localStorage cache ──
+  const loadInsights = useCallback(async (force = false) => {
+    const CACHE_KEY = 'careeros-insights-v1'
+    const CACHE_TTL = 60 * 60 * 1000 // 1 hour
+
+    if (!force) {
+      try {
+        const raw = localStorage.getItem(CACHE_KEY)
+        if (raw) {
+          const { data, ts } = JSON.parse(raw) as { data: CandidacyInsights; ts: number }
+          if (Date.now() - ts < CACHE_TTL) {
+            setInsights(data)
+            return
+          }
+        }
+      } catch { /* corrupt cache — fall through to fetch */ }
+    }
+
     try {
       const data = await api.getInsights()
       setInsights(data)
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
+      } catch { /* storage full — not critical */ }
     } catch { /* offline or no data */ }
   }, [])
 
@@ -215,7 +234,7 @@ export default function Home() {
         if (job.status === 'generated') {
           setAppState({ mode: 'result', job })
           loadRecent()
-          loadInsights()
+          loadInsights(true) // force-refresh after new generation
         } else if (job.status === 'failed') {
           setAppState({
             mode: 'error',
