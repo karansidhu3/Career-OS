@@ -247,8 +247,12 @@ async def get_candidacy_insights(db: AsyncSession = Depends(get_db)):
         for j in jobs
     ]
 
-    observation = await generate_insights(summaries)
-    return CandidacyInsightsRead(observation=observation, count=count)
+    result = await generate_insights(summaries)
+    return CandidacyInsightsRead(
+        headline=result.get("headline"),
+        observation=result.get("observation"),
+        count=count,
+    )
 
 
 @router.get("", response_model=list[JobRead])

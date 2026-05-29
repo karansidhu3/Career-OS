@@ -52,5 +52,6 @@ class JobRead(BaseModel):
 
 
 class CandidacyInsightsRead(BaseModel):
+    headline: Optional[str] = None
     observation: Optional[str] = None
     count: int

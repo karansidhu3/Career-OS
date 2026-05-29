@@ -23,6 +23,7 @@ export interface Job {
 }
 
 export interface CandidacyInsights {
+  headline: string | null
   observation: string | null
   count: number
 }

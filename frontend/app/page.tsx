@@ -214,6 +214,7 @@ export default function Home() {
         if (job.status === 'generated') {
           setAppState({ mode: 'result', job })
           loadRecent()
+          loadInsights()
         } else if (job.status === 'failed') {
           setAppState({
             mode: 'error',
@@ -306,71 +307,94 @@ export default function Home() {
           >
             <div className="pt-10">
 
-              {/* Candidacy surface — only when observation exists */}
-              <AnimatePresence>
-                {insights?.observation && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={spring.gentle}
-                    className="mb-12"
+              {/* ── Workspace zone — the focal point ── */}
+              <div
+                className="rounded-2xl relative"
+                style={{
+                  background: 'var(--c-surface-raised)',
+                  border: '1px solid var(--c-border)',
+                }}
+              >
+                {/* Writing surface */}
+                <div
+                  className="px-8 pt-8 pb-16"
+                  style={{ minHeight: '42vh' }}
+                >
+                  <AutoTextarea
+                    ref={textareaRef}
+                    value={jd}
+                    onChange={e => handleJdChange(e.target.value)}
+                    placeholder="Paste a job description…"
+                    disabled={submitting}
+                    className="jd-textarea w-full text-[15px] text-neutral-700 placeholder-neutral-300 focus:outline-none leading-relaxed disabled:opacity-40"
+                    style={{ background: 'transparent', border: 'none', padding: '0' }}
+                  />
+                </div>
+
+                {/* Generate affordance — anchored bottom-right inside the zone */}
+                <div className="absolute bottom-6 right-8">
+                  <motion.button
+                    onClick={handleGenerate}
+                    disabled={submitting || !jd.trim()}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-700 disabled:opacity-30 transition-colors"
                   >
-                    <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-300 mb-3">
-                      candidacy signal
-                    </p>
-                    <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-xl">
-                      {insights.observation}
-                    </p>
+                    {submitting ? (
+                      <>
+                        <span className="w-3.5 h-3.5 rounded-full animate-spin" style={{ border: '1.5px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+                        <span>Starting…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Generate</span>
+                        <kbd className="text-[10px] font-sans px-1.5 py-0.5 rounded-md text-neutral-300 border" style={{ background: 'rgba(0,0,0,0.03)', borderColor: 'rgba(0,0,0,0.08)' }}>⌘↵</kbd>
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* ── Candidacy signal — headline first ── */}
+              <AnimatePresence>
+                {insights && insights.count > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ ...spring.gentle, delay: 0.15 }}
+                    className="mt-10"
+                  >
+                    {(() => {
+                      const headline = insights.count < 3
+                        ? `${insights.count} application${insights.count === 1 ? '' : 's'}`
+                        : (insights.headline ?? `${insights.count} applications`)
+                      const detail = insights.count < 3
+                        ? `Apply to ${3 - insights.count} more for a candidacy read.`
+                        : insights.observation
+                      return (
+                        <>
+                          <p className="text-3xl font-semibold text-neutral-800 tracking-tight leading-tight mb-3">
+                            {headline}
+                          </p>
+                          {detail && (
+                            <p className="text-sm text-neutral-500 leading-relaxed max-w-lg">
+                              {detail}
+                            </p>
+                          )}
+                        </>
+                      )
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Textarea — bare canvas */}
-              <AutoTextarea
-                ref={textareaRef}
-                value={jd}
-                onChange={e => handleJdChange(e.target.value)}
-                placeholder="Paste a job description…"
-                disabled={submitting}
-                className="jd-textarea w-full text-[15px] text-neutral-700 placeholder-neutral-300 focus:outline-none leading-relaxed disabled:opacity-40"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  minHeight: '260px',
-                  padding: '2px 0',
-                }}
-              />
-
-              {/* Generate affordance */}
-              <div className="mt-5 flex justify-end">
-                <motion.button
-                  onClick={handleGenerate}
-                  disabled={submitting || !jd.trim()}
-                  whileTap={{ scale: 0.97 }}
-                  className="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-700 disabled:opacity-30 transition-colors"
-                >
-                  {submitting ? (
-                    <>
-                      <span className="w-3.5 h-3.5 rounded-full animate-spin" style={{ border: '1.5px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
-                      <span>Starting…</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Generate</span>
-                      <kbd className="text-[10px] font-sans px-1.5 py-0.5 rounded-md text-neutral-300 border" style={{ background: 'rgba(0,0,0,0.03)', borderColor: 'rgba(0,0,0,0.08)' }}>⌘↵</kbd>
-                    </>
-                  )}
-                </motion.button>
-              </div>
-
-              {/* Recent jobs — bare text list */}
+              {/* ── Recent jobs ── */}
               {recentJobs.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ ...spring.gentle, delay: 0.2 }}
-                  className="mt-8 pt-5"
+                  transition={{ ...spring.gentle, delay: 0.3 }}
+                  className="mt-10 pt-5"
                   style={{ borderTop: '1px solid var(--c-border)' }}
                 >
                   {recentJobs.map(job => (

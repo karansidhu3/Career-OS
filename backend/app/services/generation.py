@@ -470,21 +470,45 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
 
 
 _INSIGHTS_SYSTEM = (
-    "You are reviewing Karanveer Sidhu's job search history as a direct advisor.\n\n"
-    "Write one paragraph (3-4 sentences) of specific, actionable career intelligence.\n\n"
-    "Look for: technologies that keep appearing across JDs he isn't demonstrating in his profile, "
-    "skill patterns that are creating a recurring gap, or a single concrete project that would "
-    "address multiple gaps at once.\n\n"
-    "Be specific — name technologies, name a project idea. Do not say 'keep building' or 'you're on "
-    "the right track' or anything that could apply to anyone. If there isn't a clear signal yet, say "
-    "so plainly in one sentence.\n\n"
-    "Hard rules: no em dashes, no adverbs, no filler phrases."
+    "You are reviewing Karanveer Sidhu's job search history as a direct advisor. "
+    "Analyze the application patterns and produce a structured candidacy signal.\n\n"
+    "Look for: technologies that keep appearing across JDs that aren't demonstrated in the profile, "
+    "skill patterns creating a recurring gap, or a single concrete action that would address multiple gaps.\n\n"
+    "Hard rules: no em dashes, no adverbs, no filler phrases, be specific."
 )
 
+_INSIGHTS_TOOL = {
+    "name": "candidacy_signal",
+    "description": "Structured candidacy observation with a memorable headline and supporting detail.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "headline": {
+                "type": "string",
+                "description": (
+                    "2-5 words. The single most memorable conclusion. "
+                    "Right: 'Kubernetes keeps appearing', 'Infrastructure skills missing', "
+                    "'Distributed systems gap', 'Strong backend match'. "
+                    "Wrong: 'Keep applying', 'Good progress', 'Consider improving skills'."
+                ),
+            },
+            "observation": {
+                "type": "string",
+                "description": (
+                    "2-3 sentences explaining the headline. Name the specific technologies, "
+                    "name the gap, name one concrete action. No em dashes, no adverbs."
+                ),
+            },
+        },
+        "required": ["headline", "observation"],
+    },
+}
 
-async def generate_insights(job_summaries: list[dict]) -> str | None:
+
+async def generate_insights(job_summaries: list[dict]) -> dict[str, str | None]:
     """Synthesize a candidacy observation from a list of job application summaries.
 
+    Returns: {"headline": str | None, "observation": str | None}
     Each summary dict should have: title, company (optional), strategic_note (optional),
     description_snippet (optional, first 400 chars of JD for older jobs without a strategic_note).
     """
@@ -504,14 +528,23 @@ async def generate_insights(job_summaries: list[dict]) -> str | None:
         response = await asyncio.wait_for(
             client.messages.create(
                 model=CLAUDE_MODEL,
-                max_tokens=280,
+                max_tokens=300,
                 system=_INSIGHTS_SYSTEM,
                 messages=[{"role": "user", "content": "\n".join(lines)}],
+                tools=[_INSIGHTS_TOOL],
+                tool_choice={"type": "tool", "name": "candidacy_signal"},
             ),
             timeout=30.0,
         )
-        if response.content and hasattr(response.content[0], "text"):
-            return response.content[0].text.strip() or None
-        return None
+        tool_use = next(
+            (b for b in response.content if hasattr(b, "type") and b.type == "tool_use"),
+            None,
+        )
+        if not tool_use:
+            return {"headline": None, "observation": None}
+        return {
+            "headline": tool_use.input.get("headline") or None,
+            "observation": tool_use.input.get("observation") or None,
+        }
     except Exception:
-        return None
+        return {"headline": None, "observation": None}
