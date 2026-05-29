@@ -12,20 +12,17 @@ import { spring } from '@/lib/motion'
 function FitCard({ job }: { job: Job }) {
   const score = job.fit_score ?? 0
   const label = score >= 8 ? 'Strong Match' : score >= 6 ? 'Good Match' : 'Weak Match'
-  const tokenColor  = score >= 8 ? 'var(--c-success)'        : score >= 6 ? 'var(--c-warn)'        : 'var(--c-danger)'
-  const tokenBg     = score >= 8 ? 'var(--c-success-dim)'    : score >= 6 ? 'var(--c-warn-dim)'    : 'var(--c-danger-dim)'
-  const tokenBorder = score >= 8 ? 'var(--c-success-border)' : score >= 6 ? 'var(--c-warn-border)' : 'var(--c-danger-border)'
+  const tokenColor = score >= 8 ? 'var(--c-success)' : score >= 6 ? 'var(--c-warn)' : 'var(--c-danger)'
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring.standard}
-      className="rounded-2xl p-6 flex items-start gap-6"
-      style={{ background: tokenBg, border: `1px solid ${tokenBorder}` }}
+      className="flex items-start gap-6 py-2"
     >
       <ScoreRing score={score} size={96} />
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 pt-1">
         <p className="text-base font-semibold mb-3" style={{ color: tokenColor }}>{label}</p>
         {job.fit_rationale && (
           <ul className="space-y-1.5">
@@ -64,16 +61,12 @@ function ResumeSection({ job }: { job: Job }) {
         </div>
       </div>
 
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border-subtle)' }}
-      >
+      <div>
         <button
           onClick={() => setExpanded(v => !v)}
-          className="w-full px-5 py-3.5 flex items-center justify-between text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+          className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
         >
-          <span>Preview LaTeX source</span>
-          <span>{expanded ? '▲' : '▼'}</span>
+          {expanded ? 'Hide source ↑' : 'LaTeX source ↓'}
         </button>
         <AnimatePresence>
           {expanded && (
@@ -84,7 +77,7 @@ function ResumeSection({ job }: { job: Job }) {
               transition={{ duration: 0.25 }}
               className="overflow-hidden"
             >
-              <div className="px-5 pb-5 max-h-[500px] overflow-y-auto">
+              <div className="mt-3 max-h-[500px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
                 <pre className="text-xs font-mono text-neutral-500 leading-relaxed whitespace-pre-wrap break-all">
                   {job.resume_latex}
                 </pre>
@@ -103,27 +96,23 @@ function CoverLetterSection({ job }: { job: Job }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <SectionLabel>Cover letter</SectionLabel>
-        <div className="flex items-center gap-2">
-          <motion.a
-            href={api.coverLetterPdfUrl(job.id)}
-            download
-            whileTap={{ scale: 0.97 }}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200"
-            style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
-          >
-            Download PDF
-          </motion.a>
-          <CopyButton text={job.cover_letter!} label="Copy" />
-        </div>
-      </div>
       <div className="max-w-2xl">
         {paragraphs.map((para, i) => (
           <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">
             {para}
           </p>
         ))}
+      </div>
+      <div className="mt-5 flex items-center gap-3">
+        <motion.a
+          href={api.coverLetterPdfUrl(job.id)}
+          download
+          whileTap={{ scale: 0.97 }}
+          className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors"
+        >
+          Download PDF
+        </motion.a>
+        <CopyButton text={job.cover_letter!} label="Copy" />
       </div>
     </div>
   )
@@ -356,65 +345,41 @@ export default function JobPage() {
             {job.company && <p className="text-[15px] text-neutral-400 mt-1">{job.company}</p>}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            {/* Regenerate */}
-            <button
-              onClick={handleRegenerate}
-              disabled={regenerating || updating}
-              className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40 transition-all flex items-center gap-1.5"
-              style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
-            >
-              {regenerating && (
-                <span className="w-3 h-3 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />
-              )}
-              {regenerating ? 'Starting…' : 'Regenerate'}
-            </button>
-
-            {/* Status action buttons */}
+          <div className="flex items-center gap-4 shrink-0">
+            {/* Status transitions — text-level, no chrome */}
             {job.status === 'generated' && (
               <>
-                <motion.button
-                  onClick={() => handleStatus('applied')}
-                  disabled={updating}
-                  whileTap={{ scale: 0.97 }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
-                  style={{ background: 'linear-gradient(135deg, #34d399, #059669)', boxShadow: '0 4px 12px rgba(16,185,129,0.25)' }}
-                >
-                  Mark Applied
-                </motion.button>
-                <motion.button
-                  onClick={() => handleStatus('skipped')}
-                  disabled={updating}
-                  whileTap={{ scale: 0.97 }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-neutral-500 disabled:opacity-40 transition-all"
-                  style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)' }}
-                >
+                <button onClick={() => handleStatus('applied')} disabled={updating}
+                  className="text-xs font-medium disabled:opacity-40 transition-colors"
+                  style={{ color: 'var(--c-success)' }}>
+                  Mark applied
+                </button>
+                <button onClick={() => handleStatus('skipped')} disabled={updating}
+                  className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
                   Skip
-                </motion.button>
+                </button>
               </>
             )}
             {job.status === 'applied' && (
-              <motion.button
-                onClick={() => handleStatus('interview')}
-                disabled={updating}
-                whileTap={{ scale: 0.97 }}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
-                style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-              >
-                Got Interview
-              </motion.button>
+              <button onClick={() => handleStatus('interview')} disabled={updating}
+                className="text-xs font-medium disabled:opacity-40 transition-colors"
+                style={{ color: 'var(--c-warn)' }}>
+                Got interview
+              </button>
             )}
             {job.status === 'interview' && (
-              <motion.button
-                onClick={() => handleStatus('offer')}
-                disabled={updating}
-                whileTap={{ scale: 0.97 }}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
-                style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)', boxShadow: '0 4px 12px rgba(217,119,6,0.25)' }}
-              >
-                Got Offer ✦
-              </motion.button>
+              <button onClick={() => handleStatus('offer')} disabled={updating}
+                className="text-xs font-medium disabled:opacity-40 transition-colors"
+                style={{ color: 'var(--c-warn)' }}>
+                Got offer ✦
+              </button>
             )}
+            {/* Regenerate — always available */}
+            <button onClick={handleRegenerate} disabled={regenerating || updating}
+              className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+              {regenerating && <span className="w-3 h-3 rounded-full animate-spin" style={{ border: '1.5px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />}
+              {regenerating ? 'Starting…' : 'Regenerate'}
+            </button>
           </div>
         </div>
       </motion.div>

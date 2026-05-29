@@ -134,18 +134,8 @@ function SavedFlash() {
   )
 }
 
-function card(extra = '') {
-  return {
-    className: `rounded-2xl p-6 ${extra}`,
-    style: {
-      background: 'var(--c-surface)',
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
-      border: '1px solid var(--c-border)',
-      boxShadow: 'var(--c-shadow-md)',
-    } as React.CSSProperties,
-  }
-}
+// Shared border style for bare item rows
+const itemBorder: React.CSSProperties = { borderBottom: '1px solid var(--c-border)' }
 
 function ReorderButtons({
   onUp,
@@ -229,7 +219,7 @@ function ProjectCard({
   }
 
   return (
-    <motion.div layout {...card()} className="rounded-2xl p-6" style={card().style}>
+    <motion.div layout className="py-5 group" style={itemBorder}>
       <AnimatePresence mode="wait">
         {editing ? (
           <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
@@ -258,11 +248,8 @@ function ProjectCard({
               />
             </Field>
             <div className="flex items-center justify-between pt-1">
-              <button
-                onClick={del}
-                disabled={deleting}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40"
-              >
+              <button onClick={del} disabled={deleting}
+                className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40">
                 {deleting ? 'Deleting…' : 'Delete project'}
               </button>
               <div className="flex gap-2">
@@ -273,30 +260,25 @@ function ProjectCard({
           </motion.div>
         ) : (
           <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="flex items-start gap-3">
-              {/* Reorder arrows */}
-              <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
-
+            <div className="flex items-start gap-4">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-neutral-800">{project.name}</h3>
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <h3 className="text-sm font-semibold text-neutral-800">{project.name}</h3>
                   {(project.start_date || project.end_date) && (
                     <span className="text-xs text-neutral-400">
                       {project.start_date} – {project.end_date || 'Present'}
                     </span>
                   )}
+                  <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
                 </div>
                 {project.tech.length > 0 && <TechTags tags={project.tech} />}
                 {project.bullets.length > 0 && <Bullets bullets={project.bullets} />}
               </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
-                <button
-                  onClick={() => setEditing(true)}
-                  className="text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors"
-                  style={{ background: 'rgba(0,0,0,0.04)' }}
-                >
+              {/* Hover-reveal actions */}
+              <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
+                <button onClick={() => setEditing(true)}
+                  className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors">
                   Edit
                 </button>
               </div>
@@ -369,7 +351,7 @@ function ExperienceCard({
   }
 
   return (
-    <motion.div layout {...card()}>
+    <motion.div layout className="py-5 group" style={itemBorder}>
       <AnimatePresence mode="wait">
         {editing ? (
           <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
@@ -385,7 +367,8 @@ function ExperienceCard({
               <TextArea value={bullets} onChange={setBullets} rows={4} placeholder="Built a platform that..." />
             </Field>
             <div className="flex items-center justify-between pt-1">
-              <button onClick={del} disabled={deleting} className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40">
+              <button onClick={del} disabled={deleting}
+                className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40">
                 {deleting ? 'Deleting…' : 'Delete'}
               </button>
               <div className="flex gap-2">
@@ -396,21 +379,22 @@ function ExperienceCard({
           </motion.div>
         ) : (
           <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="flex items-start gap-3">
-              <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
-              <div className="flex-1">
+            <div className="flex items-start gap-4">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <h3 className="font-semibold text-neutral-800">{exp.role}</h3>
+                  <h3 className="text-sm font-semibold text-neutral-800">{exp.role}</h3>
                   <span className="text-neutral-400 text-sm">at {exp.company}</span>
+                  <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
                 </div>
                 <p className="text-xs text-neutral-400 mb-2">
                   {exp.start_date} – {exp.end_date || 'Present'}
                 </p>
                 <Bullets bullets={exp.bullets} />
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
-                <button onClick={() => setEditing(true)} className="text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors" style={{ background: 'rgba(0,0,0,0.04)' }}>
+              <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
+                <button onClick={() => setEditing(true)}
+                  className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors">
                   Edit
                 </button>
               </div>
@@ -455,7 +439,7 @@ function SkillCard({
   }
 
   return (
-    <motion.div layout {...card()}>
+    <motion.div layout className="py-5 group" style={itemBorder}>
       <AnimatePresence mode="wait">
         {editing ? (
           <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
@@ -468,23 +452,28 @@ function SkillCard({
             <div className="flex items-center justify-between pt-1">
               <button
                 onClick={async () => { if (confirm('Delete this skill category?')) await onDelete() }}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors"
-              >
+                className="text-xs text-red-400 hover:text-red-600 transition-colors">
                 Delete
               </button>
-              <div className="flex gap-2"><CancelButton onClick={() => setEditing(false)} /><SaveButton saving={saving} onClick={save} /></div>
+              <div className="flex gap-2">
+                <CancelButton onClick={() => setEditing(false)} />
+                <SaveButton saving={saving} onClick={save} />
+              </div>
             </div>
           </motion.div>
         ) : (
           <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <p className="text-xs font-semibold text-neutral-400 mb-2">{skill.category}</p>
+                <p className="text-xs text-neutral-400 mb-2">{skill.category}</p>
                 <TechTags tags={skill.items} />
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="shrink-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
-                <button onClick={() => setEditing(true)} className="text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors" style={{ background: 'rgba(0,0,0,0.04)' }}>Edit</button>
+                <button onClick={() => setEditing(true)}
+                  className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors">
+                  Edit
+                </button>
               </div>
             </div>
           </motion.div>
@@ -673,9 +662,6 @@ export default function ProfilePage() {
         className="pt-10 mb-10"
       >
         <h1 className="text-3xl font-semibold text-neutral-900">Profile</h1>
-        <p className="text-neutral-400 mt-1 text-sm">
-          Your profile feeds every resume and cover letter Claude generates. Edit any card, use the arrows to reorder.
-        </p>
       </motion.div>
 
       {/* Projects — most important, first */}
@@ -785,14 +771,10 @@ export default function ProfilePage() {
         <SectionHeader title="Education" />
         <div className="space-y-3">
           {profile.education.map(e => (
-            <div key={e.id} {...card()}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="font-semibold text-neutral-800">{e.school}</h3>
-                  <p className="text-sm text-neutral-500 mt-0.5">{e.degree}{e.minor ? `, Minor in ${e.minor}` : ''}</p>
-                  <p className="text-xs text-neutral-400 mt-1">{e.start_date} – {e.end_date}</p>
-                </div>
-              </div>
+            <div key={e.id} className="py-5" style={itemBorder}>
+              <h3 className="text-sm font-semibold text-neutral-800">{e.school}</h3>
+              <p className="text-sm text-neutral-500 mt-0.5">{e.degree}{e.minor ? `, Minor in ${e.minor}` : ''}</p>
+              <p className="text-xs text-neutral-400 mt-1">{e.start_date} – {e.end_date}</p>
             </div>
           ))}
         </div>

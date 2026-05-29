@@ -81,10 +81,11 @@ body::before {
 ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
 
-/* ─── JD textarea focus ring ─────────────────────────────────── */
+/* ─── JD textarea — bare canvas, no focus ring ───────────────── */
 .jd-textarea:focus {
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.07), 0 2px 8px rgba(0, 0, 0, 0.05) !important;
-  border-color: rgba(0, 0, 0, 0.15) !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  outline: none !important;
 }
 
 /* ─── Dark mode ──────────────────────────────────────────────── */
@@ -142,8 +143,8 @@ body::before {
   ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
 
   .jd-textarea:focus {
-    box-shadow: 0 0 0 3px rgba(228, 228, 231, 0.1), 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-    border-color: rgba(228, 228, 231, 0.2) !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
   }
 
   body::before {

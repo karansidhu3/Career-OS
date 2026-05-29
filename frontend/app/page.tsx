@@ -297,43 +297,39 @@ export default function Home() {
             transition={spring.gentle}
           >
             <div className="pt-10">
-              {/* Textarea — primary input surface */}
+              {/* Textarea — bare canvas */}
               <AutoTextarea
                 ref={textareaRef}
                 value={jd}
                 onChange={e => handleJdChange(e.target.value)}
-                placeholder="Paste job description…"
+                placeholder="Paste a job description…"
                 disabled={submitting}
-                className="jd-textarea w-full rounded-2xl text-[15px] text-neutral-700 placeholder-neutral-400/60 px-5 py-4 focus:outline-none transition-all leading-relaxed disabled:opacity-50"
+                className="jd-textarea w-full text-[15px] text-neutral-700 placeholder-neutral-300 focus:outline-none leading-relaxed disabled:opacity-40"
                 style={{
-                  background: 'var(--c-surface-raised)',
-                  border: '1px solid var(--c-border)',
-                  boxShadow: 'var(--c-shadow-md)',
-                  minHeight: '220px',
+                  background: 'transparent',
+                  border: 'none',
+                  minHeight: '260px',
+                  padding: '2px 0',
                 }}
               />
 
-              {/* Generate button */}
-              <div className="mt-3 flex justify-end">
+              {/* Generate affordance */}
+              <div className="mt-5 flex justify-end">
                 <motion.button
                   onClick={handleGenerate}
                   disabled={submitting || !jd.trim()}
                   whileTap={{ scale: 0.97 }}
-                  className="px-8 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
-                  style={{
-                    background: submitting ? 'var(--c-accent)' : 'var(--c-btn-bg)',
-                    boxShadow: submitting ? 'none' : 'var(--c-btn-shadow)',
-                  }}
+                  className="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-700 disabled:opacity-30 transition-colors"
                 >
                   {submitting ? (
                     <>
-                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      Starting…
+                      <span className="w-3.5 h-3.5 rounded-full animate-spin" style={{ border: '1.5px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+                      <span>Starting…</span>
                     </>
                   ) : (
                     <>
-                      Generate
-                      <span className="opacity-30 font-normal text-xs ml-0.5">⌘↵</span>
+                      <span>Generate</span>
+                      <kbd className="text-[10px] font-sans px-1.5 py-0.5 rounded-md text-neutral-300 border" style={{ background: 'rgba(0,0,0,0.03)', borderColor: 'rgba(0,0,0,0.08)' }}>⌘↵</kbd>
                     </>
                   )}
                 </motion.button>
@@ -546,11 +542,10 @@ export default function Home() {
                   {appState.job.cover_letter && (
                     <>
                       <Divider />
-                      <div className="flex items-center justify-between mb-5">
-                        <SectionLabel>Cover letter</SectionLabel>
+                      <CoverLetterSection job={appState.job} />
+                      <div className="mt-5 flex justify-end">
                         <CopyButton text={appState.job.cover_letter} label="Copy" />
                       </div>
-                      <CoverLetterSection job={appState.job} />
                     </>
                   )}
 
