@@ -15,7 +15,7 @@ html, body { height: 100%; }
   --c-btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
 
   /* Surfaces */
-  --c-surface:       rgba(255, 255, 255, 0.82);
+  --c-surface:        rgba(255, 255, 255, 0.82);
   --c-surface-raised: rgba(255, 255, 255, 0.94);
 
   /* Borders */
@@ -32,6 +32,16 @@ html, body { height: 100%; }
 
   /* Icon hover */
   --c-icon-hover: rgba(0, 0, 0, 0.05);
+
+  /* Glass input surface — light mode */
+  --c-glass-bg:     rgba(255, 255, 255, 0.72);
+  --c-glass-border: rgba(0, 0, 0, 0.07);
+  --c-glass-shadow: 0 2px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  /* Keyboard shortcut badge */
+  --c-kbd-bg:     rgba(0, 0, 0, 0.03);
+  --c-kbd-border: rgba(0, 0, 0, 0.08);
+  --c-kbd-text:   #9CA3AF;
 
   /* Semantic — success */
   --c-success:        #10b981;
@@ -91,27 +101,43 @@ body::before {
 /* ─── Dark mode ──────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Accent — Ink (near-white in dark mode) */
-    --c-accent:        #E4E4E7;
-    --c-accent-dim:    rgba(228, 228, 231, 0.08);
-    --c-accent-border: rgba(228, 228, 231, 0.15);
+    /* Accent — near-white */
+    --c-accent:        #E8E8E4;
+    --c-accent-dim:    rgba(232, 232, 228, 0.08);
+    --c-accent-border: rgba(232, 232, 228, 0.15);
 
-    --c-btn-bg:     linear-gradient(180deg, #52525B 0%, #3F3F46 100%);
-    --c-btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+    --c-btn-bg:     linear-gradient(180deg, #3A3A38 0%, #2A2A28 100%);
+    --c-btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.5);
 
-    --c-surface:        rgba(22, 27, 34, 0.85);
-    --c-surface-raised: rgba(28, 33, 40, 0.95);
+    /* Surfaces — neutral charcoal, no blue cast */
+    --c-surface:        rgba(255, 255, 255, 0.04);
+    --c-surface-raised: rgba(255, 255, 255, 0.07);
 
-    --c-border:        rgba(240, 246, 252, 0.1);
-    --c-border-subtle: rgba(240, 246, 252, 0.06);
+    /* Borders — neutral white alpha */
+    --c-border:        rgba(255, 255, 255, 0.10);
+    --c-border-subtle: rgba(255, 255, 255, 0.06);
 
-    --c-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-    --c-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.4);
+    --c-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --c-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.5);
 
-    --c-navbar:        rgba(13, 17, 23, 0.82);
-    --c-navbar-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.04);
+    /* Navbar — true charcoal */
+    --c-navbar:        rgba(17, 17, 16, 0.88);
+    --c-navbar-shadow: 0 4px 24px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.06);
 
     --c-icon-hover: rgba(255, 255, 255, 0.07);
+
+    /* Glass input surface — dark mode */
+    --c-glass-bg:     rgba(255, 255, 255, 0.07);
+    --c-glass-border: rgba(255, 255, 255, 0.12);
+    --c-glass-shadow:
+      0 12px 48px rgba(0, 0, 0, 0.55),
+      0 2px 8px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.10);
+
+    /* Keyboard shortcut badge — dark */
+    --c-kbd-bg:     rgba(255, 255, 255, 0.07);
+    --c-kbd-border: rgba(255, 255, 255, 0.14);
+    --c-kbd-text:   rgba(255, 255, 255, 0.35);
 
     /* Semantic — success (dark) */
     --c-success:        #34d399;
@@ -129,15 +155,16 @@ body::before {
     --c-danger-border:  rgba(248, 113, 113, 0.25);
 
     /* Surface overlay (dark) */
-    --c-surface-overlay: rgba(33, 38, 45, 0.98);
+    --c-surface-overlay: rgba(26, 26, 24, 0.98);
   }
 
   body {
-    background-color: #0D1117;
-    color: #E6EDF3;
+    /* True charcoal — neutral warm, no blue cast */
+    background-color: #111110;
+    color: #EDEDE8;
   }
 
-  ::selection { background: rgba(228, 228, 231, 0.15); }
+  ::selection { background: rgba(232, 232, 228, 0.15); }
 
   ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
   ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
@@ -147,25 +174,26 @@ body::before {
     border-color: transparent !important;
   }
 
+  /* Focused ambient glow — draws eye to content center */
   body::before {
     background:
-      radial-gradient(ellipse 90% 50% at 50% -8%,  rgba(228, 228, 231, 0.030) 0%, transparent 65%),
-      radial-gradient(ellipse 60% 40% at 90% 110%, rgba(228, 228, 231, 0.015) 0%, transparent 60%);
+      radial-gradient(ellipse 80% 55% at 50% 38%, rgba(255, 255, 255, 0.022) 0%, transparent 62%),
+      radial-gradient(ellipse 45% 35% at 82% 85%,  rgba(255, 255, 255, 0.008) 0%, transparent 55%);
   }
 
-  /* ── Invert Tailwind neutral scale ─────────────────────────── */
-  /* text-neutral-*, bg-neutral-*, border-neutral-* all adapt     */
+  /* ── Invert Tailwind neutral scale — warm charcoal, no blue ─── */
+  /* text-neutral-*, bg-neutral-*, border-neutral-* all adapt       */
   :root {
-    --color-neutral-950: #F0F6FC;
-    --color-neutral-900: #E6EDF3;
-    --color-neutral-800: #C9D1D9;
-    --color-neutral-700: #B1BAC4;
-    --color-neutral-600: #8B949E;
-    --color-neutral-500: #6E7681;
-    --color-neutral-400: #484F58;
-    --color-neutral-300: #30363D;
-    --color-neutral-200: #21262D;
-    --color-neutral-100: #161B22;
-    --color-neutral-50:  #0D1117;
+    --color-neutral-950: #F4F4F2;
+    --color-neutral-900: #E8E8E4;
+    --color-neutral-800: #C6C6C2;
+    --color-neutral-700: #A4A4A0;
+    --color-neutral-600: #828280;
+    --color-neutral-500: #626260;
+    --color-neutral-400: #424240;
+    --color-neutral-300: #2A2A28;
+    --color-neutral-200: #1C1C1A;
+    --color-neutral-100: #141412;
+    --color-neutral-50:  #111110;
   }
 }

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api, CandidacyInsights, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
+import { BrandMark } from '@/components/BrandMark'
 import { spring } from '@/lib/motion'
 import { relativeDate } from '@/lib/utils'
 
@@ -307,18 +308,33 @@ export default function Home() {
           >
             <div className="pt-10">
 
-              {/* ── Workspace zone — the focal point ── */}
+              {/* ── Brand mark — visual anchor / signature element ── */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ ...spring.gentle, delay: 0.05 }}
+                className="flex justify-center mb-7"
+              >
+                <span className="text-neutral-600" style={{ opacity: 0.22 }}>
+                  <BrandMark size={56} physicalStroke={1.5} />
+                </span>
+              </motion.div>
+
+              {/* ── Workspace zone — glass focal point ── */}
               <div
                 className="rounded-2xl relative"
                 style={{
-                  background: 'var(--c-surface-raised)',
-                  border: '1px solid var(--c-border)',
+                  background: 'var(--c-glass-bg)',
+                  border: '1px solid var(--c-glass-border)',
+                  boxShadow: 'var(--c-glass-shadow)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
                 }}
               >
                 {/* Writing surface */}
                 <div
-                  className="px-8 pt-8 pb-16"
-                  style={{ minHeight: '42vh' }}
+                  className="px-8 pt-7 pb-16"
+                  style={{ minHeight: '40vh' }}
                 >
                   <AutoTextarea
                     ref={textareaRef}
@@ -326,18 +342,18 @@ export default function Home() {
                     onChange={e => handleJdChange(e.target.value)}
                     placeholder="Paste a job description…"
                     disabled={submitting}
-                    className="jd-textarea w-full text-[15px] text-neutral-700 placeholder-neutral-300 focus:outline-none leading-relaxed disabled:opacity-40"
+                    className="jd-textarea w-full text-[15px] text-neutral-800 placeholder-neutral-400 focus:outline-none leading-relaxed disabled:opacity-40"
                     style={{ background: 'transparent', border: 'none', padding: '0' }}
                   />
                 </div>
 
                 {/* Generate affordance — anchored bottom-right inside the zone */}
-                <div className="absolute bottom-6 right-8">
+                <div className="absolute bottom-5 right-7">
                   <motion.button
                     onClick={handleGenerate}
                     disabled={submitting || !jd.trim()}
                     whileTap={{ scale: 0.97 }}
-                    className="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-700 disabled:opacity-30 transition-colors"
+                    className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 disabled:opacity-30 transition-colors"
                   >
                     {submitting ? (
                       <>
@@ -347,7 +363,16 @@ export default function Home() {
                     ) : (
                       <>
                         <span>Generate</span>
-                        <kbd className="text-[10px] font-sans px-1.5 py-0.5 rounded-md text-neutral-300 border" style={{ background: 'rgba(0,0,0,0.03)', borderColor: 'rgba(0,0,0,0.08)' }}>⌘↵</kbd>
+                        <kbd
+                          className="text-[10px] font-sans px-1.5 py-0.5 rounded-md border"
+                          style={{
+                            background: 'var(--c-kbd-bg)',
+                            borderColor: 'var(--c-kbd-border)',
+                            color: 'var(--c-kbd-text)',
+                          }}
+                        >
+                          ⌘↵
+                        </kbd>
                       </>
                     )}
                   </motion.button>
@@ -377,7 +402,7 @@ export default function Home() {
                             {headline}
                           </p>
                           {detail && (
-                            <p className="text-sm text-neutral-500 leading-relaxed max-w-lg">
+                            <p className="text-sm text-neutral-600 leading-relaxed max-w-lg">
                               {detail}
                             </p>
                           )}
@@ -403,14 +428,14 @@ export default function Home() {
                       href={`/jobs/${job.id}`}
                       className="flex items-center justify-between py-2.5 group"
                     >
-                      <span className="text-sm text-neutral-500 group-hover:text-neutral-700 transition-colors truncate mr-6">
+                      <span className="text-sm text-neutral-600 group-hover:text-neutral-800 transition-colors truncate mr-6">
                         {job.title || 'Untitled'}
                         {job.company ? ` — ${job.company}` : ''}
                         {(job.status === 'interview' || job.status === 'offer') && (
                           <span className="ml-2 text-amber-400/80 text-xs">✦</span>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-neutral-400 group-hover:text-neutral-500 transition-colors tabular-nums">
+                      <span className="shrink-0 text-xs text-neutral-500 group-hover:text-neutral-600 transition-colors tabular-nums">
                         {job.created_at ? relativeDate(job.created_at) : ''}
                       </span>
                     </Link>

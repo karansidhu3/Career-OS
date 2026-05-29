@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
 import { spring } from '@/lib/motion'
+import { BrandMark } from './BrandMark'
 import { HistoryDrawer } from './HistoryDrawer'
 
 function ArchiveIcon() {
@@ -50,8 +51,8 @@ export function Navbar() {
       >
         <div
           style={{
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
             background: 'var(--c-navbar)',
             border: '1px solid var(--c-border)',
             boxShadow: 'var(--c-navbar-shadow)',
@@ -60,17 +61,13 @@ export function Navbar() {
         >
           {/* Mark + Wordmark */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: 2,
-                background: 'var(--c-accent)',
-                flexShrink: 0,
-                transition: 'opacity 0.15s',
-              }}
-            />
-            <span className="text-[13.5px] font-semibold text-neutral-800 tracking-[-0.01em]">
+            <span
+              className="text-neutral-700 transition-opacity duration-150"
+              style={{ opacity: 0.75 }}
+            >
+              <BrandMark size={13} physicalStroke={1.6} />
+            </span>
+            <span className="text-[13px] font-medium text-neutral-800 tracking-[0.02em]">
               CareerOS
             </span>
           </Link>
@@ -80,7 +77,7 @@ export function Navbar() {
             <button
               onClick={() => setDrawerOpen(true)}
               title="Log"
-              className="relative w-8 h-8 flex items-center justify-center rounded-xl text-neutral-400 hover:text-neutral-600 transition-all duration-150"
+              className="relative w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
@@ -98,7 +95,7 @@ export function Navbar() {
             <Link
               href="/profile"
               title="Profile"
-              className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-400 hover:text-neutral-600 transition-all duration-150"
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
