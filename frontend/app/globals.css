@@ -32,6 +32,24 @@ html, body { height: 100%; }
 
   /* Icon hover */
   --c-icon-hover: rgba(0, 0, 0, 0.05);
+
+  /* Semantic — success */
+  --c-success:        #10b981;
+  --c-success-dim:    rgba(16, 185, 129, 0.08);
+  --c-success-border: rgba(16, 185, 129, 0.2);
+
+  /* Semantic — warn (interview/offer, milestones) */
+  --c-warn:           #f59e0b;
+  --c-warn-dim:       rgba(245, 158, 11, 0.08);
+  --c-warn-border:    rgba(245, 158, 11, 0.2);
+
+  /* Semantic — danger */
+  --c-danger:         #ef4444;
+  --c-danger-dim:     rgba(239, 68, 68, 0.08);
+  --c-danger-border:  rgba(239, 68, 68, 0.2);
+
+  /* Surface overlay — true opaque layer (modals, tooltips) */
+  --c-surface-overlay: rgba(255, 255, 255, 1);
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
@@ -92,6 +110,24 @@ body::before {
     --c-navbar-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.04);
 
     --c-icon-hover: rgba(255, 255, 255, 0.07);
+
+    /* Semantic — success (dark) */
+    --c-success:        #34d399;
+    --c-success-dim:    rgba(52, 211, 153, 0.12);
+    --c-success-border: rgba(52, 211, 153, 0.25);
+
+    /* Semantic — warn (dark) */
+    --c-warn:           #fbbf24;
+    --c-warn-dim:       rgba(251, 191, 36, 0.12);
+    --c-warn-border:    rgba(251, 191, 36, 0.25);
+
+    /* Semantic — danger (dark) */
+    --c-danger:         #f87171;
+    --c-danger-dim:     rgba(248, 113, 113, 0.12);
+    --c-danger-border:  rgba(248, 113, 113, 0.25);
+
+    /* Surface overlay (dark) */
+    --c-surface-overlay: rgba(33, 38, 45, 0.98);
   }
 
   body {

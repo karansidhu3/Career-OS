@@ -4,19 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
-
-function relativeDate(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 60) return mins <= 1 ? 'Just now' : `${mins}m ago`
-  const hrs = Math.floor(diff / 3600000)
-  if (hrs < 24) return hrs === 1 ? '1h ago' : `${hrs}h ago`
-  const days = Math.floor(diff / 86400000)
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days}d ago`
-  if (days < 30) return `${Math.floor(days / 7)}w ago`
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
+import { relativeDate } from '@/lib/utils'
+import { SectionLabel } from '@/components/SectionLabel'
 
 function CloseIcon() {
   return (
@@ -195,9 +184,9 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
               {/* Pinned — interview & offer */}
               {pinned.length > 0 && (
                 <div className="mb-3">
-                  <p className="text-[11px] font-medium text-amber-400 uppercase tracking-[0.06em] px-4 mb-1">
+                  <SectionLabel className="px-4 mb-1" style={{ color: 'var(--c-warn)' }}>
                     Interview / Offer
-                  </p>
+                  </SectionLabel>
                   {pinned.map(({ job }) => (
                     <HistoryRow key={job.id} job={job} onClick={() => navigate(job.id)} />
                   ))}
@@ -208,9 +197,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
               {recent.length > 0 && (
                 <div className="mb-3">
                   {(pinned.length > 0 || older.length > 0) && (
-                    <p className="text-[11px] font-medium text-neutral-300 uppercase tracking-[0.06em] px-4 mb-1">
-                      Recent
-                    </p>
+                    <SectionLabel className="px-4 mb-1">Recent</SectionLabel>
                   )}
                   {recent.map(({ job }) => (
                     <HistoryRow key={job.id} job={job} onClick={() => navigate(job.id)} />

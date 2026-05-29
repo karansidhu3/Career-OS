@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
+import { SectionLabel } from '@/components/SectionLabel'
 
 function FitCard({ job }: { job: Job }) {
   const score = job.fit_score ?? 0
@@ -65,16 +66,17 @@ function ResumeSection({ job }: { job: Job }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-neutral-400 tracking-[0.04em]">Resume</p>
+        <SectionLabel>Resume</SectionLabel>
         <div className="flex items-center gap-2">
-          <a
+          <motion.a
             href={api.resumePdfUrl(job.id)}
             download
+            whileTap={{ scale: 0.97 }}
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
             style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
           >
             Download PDF
-          </a>
+          </motion.a>
           <CopyButton text={job.resume_latex} label="Copy .tex" />
         </div>
       </div>
@@ -119,16 +121,17 @@ function CoverLetterSection({ job }: { job: Job }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-neutral-400 tracking-[0.04em]">Cover letter</p>
+        <SectionLabel>Cover letter</SectionLabel>
         <div className="flex items-center gap-2">
-          <a
+          <motion.a
             href={api.coverLetterPdfUrl(job.id)}
             download
+            whileTap={{ scale: 0.97 }}
             className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200"
             style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#6b7280' }}
           >
             Download PDF
-          </a>
+          </motion.a>
           <CopyButton text={job.cover_letter!} label="Copy" />
         </div>
       </div>
@@ -264,7 +267,7 @@ export default function JobPage() {
             onClick={() => router.back()}
             className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1"
           >
-            ← Back
+            ← Applications
           </button>
         </div>
         <div
@@ -315,7 +318,7 @@ export default function JobPage() {
             onClick={() => router.back()}
             className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-3 flex items-center gap-1"
           >
-            ← Back
+            ← Applications
           </button>
         </div>
         <div
@@ -332,14 +335,15 @@ export default function JobPage() {
             <p className="text-neutral-700 font-medium">Generation failed</p>
             <p className="text-sm text-neutral-400 mt-1">Claude didn't respond in time. Try again.</p>
           </div>
-          <button
+          <motion.button
             onClick={handleRegenerate}
             disabled={regenerating}
+            whileTap={{ scale: 0.97 }}
             className="px-5 py-2.5 rounded-2xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
             style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
           >
             {regenerating ? 'Retrying…' : 'Retry'}
-          </button>
+          </motion.button>
         </div>
       </div>
     )
@@ -360,7 +364,7 @@ export default function JobPage() {
           onClick={() => router.back()}
           className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors mb-4 flex items-center gap-1"
         >
-          ← Back
+          ← Applications
         </button>
 
         <div className="flex items-start justify-between gap-4">
@@ -386,43 +390,47 @@ export default function JobPage() {
             {/* Status action buttons */}
             {job.status === 'generated' && (
               <>
-                <button
+                <motion.button
                   onClick={() => handleStatus('applied')}
                   disabled={updating}
+                  whileTap={{ scale: 0.97 }}
                   className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
                   style={{ background: 'linear-gradient(135deg, #34d399, #059669)', boxShadow: '0 4px 12px rgba(16,185,129,0.25)' }}
                 >
                   Mark Applied
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   onClick={() => handleStatus('skipped')}
                   disabled={updating}
+                  whileTap={{ scale: 0.97 }}
                   className="px-3 py-1.5 rounded-xl text-xs font-medium text-neutral-500 disabled:opacity-40 transition-all"
                   style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)' }}
                 >
                   Skip
-                </button>
+                </motion.button>
               </>
             )}
             {job.status === 'applied' && (
-              <button
+              <motion.button
                 onClick={() => handleStatus('interview')}
                 disabled={updating}
+                whileTap={{ scale: 0.97 }}
                 className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
                 style={{ background: 'linear-gradient(135deg, #60a5fa, #2563eb)', boxShadow: '0 4px 12px rgba(37,99,235,0.25)' }}
               >
                 Got Interview
-              </button>
+              </motion.button>
             )}
             {job.status === 'interview' && (
-              <button
+              <motion.button
                 onClick={() => handleStatus('offer')}
                 disabled={updating}
+                whileTap={{ scale: 0.97 }}
                 className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
                 style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)', boxShadow: '0 4px 12px rgba(217,119,6,0.25)' }}
               >
-                Got Offer 🎉
-              </button>
+                Got Offer ✦
+              </motion.button>
             )}
           </div>
         </div>

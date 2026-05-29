@@ -5,11 +5,15 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { HistoryDrawer } from './HistoryDrawer'
 
-function HistoryIcon() {
+function ArchiveIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
+      <line x1="9" y1="6" x2="20" y2="6" />
+      <line x1="9" y1="12" x2="20" y2="12" />
+      <line x1="9" y1="18" x2="20" y2="18" />
+      <circle cx="4" cy="6" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="12" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="18" r="1.1" fill="currentColor" stroke="none" />
     </svg>
   )
 }
@@ -65,13 +69,13 @@ export function Navbar() {
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => setDrawerOpen(true)}
-              title="History"
+              title="Log"
               className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-400 hover:text-neutral-600 transition-all duration-150"
               style={{ ['--tw-bg-opacity' as string]: '1' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <HistoryIcon />
+              <ArchiveIcon />
             </button>
             <Link
               href="/profile"

@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
+import { SectionLabel } from '@/components/SectionLabel'
+import { relativeDate } from '@/lib/utils'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -15,19 +17,6 @@ type AppState =
   | { mode: 'error'; jobId?: number; message: string }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function relativeDate(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 60) return mins <= 1 ? 'Just now' : `${mins}m ago`
-  const hrs = Math.floor(diff / 3600000)
-  if (hrs < 24) return hrs === 1 ? '1h ago' : `${hrs}h ago`
-  const days = Math.floor(diff / 86400000)
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days}d ago`
-  if (days < 30) return `${Math.floor(days / 7)}w ago`
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
 
 function getGenMessage(elapsed: number): string {
   if (elapsed < 5)  return 'Reading the job description…'
@@ -367,11 +356,12 @@ export default function Home() {
               />
 
               {/* Generate button */}
-              <div className="mt-3">
-                <button
+              <div className="mt-3 flex justify-end">
+                <motion.button
                   onClick={handleGenerate}
                   disabled={submitting || !jd.trim()}
-                  className="w-full py-3.5 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
+                  whileTap={{ scale: 0.97 }}
+                  className="px-8 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2"
                   style={{
                     background: submitting ? 'var(--c-accent)' : 'var(--c-btn-bg)',
                     boxShadow: submitting ? 'none' : 'var(--c-btn-shadow)',
@@ -388,7 +378,7 @@ export default function Home() {
                       <span className="opacity-30 font-normal text-xs ml-0.5">⌘↵</span>
                     </>
                   )}
-                </button>
+                </motion.button>
               </div>
 
               {/* Recent jobs — bare text list */}
@@ -443,10 +433,11 @@ export default function Home() {
                 <div
                   className="absolute rounded-full"
                   style={{
-                    width: 120,
-                    height: 120,
+                    width: 80,
+                    height: 80,
                     background: 'radial-gradient(circle, var(--c-accent-dim) 0%, transparent 70%)',
-                    filter: 'blur(20px)',
+                    filter: 'blur(16px)',
+                    opacity: 0.7,
                   }}
                 />
                 <div className="relative w-12 h-12">
@@ -477,7 +468,7 @@ export default function Home() {
                 onClick={() => setAppState({ mode: 'idle' })}
                 className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
               >
-                cancel
+                Cancel
               </button>
             </div>
           </motion.div>
@@ -523,9 +514,10 @@ export default function Home() {
             {/* Download actions — primary CTAs */}
             <div className="flex items-center gap-3 flex-wrap">
               {appState.job.resume_latex && (
-                <a
+                <motion.a
                   href={api.resumePdfUrl(appState.job.id)}
                   download
+                  whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
                   style={{
                     background: 'var(--c-btn-bg)',
@@ -538,12 +530,13 @@ export default function Home() {
                     <polyline points="7 10 12 15 17 10" />
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
-                </a>
+                </motion.a>
               )}
               {appState.job.cover_letter && (
-                <a
+                <motion.a
                   href={api.coverLetterPdfUrl(appState.job.id)}
                   download
+                  whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-medium transition-all"
                   style={{
                     background: 'var(--c-surface-raised)',
@@ -558,7 +551,7 @@ export default function Home() {
                     <polyline points="7 10 12 15 17 10" />
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
-                </a>
+                </motion.a>
               )}
             </div>
 
@@ -568,7 +561,7 @@ export default function Home() {
             {appState.job.cover_letter && (
               <>
                 <div className="flex items-center justify-between mb-5">
-                  <span className="text-xs text-neutral-400 tracking-[0.04em]">Cover letter</span>
+                  <SectionLabel>Cover letter</SectionLabel>
                   <CopyButton text={appState.job.cover_letter} label="Copy" />
                 </div>
                 <CoverLetterSection job={appState.job} />
@@ -631,9 +624,10 @@ export default function Home() {
 
               <div className="flex items-center gap-3 mt-2">
                 {appState.jobId != null && (
-                  <button
+                  <motion.button
                     onClick={() => handleRetry(appState.jobId!)}
                     disabled={submitting}
+                    whileTap={{ scale: 0.97 }}
                     className="px-5 py-2.5 rounded-2xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
                     style={{
                       background: 'var(--c-btn-bg)',
@@ -641,7 +635,7 @@ export default function Home() {
                     }}
                   >
                     {submitting ? 'Retrying…' : 'Try again'}
-                  </button>
+                  </motion.button>
                 )}
                 <button
                   onClick={() => setAppState({ mode: 'idle' })}

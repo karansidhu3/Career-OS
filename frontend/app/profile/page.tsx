@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, FullProfile, Project, Experience, SkillCategory } from '@/lib/api'
+import { SectionLabel } from '@/components/SectionLabel'
 
 const ease = 'easeOut'
 
@@ -19,13 +20,12 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">{title}</h2>
+      <SectionLabel>{title}</SectionLabel>
       {onAdd && (
         <button
           onClick={onAdd}
           disabled={adding}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all disabled:opacity-40"
-          style={{ background: 'var(--c-accent-dim)', color: 'var(--c-accent)' }}
+          className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors disabled:opacity-40"
         >
           {adding ? 'Adding…' : '+ Add'}
         </button>
@@ -39,7 +39,7 @@ function SaveButton({ saving, onClick }: { saving: boolean; onClick: () => void 
     <button
       onClick={onClick}
       disabled={saving}
-      className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50 transition-all"
+      className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-50 transition-all"
       style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
     >
       {saving ? 'Saving…' : 'Save'}
@@ -51,7 +51,7 @@ function CancelButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="px-4 py-1.5 rounded-lg text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+      className="px-4 py-1.5 rounded-xl text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
     >
       Cancel
     </button>
@@ -67,7 +67,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-const inputCls = "w-full px-3 py-2 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+const inputCls = "w-full px-3 py-2 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none"
 const inputStyle = { background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.07)' }
 
 function Input({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
@@ -112,7 +112,7 @@ function Bullets({ bullets }: { bullets: string[] }) {
     <ul className="space-y-1 mt-2">
       {bullets.map((b, i) => (
         <li key={i} className="flex gap-2 text-sm text-neutral-600">
-          <span className="text-indigo-300 shrink-0 mt-0.5">•</span>
+          <span className="text-neutral-300 shrink-0 mt-0.5">•</span>
           <span>{b}</span>
         </li>
       ))}
@@ -522,7 +522,7 @@ export default function ProfilePage() {
         <button
           onClick={load}
           className="px-4 py-2 rounded-xl text-sm font-medium text-white"
-          style={{ background: 'linear-gradient(135deg, #818cf8, #7c3aed)' }}
+          style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
         >
           Retry
         </button>
@@ -533,7 +533,7 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+        <div className="w-8 h-8 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
       </div>
     )
   }
