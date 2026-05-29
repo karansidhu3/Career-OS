@@ -59,13 +59,13 @@ export function Navbar() {
           }}
           className="rounded-2xl px-4 py-2.5 flex items-center justify-between"
         >
-          {/* Mark + Wordmark */}
-          <Link href="/" className="flex items-center gap-2.5 group">
+          {/* Mark + Wordmark — treated as one identity unit */}
+          <Link href="/" className="flex items-center gap-[7px] group">
             <span
-              className="text-neutral-700 transition-opacity duration-150"
-              style={{ opacity: 0.75 }}
+              className="text-neutral-800 transition-opacity duration-150"
+              style={{ opacity: 0.88 }}
             >
-              <BrandMark size={13} physicalStroke={1.6} />
+              <BrandMark size={12} physicalStroke={1.8} />
             </span>
             <span className="text-[13px] font-medium text-neutral-800 tracking-[0.02em]">
               CareerOS

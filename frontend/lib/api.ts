@@ -24,7 +24,9 @@ export interface Job {
 
 export interface CandidacyInsights {
   headline: string | null
-  observation: string | null
+  observed: string | null
+  gap: string | null
+  action: string | null
   count: number
 }
 

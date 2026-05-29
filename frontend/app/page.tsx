@@ -7,6 +7,7 @@ import { api, CandidacyInsights, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
 import { BrandMark } from '@/components/BrandMark'
+import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
 import { relativeDate, parseStrategicNote, AnalysisSections } from '@/lib/utils'
 
@@ -179,7 +180,7 @@ export default function Home() {
     // Populate from cache synchronously so layout is stable on first render
     if (typeof window === 'undefined') return null
     try {
-      const raw = localStorage.getItem('careeros-insights-v1')
+      const raw = localStorage.getItem('careeros-insights-v2')
       if (raw) {
         const { data, ts } = JSON.parse(raw) as { data: CandidacyInsights; ts: number }
         if (Date.now() - ts < 60 * 60 * 1000) return data
@@ -212,7 +213,7 @@ export default function Home() {
 
   // ── Load candidacy insights — with localStorage cache ──
   const loadInsights = useCallback(async (force = false) => {
-    const CACHE_KEY = 'careeros-insights-v1'
+    const CACHE_KEY = 'careeros-insights-v2'
     const CACHE_TTL = 60 * 60 * 1000 // 1 hour
 
     if (!force) {
@@ -383,7 +384,7 @@ export default function Home() {
                 {/* Writing surface */}
                 <div
                   className="px-8 pt-7 pb-16"
-                  style={{ minHeight: '40vh' }}
+                  style={{ minHeight: '26vh' }}
                 >
                   <AutoTextarea
                     ref={textareaRef}
@@ -445,32 +446,50 @@ export default function Home() {
                       transition={{ ...spring.gentle, delay: 0.2 }}
                       className="mt-10"
                     >
-                      {(() => {
-                        const headline = insights.count < 3
-                          ? `${insights.count} application${insights.count === 1 ? '' : 's'}`
-                          : (insights.headline ?? `${insights.count} applications`)
-                        const detail = insights.count < 3
-                          ? `Apply to ${3 - insights.count} more for a candidacy read.`
-                          : insights.observation
-                        return (
-                          <>
-                            <p className="text-3xl font-semibold text-neutral-800 tracking-tight leading-tight mb-3">
-                              {headline}
-                            </p>
-                            {detail && (
-                              <p className="text-sm text-neutral-600 leading-relaxed max-w-lg">
-                                {detail}
-                              </p>
+                      {insights.count < 3 ? (
+                        /* Not enough data yet */
+                        <>
+                          <p className="text-3xl font-semibold text-neutral-800 tracking-tight leading-tight mb-3">
+                            {insights.count} application{insights.count === 1 ? '' : 's'}
+                          </p>
+                          <p className="text-sm text-neutral-600 leading-relaxed">
+                            Apply to {3 - insights.count} more for a candidacy read.
+                          </p>
+                        </>
+                      ) : (
+                        /* Structured insight — scannable in seconds */
+                        <>
+                          <p className="text-3xl font-semibold text-neutral-800 tracking-tight leading-tight mb-6">
+                            {insights.headline ?? `${insights.count} applications`}
+                          </p>
+                          <div className="space-y-4 max-w-lg">
+                            {insights.observed && (
+                              <div>
+                                <SectionLabel className="mb-1">Observed</SectionLabel>
+                                <p className="text-sm text-neutral-600 leading-relaxed">{insights.observed}</p>
+                              </div>
                             )}
-                          </>
-                        )
-                      })()}
+                            {insights.gap && (
+                              <div>
+                                <SectionLabel className="mb-1">Gap</SectionLabel>
+                                <p className="text-sm text-neutral-600 leading-relaxed">{insights.gap}</p>
+                              </div>
+                            )}
+                            {insights.action && (
+                              <div>
+                                <SectionLabel className="mb-1">Action</SectionLabel>
+                                <p className="text-sm text-neutral-600 leading-relaxed">{insights.action}</p>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* ── Recent jobs ── */}
+              {/* ── Recent applications ── */}
               {recentJobs.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -479,6 +498,7 @@ export default function Home() {
                   className="mt-10 pt-5"
                   style={{ borderTop: '1px solid var(--c-border)' }}
                 >
+                  <SectionLabel className="mb-3">Recent</SectionLabel>
                   {recentJobs.map(job => (
                     <Link
                       key={job.id}

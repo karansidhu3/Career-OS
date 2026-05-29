@@ -271,7 +271,9 @@ async def get_candidacy_insights(db: AsyncSession = Depends(get_db)):
     result = await generate_insights(summaries)
     return CandidacyInsightsRead(
         headline=result.get("headline"),
-        observation=result.get("observation"),
+        observed=result.get("observed"),
+        gap=result.get("gap"),
+        action=result.get("action"),
         count=count,
     )
 

@@ -507,36 +507,51 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
 
 _INSIGHTS_SYSTEM = (
     "You are reviewing Karanveer Sidhu's job search history as a direct advisor. "
-    "Analyze the application patterns and produce a structured candidacy signal.\n\n"
-    "Look for: technologies that keep appearing across JDs that aren't demonstrated in the profile, "
-    "skill patterns creating a recurring gap, or a single concrete action that would address multiple gaps.\n\n"
-    "Hard rules: no em dashes, no adverbs, no filler phrases, be specific."
+    "Find the single most actionable pattern across all applications: a technology, skill type, "
+    "or experience gap that appears repeatedly in JDs and is absent from the profile.\n\n"
+    "Produce four fields. Each field is one thing, stated once, under 25 words.\n\n"
+    "Hard rules: no em dashes, no adverbs, no filler phrases. "
+    "Name exact technologies. Name specific projects (MarketMind, TA platform). Be precise."
 )
 
 _INSIGHTS_TOOL = {
     "name": "candidacy_signal",
-    "description": "Structured candidacy observation with a memorable headline and supporting detail.",
+    "description": "Structured four-part candidacy signal: headline, observed pattern, gap, action.",
     "input_schema": {
         "type": "object",
         "properties": {
             "headline": {
                 "type": "string",
                 "description": (
-                    "2-5 words. The single most memorable conclusion. "
-                    "Right: 'Kubernetes keeps appearing', 'Infrastructure skills missing', "
-                    "'Distributed systems gap', 'Strong backend match'. "
-                    "Wrong: 'Keep applying', 'Good progress', 'Consider improving skills'."
+                    "4-8 words. The memorable conclusion about the dominant pattern. "
+                    "Right: 'AWS Exposure Missing Across Applications', 'Distributed Systems Gap Emerging', "
+                    "'Kubernetes Appearing in Every JD'. Wrong: 'Keep applying', 'Good progress'."
                 ),
             },
-            "observation": {
+            "observed": {
                 "type": "string",
                 "description": (
-                    "2-3 sentences explaining the headline. Name the specific technologies, "
-                    "name the gap, name one concrete action. No em dashes, no adverbs."
+                    "1-2 sentences. What pattern appears across the applications — factual, no advice. "
+                    "Under 25 words. Name the specific technologies or experience types appearing."
+                ),
+            },
+            "gap": {
+                "type": "string",
+                "description": (
+                    "1-2 sentences. What specific skill or experience is absent from the profile. "
+                    "Under 25 words. Name exact technologies from the JDs."
+                ),
+            },
+            "action": {
+                "type": "string",
+                "description": (
+                    "1-2 sentences. One concrete action to close the gap. "
+                    "Under 25 words. Name a specific project (MarketMind, TA platform) or exact deliverable. "
+                    "No em dashes."
                 ),
             },
         },
-        "required": ["headline", "observation"],
+        "required": ["headline", "observed", "gap", "action"],
     },
 }
 
@@ -544,7 +559,7 @@ _INSIGHTS_TOOL = {
 async def generate_insights(job_summaries: list[dict]) -> dict[str, str | None]:
     """Synthesize a candidacy observation from a list of job application summaries.
 
-    Returns: {"headline": str | None, "observation": str | None}
+    Returns: {"headline": str | None, "observed": str | None, "gap": str | None, "action": str | None}
     Each summary dict should have: title, company (optional), strategic_note (optional),
     description_snippet (optional, first 400 chars of JD for older jobs without a strategic_note).
     """
@@ -564,7 +579,7 @@ async def generate_insights(job_summaries: list[dict]) -> dict[str, str | None]:
         response = await asyncio.wait_for(
             client.messages.create(
                 model=CLAUDE_MODEL,
-                max_tokens=300,
+                max_tokens=400,
                 system=_INSIGHTS_SYSTEM,
                 messages=[{"role": "user", "content": "\n".join(lines)}],
                 tools=[_INSIGHTS_TOOL],
@@ -577,10 +592,12 @@ async def generate_insights(job_summaries: list[dict]) -> dict[str, str | None]:
             None,
         )
         if not tool_use:
-            return {"headline": None, "observation": None}
+            return {"headline": None, "observed": None, "gap": None, "action": None}
         return {
             "headline": tool_use.input.get("headline") or None,
-            "observation": tool_use.input.get("observation") or None,
+            "observed":  tool_use.input.get("observed")  or None,
+            "gap":       tool_use.input.get("gap")       or None,
+            "action":    tool_use.input.get("action")    or None,
         }
     except Exception:
-        return {"headline": None, "observation": None}
+        return {"headline": None, "observed": None, "gap": None, "action": None}
