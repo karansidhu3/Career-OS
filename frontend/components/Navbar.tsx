@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
 import { HistoryDrawer } from './HistoryDrawer'
 
 function ArchiveIcon() {
@@ -29,6 +30,14 @@ function ProfileIcon() {
 
 export function Navbar() {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [hasActive, setHasActive] = useState(false)
+
+  // Fetch once on mount to light the dot if interview/offer jobs exist
+  useEffect(() => {
+    api.listJobs()
+      .then(jobs => setHasActive(jobs.some(j => j.status === 'interview' || j.status === 'offer')))
+      .catch(() => {})
+  }, [])
 
   return (
     <>
@@ -70,12 +79,20 @@ export function Navbar() {
             <button
               onClick={() => setDrawerOpen(true)}
               title="Log"
-              className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-400 hover:text-neutral-600 transition-all duration-150"
-              style={{ ['--tw-bg-opacity' as string]: '1' }}
+              className="relative w-8 h-8 flex items-center justify-center rounded-xl text-neutral-400 hover:text-neutral-600 transition-all duration-150"
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <ArchiveIcon />
+              {hasActive && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 14 }}
+                  className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full pointer-events-none"
+                  style={{ background: 'var(--c-warn)' }}
+                />
+              )}
             </button>
             <Link
               href="/profile"
