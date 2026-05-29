@@ -6,54 +6,36 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { SectionLabel } from '@/components/SectionLabel'
+import { ScoreRing } from '@/components/ScoreRing'
 
 function FitCard({ job }: { job: Job }) {
   const score = job.fit_score ?? 0
   const label = score >= 8 ? 'Strong Match' : score >= 6 ? 'Good Match' : 'Weak Match'
-  const color =
-    score >= 8
-      ? { bg: 'rgba(16,185,129,0.07)', accent: '#059669', ring: 'rgba(16,185,129,0.2)' }
-      : score >= 6
-      ? { bg: 'rgba(245,158,11,0.07)', accent: '#d97706', ring: 'rgba(245,158,11,0.2)' }
-      : { bg: 'rgba(239,68,68,0.07)', accent: '#dc2626', ring: 'rgba(239,68,68,0.2)' }
+  const tokenColor  = score >= 8 ? 'var(--c-success)'        : score >= 6 ? 'var(--c-warn)'        : 'var(--c-danger)'
+  const tokenBg     = score >= 8 ? 'var(--c-success-dim)'    : score >= 6 ? 'var(--c-warn-dim)'    : 'var(--c-danger-dim)'
+  const tokenBorder = score >= 8 ? 'var(--c-success-border)' : score >= 6 ? 'var(--c-warn-border)' : 'var(--c-danger-border)'
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-      className="rounded-2xl p-6"
-      style={{ background: color.bg, border: `1px solid ${color.ring}` }}
+      className="rounded-2xl p-6 flex items-start gap-6"
+      style={{ background: tokenBg, border: `1px solid ${tokenBorder}` }}
     >
-      <div className="flex items-start justify-between gap-6">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-3">
-            <span className="text-lg font-semibold" style={{ color: color.accent }}>{label}</span>
-            <span className="text-sm font-bold px-2.5 py-0.5 rounded-full" style={{ background: color.ring, color: color.accent }}>
-              {score}/10
-            </span>
-          </div>
-          {job.fit_rationale && (
-            <ul className="space-y-1.5">
-              {job.fit_rationale.map((b, i) => (
-                <li key={i} className="flex gap-2 text-sm text-neutral-600">
-                  <span style={{ color: color.accent }} className="shrink-0 mt-0.5">•</span>
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="shrink-0 relative w-16 h-16 flex items-center justify-center">
-          <svg width="64" height="64" viewBox="0 0 64 64" className="absolute inset-0 -rotate-90">
-            <circle cx="32" cy="32" r="26" fill="none" stroke={color.ring} strokeWidth="6" />
-            <circle cx="32" cy="32" r="26" fill="none" stroke={color.accent} strokeWidth="6"
-              strokeDasharray={`${2 * Math.PI * 26 * score / 10} ${2 * Math.PI * 26}`}
-              strokeLinecap="round"
-            />
-          </svg>
-          <span className="text-base font-bold" style={{ color: color.accent }}>{score}</span>
-        </div>
+      <ScoreRing score={score} size={96} />
+      <div className="flex-1 min-w-0">
+        <p className="text-base font-semibold mb-3" style={{ color: tokenColor }}>{label}</p>
+        {job.fit_rationale && (
+          <ul className="space-y-1.5">
+            {job.fit_rationale.map((b, i) => (
+              <li key={i} className="flex gap-2 text-sm text-neutral-600">
+                <span style={{ color: tokenColor }} className="shrink-0 mt-0.5">·</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </motion.div>
   )
@@ -416,7 +398,7 @@ export default function JobPage() {
                 disabled={updating}
                 whileTap={{ scale: 0.97 }}
                 className="px-3 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-40 transition-all"
-                style={{ background: 'linear-gradient(135deg, #60a5fa, #2563eb)', boxShadow: '0 4px 12px rgba(37,99,235,0.25)' }}
+                style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
               >
                 Got Interview
               </motion.button>

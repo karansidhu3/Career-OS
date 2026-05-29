@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { SectionLabel } from '@/components/SectionLabel'
+import { AutoTextarea } from '@/components/AutoTextarea'
+import { ScoreRing } from '@/components/ScoreRing'
 import { relativeDate } from '@/lib/utils'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -27,51 +29,6 @@ function getGenMessage(elapsed: number): string {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function FitSection({ job }: { job: Job }) {
-  const [expanded, setExpanded] = useState(true)
-  const score = job.fit_score ?? 0
-  const scoreColor = score >= 8 ? '#059669' : score >= 6 ? '#d97706' : '#dc2626'
-  const label = score >= 8 ? 'Strong match' : score >= 6 ? 'Good match' : 'Weak match'
-
-  return (
-    <div>
-      <div className="flex items-center gap-2.5">
-        <span className="text-sm font-semibold" style={{ color: scoreColor }}>
-          {score}/10
-        </span>
-        <span className="text-neutral-200 select-none">·</span>
-        <span className="text-sm text-neutral-500">{label}</span>
-        {job.fit_rationale && (
-          <button
-            onClick={() => setExpanded(v => !v)}
-            className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors ml-0.5"
-          >
-            {expanded ? 'hide' : 'details'}
-          </button>
-        )}
-      </div>
-
-      <AnimatePresence>
-        {expanded && job.fit_rationale && (
-          <motion.ul
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="mt-3 space-y-2 overflow-hidden"
-          >
-            {job.fit_rationale.map((b, i) => (
-              <li key={i} className="flex gap-2.5 text-sm text-neutral-500">
-                <span className="text-neutral-300 shrink-0 select-none mt-0.5">·</span>
-                <span className="leading-relaxed">{b}</span>
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
 
 function CoverLetterSection({ job }: { job: Job }) {
   const paragraphs = (job.cover_letter ?? '')
@@ -340,18 +297,18 @@ export default function Home() {
           >
             <div className="pt-10">
               {/* Textarea — primary input surface */}
-              <textarea
+              <AutoTextarea
                 ref={textareaRef}
                 value={jd}
                 onChange={e => handleJdChange(e.target.value)}
                 placeholder="Paste job description…"
-                rows={9}
                 disabled={submitting}
-                className="jd-textarea w-full resize-none rounded-2xl text-[15px] text-neutral-700 placeholder-neutral-400/60 px-5 py-4 focus:outline-none transition-all leading-relaxed disabled:opacity-50"
+                className="jd-textarea w-full rounded-2xl text-[15px] text-neutral-700 placeholder-neutral-400/60 px-5 py-4 focus:outline-none transition-all leading-relaxed disabled:opacity-50"
                 style={{
                   background: 'var(--c-surface-raised)',
                   border: '1px solid var(--c-border)',
                   boxShadow: 'var(--c-shadow-md)',
+                  minHeight: '220px',
                 }}
               />
 
@@ -475,123 +432,146 @@ export default function Home() {
         )}
 
         {/* ── RESULT STATE ── */}
-        {appState.mode === 'result' && (
-          <motion.div
-            key="result"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-          >
-            {/* Back to generate */}
-            <div className="pt-8 mb-8">
-              <button
-                onClick={resetToIdle}
-                className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors flex items-center gap-1.5"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-                New application
-                <span className="text-xs text-neutral-300 font-normal ml-1">⌘N</span>
-              </button>
-            </div>
-
-            {/* Title */}
-            <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
-              {appState.job.title}
-            </h1>
-            {appState.job.company && (
-              <p className="text-[15px] text-neutral-400 mt-1.5">{appState.job.company}</p>
-            )}
-
-            <div className="mt-5">
-              <FitSection job={appState.job} />
-            </div>
-
-            <Divider />
-
-            {/* Download actions — primary CTAs */}
-            <div className="flex items-center gap-3 flex-wrap">
-              {appState.job.resume_latex && (
-                <motion.a
-                  href={api.resumePdfUrl(appState.job.id)}
-                  download
-                  whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
-                  style={{
-                    background: 'var(--c-btn-bg)',
-                    boxShadow: 'var(--c-btn-shadow)',
-                  }}
+        {appState.mode === 'result' && (() => {
+          const score = appState.job.fit_score ?? 0
+          const scoreColor = score >= 8 ? 'var(--c-success)' : score >= 6 ? 'var(--c-warn)' : 'var(--c-danger)'
+          const scoreLabel = score >= 8 ? 'Strong match' : score >= 6 ? 'Good match' : 'Weak match'
+          return (
+            <motion.div
+              key="result"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+            >
+              {/* Full-width header */}
+              <div className="pt-8 mb-8">
+                <button
+                  onClick={resetToIdle}
+                  className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors flex items-center gap-1.5"
                 >
-                  Download Resume
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
                   </svg>
-                </motion.a>
-              )}
-              {appState.job.cover_letter && (
-                <motion.a
-                  href={api.coverLetterPdfUrl(appState.job.id)}
-                  download
-                  whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-medium transition-all"
-                  style={{
-                    background: 'var(--c-surface-raised)',
-                    border: '1px solid var(--c-border)',
-                    color: 'inherit',
-                    boxShadow: 'var(--c-shadow-sm)',
-                  }}
-                >
-                  Download Cover Letter
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                </motion.a>
-              )}
-            </div>
+                  New application
+                  <span className="text-xs text-neutral-300 font-normal ml-1">⌘N</span>
+                </button>
+              </div>
 
-            <Divider />
+              <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
+                {appState.job.title}
+              </h1>
+              {appState.job.company && (
+                <p className="text-[15px] text-neutral-400 mt-1.5">{appState.job.company}</p>
+              )}
 
-            {/* Cover letter prose */}
-            {appState.job.cover_letter && (
-              <>
-                <div className="flex items-center justify-between mb-5">
-                  <SectionLabel>Cover letter</SectionLabel>
-                  <CopyButton text={appState.job.cover_letter} label="Copy" />
+              {/* Two-column grid */}
+              <div className="mt-8 md:grid md:grid-cols-[240px_1fr] md:gap-10 md:items-start">
+
+                {/* Left column — score hero */}
+                <div className="mb-8 md:mb-0">
+                  {appState.job.fit_score != null && (
+                    <ScoreRing score={score} size={96} />
+                  )}
+                  <p className="mt-3 text-sm font-semibold" style={{ color: scoreColor }}>
+                    {scoreLabel}
+                  </p>
+
+                  {appState.job.fit_rationale && (
+                    <ul className="mt-4 space-y-2">
+                      {appState.job.fit_rationale.map((b, i) => (
+                        <li key={i} className="flex gap-2 text-sm text-neutral-500">
+                          <span className="text-neutral-300 shrink-0 select-none mt-0.5">·</span>
+                          <span className="leading-relaxed">{b}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="mt-6">
+                    <InterviewFlag
+                      job={appState.job}
+                      onUpdate={job => setAppState({ mode: 'result', job })}
+                    />
+                  </div>
                 </div>
-                <CoverLetterSection job={appState.job} />
-                <Divider />
-              </>
-            )}
 
-            {/* LaTeX source */}
-            {appState.job.resume_latex && (
-              <>
-                <LatexSection latex={appState.job.resume_latex} />
-                <Divider />
-              </>
-            )}
+                {/* Right column — downloads + content */}
+                <div>
+                  {/* Download actions — primary CTAs */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {appState.job.resume_latex && (
+                      <motion.a
+                        href={api.resumePdfUrl(appState.job.id)}
+                        download
+                        whileTap={{ scale: 0.97 }}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
+                        style={{
+                          background: 'var(--c-btn-bg)',
+                          boxShadow: 'var(--c-btn-shadow)',
+                        }}
+                      >
+                        Download Resume
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      </motion.a>
+                    )}
+                    {appState.job.cover_letter && (
+                      <motion.a
+                        href={api.coverLetterPdfUrl(appState.job.id)}
+                        download
+                        whileTap={{ scale: 0.97 }}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-medium transition-all"
+                        style={{
+                          background: 'var(--c-surface-raised)',
+                          border: '1px solid var(--c-border)',
+                          color: 'inherit',
+                          boxShadow: 'var(--c-shadow-sm)',
+                        }}
+                      >
+                        Download Cover Letter
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      </motion.a>
+                    )}
+                  </div>
 
-            {/* JD collapsible */}
-            {appState.job.description && (
-              <>
-                <JdSection description={appState.job.description} />
-                <Divider />
-              </>
-            )}
+                  {appState.job.cover_letter && (
+                    <>
+                      <Divider />
+                      <div className="flex items-center justify-between mb-5">
+                        <SectionLabel>Cover letter</SectionLabel>
+                        <CopyButton text={appState.job.cover_letter} label="Copy" />
+                      </div>
+                      <CoverLetterSection job={appState.job} />
+                    </>
+                  )}
 
-            {/* Interview flag */}
-            <InterviewFlag
-              job={appState.job}
-              onUpdate={job => setAppState({ mode: 'result', job })}
-            />
-          </motion.div>
-        )}
+                  {appState.job.resume_latex && (
+                    <>
+                      <Divider />
+                      <LatexSection latex={appState.job.resume_latex} />
+                    </>
+                  )}
+
+                  {appState.job.description && (
+                    <>
+                      <Divider />
+                      <JdSection description={appState.job.description} />
+                    </>
+                  )}
+                </div>
+
+              </div>
+            </motion.div>
+          )
+        })()}
 
         {/* ── ERROR STATE ── */}
         {appState.mode === 'error' && (
