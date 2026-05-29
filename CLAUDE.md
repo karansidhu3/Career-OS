@@ -1,26 +1,24 @@
-# CareerOS — Claude Context
+# CareerOS
 
 ---
 
 ## What this product is
 
-CareerOS is a **personalized application generation engine**.
+CareerOS is a personalized application generation engine.
 
 One workflow: paste job description → generate tailored resume + cover letter → download → repeat.
 
-Not a CRM. Not a dashboard. Not a workspace. A focused utility tool that compresses the most tedious part of job searching into ~20 seconds of active work.
+Not a CRM. Not a dashboard. Not a workspace. A focused utility that compresses the most tedious part of job searching into ~20 seconds of active work.
 
 ---
 
 ## Product moat
 
-Why use this over raw Claude/ChatGPT:
-
-1. **Persistent profile context** — Profile is stored and grows over time. Never re-explain your background. Raw Claude starts from zero every session.
-2. **Automatic project selection** — The system reads the JD and decides which projects to emphasize. The user never thinks about this.
-3. **Compilable LaTeX output** — Always the correct template, always compiles with Tectonic. Raw Claude output is inconsistent and often breaks.
-4. **ATS-optimized pipeline** — Keyword mirroring, bullet quality, output consistency built into the system prompt. No prompt engineering from the user.
-5. **Workflow compression** — 12+ manual steps in ChatGPT → 1 paste + 1 keypress here.
+1. **Persistent profile context** — Profile stored and grows over time. Never re-explain your background.
+2. **Automatic project selection** — System reads the JD and selects which projects to emphasize. User never thinks about this.
+3. **Compilable LaTeX output** — Always the correct template, always compiles with Tectonic.
+4. **ATS-optimized pipeline** — Keyword mirroring, bullet quality, output consistency built into the system prompt.
+5. **Workflow compression** — 12+ manual steps in ChatGPT → 1 paste + 1 keypress.
 
 ---
 
@@ -35,8 +33,6 @@ No navigation. No page transitions. One surface.
 ---
 
 ## What NOT to build
-
-These all weaken the product moat. Never add without explicit discussion:
 
 - Chat interface — destroys "no prompt engineering" moat
 - Job scraping / sourcing — wrong product
@@ -67,63 +63,34 @@ These all weaken the product moat. Never add without explicit discussion:
 ## Information architecture
 
 ```
-PRIMARY SURFACE: / (generation engine)
+PRIMARY SURFACE: /
   idle       → textarea focused, faint recent list (≤4 bare text rows)
   generating → cycling messages + elapsed timer, no navigation
   result     → inline: fit + downloads + cover letter + LaTeX source
   error      → message + retry/reset inline
 
 ARCHIVE: /jobs/[id]
-  → Deep-link to a specific past result (used from history drawer)
+  → Deep-link to a specific past result
   → Single-scroll layout, no tabs
 
 HISTORY DRAWER
-  → Clock icon in navbar → slides in from right
+  → Archive icon in navbar → slides in from right
   → Bare list: title, fit score, date
   → Interview/offer items pinned at top with amber marker
-  → Links to /jobs/[id]
 
-SETTINGS: /profile
+PROFILE: /profile
   → Person icon in navbar
   → Full profile editor
   → Rare interaction — configure once, update occasionally
 ```
 
----
-
-## Navigation model
-
-```
-[CareerOS]                              [⊞]  [👤]
-                                     history  profile
-```
-
-Two icons. No labeled links. No avatar. Wordmark links to /.
+Navbar: wordmark left, two icons right (history, profile). No labels.
 
 ---
 
-## UX non-negotiables
+## Visual identity
 
-1. Textarea is auto-focused on app load
-2. No page navigation during the generation loop — everything inline on /
-3. Result renders inline, no tabs
-4. "New application" is always obvious in result state
-5. History is secondary — not surfaced unless requested
-6. Download is the primary result action
-7. The UI never competes with the generated output
-8. The user never thinks about prompting
-
----
-
-## Visual system
-
-- Background: `#FAFAF8`
-- Accent gradient: `linear-gradient(135deg, #818CF8, #6366F1)`
-- Two background blobs: both indigo-family, opacity ≤ 0.09
-- Card radius: `rounded-2xl` everywhere — no `rounded-3xl`
-- No cards around generated content — text sits directly on background
-- Typography: `text-3xl` for job title, `text-sm` for metadata, `text-[15px] leading-[1.8]` for cover letter
-- No cost displays anywhere in the UI
+Accent: indigo (`#6366F1`). Chosen for this product; not prescribed by doctrine.
 
 ---
 
@@ -206,13 +173,7 @@ Tone: direct, confident. No em dashes. No "leveraging." No AI-sounding language.
 
 ## Resume LaTeX template
 
-(The actual template lives in `backend/app/services/generation.py` as `LATEX_TEMPLATE`. The version there is authoritative — it includes the tighter spacing settings for one-page output.)
-
-Key LaTeX settings in the template:
-- `\textheight` extended by 1.4in (not 1.0in)
-- `resumeItemListStart` uses `[itemsep=-3pt, topsep=1pt]`
-- `resumeSubHeadingListStart` uses `[leftmargin=*, topsep=0pt, itemsep=-1pt]`
-- `\newcommand{\iconlink}[1]{#1}` is defined in the preamble
+The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generation.py`.
 
 ---
 
@@ -224,13 +185,13 @@ Key LaTeX settings in the template:
 
 **ADR-003** — Railway, Dockerfile-based build. Tectonic binary installed via curl during image build for server-side LaTeX→PDF compilation.
 
-**ADR-004** — Background task generation. POST `/generate` returns immediately (status="processing"). Background task calls Claude, writes result to DB. Frontend polls until done. This sidesteps Railway's HTTP proxy timeout.
+**ADR-004** — Background task generation. POST `/generate` returns immediately (status="processing"). Background task calls Claude, writes result to DB. Frontend polls until done. Sidesteps Railway's HTTP proxy timeout.
 
 **ADR-005** — Inline generation flow. The home page (/) handles all states: idle → generating → result. No route change during the core loop. `/jobs/[id]` is the archive deep-link viewer only.
 
 ---
 
-## Hard constraints (never break these)
+## Hard constraints
 
 - Do not add automated job ingestion
 - Do not auto-submit applications
@@ -240,3 +201,4 @@ Key LaTeX settings in the template:
 - Do not run DB migrations without flagging to Karan
 - Do not add chat interfaces
 - Do not add analytics dashboards
+- Commit freely; push only when explicitly told to
