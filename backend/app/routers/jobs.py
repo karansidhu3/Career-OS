@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
-from app.schemas.job import JobGenerateRequest, JobRead
-from app.services.generation import generate_materials
+from app.schemas.job import CandidacyInsightsRead, JobGenerateRequest, JobRead
+from app.services.generation import generate_insights, generate_materials
 from app.services.pdf import compile_latex_to_pdf
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -24,6 +24,7 @@ def _apply_result(job: Job, result: dict) -> None:
     job.fit_rationale = result["fit_rationale"]
     job.resume_latex = result["resume_latex"]
     job.cover_letter = result["cover_letter"]
+    job.strategic_note = result.get("strategic_note") or None
     job.input_tokens = result.get("input_tokens")
     job.output_tokens = result.get("output_tokens")
     job.cache_read_tokens = result.get("cache_read_tokens")
@@ -219,6 +220,35 @@ async def download_cover_letter(id: int, db: AsyncSession = Depends(get_db)):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/insights", response_model=CandidacyInsightsRead)
+async def get_candidacy_insights(db: AsyncSession = Depends(get_db)):
+    """Return a synthesized candidacy observation derived from all past applications."""
+    completed_statuses = ("generated", "applied", "interview", "offer", "skipped")
+    jobs = (await db.execute(
+        select(Job)
+        .where(Job.status.in_(completed_statuses))
+        .order_by(Job.created_at.desc())
+        .limit(20)
+    )).scalars().all()
+
+    count = len(jobs)
+    if count < 3:
+        return CandidacyInsightsRead(observation=None, count=count)
+
+    summaries = [
+        {
+            "title": j.title,
+            "company": j.company,
+            "strategic_note": j.strategic_note,
+            "description_snippet": (j.description or "")[:400] if not j.strategic_note else None,
+        }
+        for j in jobs
+    ]
+
+    observation = await generate_insights(summaries)
+    return CandidacyInsightsRead(observation=observation, count=count)
 
 
 @router.get("", response_model=list[JobRead])

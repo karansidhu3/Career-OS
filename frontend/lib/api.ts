@@ -14,11 +14,17 @@ export interface Job {
   fit_rationale: string[] | null
   resume_latex: string | null
   cover_letter: string | null
+  strategic_note: string | null
   input_tokens: number | null
   output_tokens: number | null
   cache_read_tokens: number | null
   cache_write_tokens: number | null
   cost_usd: number | null
+}
+
+export interface CandidacyInsights {
+  observation: string | null
+  count: number
 }
 
 export interface GenerateRequest {
@@ -108,6 +114,7 @@ export const api = {
     request<Job>('/admin/jobs/generate', { ...json('POST', body), signal }),
   listJobs: () => request<Job[]>('/admin/jobs'),
   getJob: (id: number) => request<Job>(`/admin/jobs/${id}`),
+  getInsights: () => request<CandidacyInsights>('/admin/jobs/insights'),
   updateStatus: (id: number, status: string) =>
     request<Job>(`/admin/jobs/${id}/status?status=${status}`, { method: 'PATCH' }),
   regenerate: (id: number, signal?: AbortSignal) =>

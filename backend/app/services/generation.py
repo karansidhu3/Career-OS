@@ -252,6 +252,32 @@ The 3 rationale bullets should be direct and specific:
 - Name what doesn't match and how significant the gap is
 - Help Karan make an actual decision about whether to apply
 
+━━━ STRATEGIC NOTE ━━━
+
+Write 2-3 sentences of direct career intelligence. Not a summary. Not a score rephrasing.
+
+Answer two things:
+1. What does this JD reveal about a real gap in Karan's candidacy right now?
+2. What is one concrete action to close it — a feature to add, a project to build, a specific thing to demonstrate?
+
+Right register:
+"This role wants MLOps and model serving. The profile shows model building but no deployment layer. \
+Adding a FastAPI serving endpoint with basic monitoring to MarketMind would address this directly."
+"Strong stack match. The gap is real-time data — the JD emphasizes event-driven pipelines and nothing here \
+shows that. A Redis Streams integration on any existing project would close it."
+"This is a backend infrastructure role with heavy emphasis on distributed systems design. The experience \
+section has good breadth but no explicit systems design work. Consider adding a design doc or architectural \
+writeup for the TA matching platform's data model."
+
+Wrong register:
+"This is a strong match and Karan should apply." (no gap named, no action given)
+"Consider improving knowledge of distributed systems." (vague, no specifics)
+"The skills align well with the requirements." (template filler)
+"Great fit — Karan's background maps well to this role." (pure validation, useless)
+
+Hard rules: no em dashes, no adverbs, name specific technologies from the JD, name a specific project or \
+concrete action (not "build something with X").
+
 ━━━ HARD CONSTRAINTS ━━━
 
 These never change regardless of anything else:
@@ -300,8 +326,12 @@ GENERATE_TOOL = {
                 "type": "string",
                 "description": "The company name extracted from the job description.",
             },
+            "strategic_note": {
+                "type": "string",
+                "description": "2-3 sentences of direct career intelligence. Name the gap this JD reveals in Karan's candidacy. Name one concrete action to close it. See system prompt for format and examples.",
+            },
         },
-        "required": ["fit_score", "fit_rationale", "resume_latex", "cover_letter", "job_title", "job_company"],
+        "required": ["fit_score", "fit_rationale", "resume_latex", "cover_letter", "job_title", "job_company", "strategic_note"],
     },
 }
 
@@ -437,3 +467,51 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
         "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0) or 0,
         "cache_write_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
     }
+
+
+_INSIGHTS_SYSTEM = (
+    "You are reviewing Karanveer Sidhu's job search history as a direct advisor.\n\n"
+    "Write one paragraph (3-4 sentences) of specific, actionable career intelligence.\n\n"
+    "Look for: technologies that keep appearing across JDs he isn't demonstrating in his profile, "
+    "skill patterns that are creating a recurring gap, or a single concrete project that would "
+    "address multiple gaps at once.\n\n"
+    "Be specific — name technologies, name a project idea. Do not say 'keep building' or 'you're on "
+    "the right track' or anything that could apply to anyone. If there isn't a clear signal yet, say "
+    "so plainly in one sentence.\n\n"
+    "Hard rules: no em dashes, no adverbs, no filler phrases."
+)
+
+
+async def generate_insights(job_summaries: list[dict]) -> str | None:
+    """Synthesize a candidacy observation from a list of job application summaries.
+
+    Each summary dict should have: title, company (optional), strategic_note (optional),
+    description_snippet (optional, first 400 chars of JD for older jobs without a strategic_note).
+    """
+    lines: list[str] = [f"Applications analyzed: {len(job_summaries)}\n"]
+    for s in job_summaries:
+        entry = f"- {s.get('title') or 'Unknown role'}"
+        if s.get("company"):
+            entry += f" at {s['company']}"
+        lines.append(entry)
+        if s.get("strategic_note"):
+            lines.append(f"  Analysis: {s['strategic_note']}")
+        elif s.get("description_snippet"):
+            lines.append(f"  JD excerpt: {s['description_snippet'][:300]}")
+
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    try:
+        response = await asyncio.wait_for(
+            client.messages.create(
+                model=CLAUDE_MODEL,
+                max_tokens=280,
+                system=_INSIGHTS_SYSTEM,
+                messages=[{"role": "user", "content": "\n".join(lines)}],
+            ),
+            timeout=30.0,
+        )
+        if response.content and hasattr(response.content[0], "text"):
+            return response.content[0].text.strip() or None
+        return None
+    except Exception:
+        return None

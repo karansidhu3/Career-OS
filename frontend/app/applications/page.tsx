@@ -8,6 +8,7 @@ import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
 import { relativeDate } from '@/lib/utils'
 
+
 // Status text — CSS tokens where semantic color exists
 const STATUS_TEXT: Record<string, string> = {
   generated: '#7c3aed',
@@ -19,13 +20,6 @@ const STATUS_TEXT: Record<string, string> = {
 
 const FILTERS = ['all', 'generated', 'applied', 'interview', 'offer', 'skipped'] as const
 type Filter = typeof FILTERS[number]
-
-function fitColor(score: number | null | undefined): string {
-  if (score == null) return '#9ca3af'
-  if (score >= 8) return 'var(--c-success)'
-  if (score >= 6) return 'var(--c-warn)'
-  return 'var(--c-danger)'
-}
 
 function groupJobs(jobs: Job[]) {
   const now = Date.now()
@@ -55,6 +49,11 @@ function AppRow({ job, i }: { job: Job; i: number }) {
   const isSpecial = job.status === 'interview' || job.status === 'offer'
   const statusColor = STATUS_TEXT[job.status] ?? '#9ca3af'
 
+  // Extract first sentence of strategic note as the signal
+  const signal = job.strategic_note
+    ? job.strategic_note.split(/(?<=[.!?])\s+/)[0]?.replace(/[.!?]+$/, '').trim() ?? null
+    : null
+
   return (
     <motion.button
       onClick={() => router.push(`/jobs/${job.id}`)}
@@ -69,25 +68,20 @@ function AppRow({ job, i }: { job: Job; i: number }) {
         style={{ background: isSpecial ? 'var(--c-warn)' : 'transparent' }}
       />
 
-      {/* Title + company */}
+      {/* Title + signal */}
       <div className="flex-1 min-w-0">
         <p className="text-[13.5px] font-medium text-neutral-700 group-hover:text-neutral-900 truncate transition-colors leading-snug">
           {job.title}
+          {job.company && (
+            <span className="font-normal text-neutral-400"> · {job.company}</span>
+          )}
         </p>
-        {job.company && (
-          <p className="text-xs text-neutral-400 truncate mt-0.5">{job.company}</p>
+        {signal && (
+          <p className="text-xs text-neutral-300 truncate mt-0.5 group-hover:text-neutral-400 transition-colors">
+            {signal}
+          </p>
         )}
       </div>
-
-      {/* Fit score */}
-      {job.fit_score != null && (
-        <span
-          className="text-xs font-semibold shrink-0 tabular-nums"
-          style={{ color: fitColor(job.fit_score) }}
-        >
-          {job.fit_score}/10
-        </span>
-      )}
 
       {/* Status */}
       <span className="text-xs font-medium shrink-0 capitalize" style={{ color: statusColor }}>

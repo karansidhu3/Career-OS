@@ -21,6 +21,7 @@ class JobRead(BaseModel):
     fit_rationale: Optional[list[str]] = None
     resume_latex: Optional[str] = None
     cover_letter: Optional[str] = None
+    strategic_note: Optional[str] = None
 
     # Token tracking
     input_tokens: Optional[int] = None
@@ -48,3 +49,8 @@ class JobRead(BaseModel):
         return round(cost, 4)
 
     model_config = {"from_attributes": True}
+
+
+class CandidacyInsightsRead(BaseModel):
+    observation: Optional[str] = None
+    count: int

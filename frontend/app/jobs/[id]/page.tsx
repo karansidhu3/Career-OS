@@ -5,36 +5,61 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
-import { SectionLabel } from '@/components/SectionLabel'
-import { ScoreRing } from '@/components/ScoreRing'
 import { spring } from '@/lib/motion'
 
 function FitCard({ job }: { job: Job }) {
+  const [showRationale, setShowRationale] = useState(false)
   const score = job.fit_score ?? 0
-  const label = score >= 8 ? 'Strong Match' : score >= 6 ? 'Good Match' : 'Weak Match'
-  const tokenColor = score >= 8 ? 'var(--c-success)' : score >= 6 ? 'var(--c-warn)' : 'var(--c-danger)'
+  const hasContent = job.strategic_note || (job.fit_rationale && job.fit_rationale.length > 0)
+  if (!hasContent) return null
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring.standard}
-      className="flex items-start gap-6 py-2"
+      className="py-2"
     >
-      <ScoreRing score={score} size={96} />
-      <div className="flex-1 min-w-0 pt-1">
-        <p className="text-base font-semibold mb-3" style={{ color: tokenColor }}>{label}</p>
-        {job.fit_rationale && (
-          <ul className="space-y-1.5">
-            {job.fit_rationale.map((b, i) => (
-              <li key={i} className="flex gap-2 text-sm text-neutral-600">
-                <span style={{ color: tokenColor }} className="shrink-0 mt-0.5">·</span>
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
+      {/* Strategic note — the lead */}
+      {job.strategic_note ? (
+        <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl mb-4">
+          {job.strategic_note}
+        </p>
+      ) : null}
+
+      {/* Score + collapsible rationale */}
+      <div className="flex items-center gap-4">
+        {score > 0 && (
+          <span className="text-xs text-neutral-400 tabular-nums">{score}/10</span>
+        )}
+        {job.fit_rationale && job.fit_rationale.length > 0 && (
+          <button
+            onClick={() => setShowRationale(v => !v)}
+            className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors"
+          >
+            {showRationale ? 'rationale ↑' : 'rationale ↓'}
+          </button>
         )}
       </div>
+
+      <AnimatePresence>
+        {showRationale && job.fit_rationale && (
+          <motion.ul
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="mt-3 space-y-1.5 overflow-hidden"
+          >
+            {job.fit_rationale.map((b, i) => (
+              <li key={i} className="flex gap-2 text-sm text-neutral-500">
+                <span className="text-neutral-300 shrink-0 mt-0.5 select-none">·</span>
+                <span className="leading-relaxed">{b}</span>
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
@@ -46,7 +71,7 @@ function ResumeSection({ job }: { job: Job }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <SectionLabel>Resume</SectionLabel>
+        <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-300">Resume</span>
         <div className="flex items-center gap-2">
           <motion.a
             href={api.resumePdfUrl(job.id)}

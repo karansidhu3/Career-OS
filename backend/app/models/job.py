@@ -22,6 +22,7 @@ class Job(Base):
     fit_rationale = Column(JSONB, nullable=True)  # list[str], 3 bullets
     resume_latex = Column(Text, nullable=True)
     cover_letter = Column(Text, nullable=True)
+    strategic_note = Column(Text, nullable=True)  # 2-3 sentence gap analysis
 
     # Token usage from Claude API response
     input_tokens = Column(Integer, nullable=True)
