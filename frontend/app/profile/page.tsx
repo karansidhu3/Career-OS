@@ -168,15 +168,17 @@ function ProjectCard({
   canMoveUp,
   canMoveDown,
   startEditing,
+  isNew,
 }: {
   project: Project
   onSave: (data: Omit<Project, 'id'>) => Promise<void>
-  onDelete: () => Promise<void>
+  onDelete: () => void
   onMoveUp: () => void
   onMoveDown: () => void
   canMoveUp: boolean
   canMoveDown: boolean
   startEditing?: boolean
+  isNew?: boolean
 }) {
   const [editing, setEditing] = useState(startEditing ?? false)
   const [saving, setSaving] = useState(false)
@@ -276,7 +278,15 @@ function ProjectCard({
                 )}
               </AnimatePresence>
               <div className="flex gap-2">
-                <CancelButton onClick={() => { setEditing(false); setConfirmDelete(false) }} />
+                <CancelButton onClick={() => {
+                  if (isNew) {
+                    // New unsaved project — cancel means discard entirely
+                    onDelete()
+                  } else {
+                    setEditing(false)
+                    setConfirmDelete(false)
+                  }
+                }} />
                 <SaveButton saving={saving} onClick={save} />
               </div>
             </div>
@@ -324,15 +334,17 @@ function ExperienceCard({
   canMoveUp,
   canMoveDown,
   startEditing,
+  isNew,
 }: {
   exp: Experience
   onSave: (data: Omit<Experience, 'id'>) => Promise<void>
-  onDelete: () => Promise<void>
+  onDelete: () => void
   onMoveUp: () => void
   onMoveDown: () => void
   canMoveUp: boolean
   canMoveDown: boolean
   startEditing?: boolean
+  isNew?: boolean
 }) {
   const [editing, setEditing] = useState(startEditing ?? false)
   const [saving, setSaving] = useState(false)
@@ -418,7 +430,14 @@ function ExperienceCard({
                 )}
               </AnimatePresence>
               <div className="flex gap-2">
-                <CancelButton onClick={() => { setEditing(false); setConfirmDelete(false) }} />
+                <CancelButton onClick={() => {
+                  if (isNew) {
+                    onDelete()
+                  } else {
+                    setEditing(false)
+                    setConfirmDelete(false)
+                  }
+                }} />
                 <SaveButton saving={saving} onClick={save} />
               </div>
             </div>
@@ -500,7 +519,7 @@ function SkillCard({
 }: {
   skill: SkillCategory
   onSave: (d: Omit<SkillCategory, 'id'>) => Promise<void>
-  onDelete: () => Promise<void>
+  onDelete: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -670,12 +689,23 @@ export default function ProfilePage() {
     setProfile(prev => prev ? { ...prev, projects: prev.projects.map(p => p.id === id ? updated : p) } : prev)
   }
 
-  const deleteProject = async (id: number) => {
-    const snapshot = profile!.projects
+  const deleteProject = (id: number) => {
+    // Clear "new project" marker if this was the unsaved project
+    if (newProjectId === id) setNewProjectId(null)
+
+    // Optimistic: remove from state immediately, restore the specific item on API failure
+    const removed = profile!.projects.find(p => p.id === id)
     setProfile(prev => prev ? { ...prev, projects: prev.projects.filter(p => p.id !== id) } : prev)
-    try { await api.deleteProject(id) } catch {
-      setProfile(prev => prev ? { ...prev, projects: snapshot } : prev)
-    }
+
+    api.deleteProject(id).catch(() => {
+      // Restore only the deleted item — don't replace the whole array (other concurrent
+      // changes would be lost if we used a snapshot of the full list)
+      if (removed) {
+        setProfile(prev => prev
+          ? { ...prev, projects: [...prev.projects, removed].sort((a, b) => a.sort_order - b.sort_order) }
+          : prev)
+      }
+    })
   }
 
   // ---- Experience handlers ----
@@ -705,12 +735,19 @@ export default function ProfilePage() {
     setProfile(prev => prev ? { ...prev, experience: prev.experience.map(e => e.id === id ? updated : e) } : prev)
   }
 
-  const deleteExperience = async (id: number) => {
-    const snapshot = profile!.experience
+  const deleteExperience = (id: number) => {
+    if (newExpId === id) setNewExpId(null)
+
+    const removed = profile!.experience.find(e => e.id === id)
     setProfile(prev => prev ? { ...prev, experience: prev.experience.filter(e => e.id !== id) } : prev)
-    try { await api.deleteExperience(id) } catch {
-      setProfile(prev => prev ? { ...prev, experience: snapshot } : prev)
-    }
+
+    api.deleteExperience(id).catch(() => {
+      if (removed) {
+        setProfile(prev => prev
+          ? { ...prev, experience: [...prev.experience, removed].sort((a, b) => a.sort_order - b.sort_order) }
+          : prev)
+      }
+    })
   }
 
   // ---- Skills handlers ----
@@ -735,12 +772,17 @@ export default function ProfilePage() {
     setProfile(prev => prev ? { ...prev, skills: prev.skills.map(s => s.id === id ? updated : s) } : prev)
   }
 
-  const deleteSkill = async (id: number) => {
-    const snapshot = profile!.skills
+  const deleteSkill = (id: number) => {
+    const removed = profile!.skills.find(s => s.id === id)
     setProfile(prev => prev ? { ...prev, skills: prev.skills.filter(s => s.id !== id) } : prev)
-    try { await api.deleteSkillCategory(id) } catch {
-      setProfile(prev => prev ? { ...prev, skills: snapshot } : prev)
-    }
+
+    api.deleteSkillCategory(id).catch(() => {
+      if (removed) {
+        setProfile(prev => prev
+          ? { ...prev, skills: [...prev.skills, removed].sort((a, b) => a.sort_order - b.sort_order) }
+          : prev)
+      }
+    })
   }
 
   return (
@@ -771,12 +813,16 @@ export default function ProfilePage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
-                transition={{ ...spring.standard, height: { duration: 0.22, ease: [0.25, 0, 0, 1] } }}
+                transition={{
+                  opacity: { duration: 0.15, ease: 'easeOut' },
+                  height: { duration: 0.2, ease: [0.25, 0, 0, 1] },
+                }}
                 className="overflow-hidden"
               >
                 <ProjectCard
                   project={p}
                   startEditing={p.id === newProjectId}
+                  isNew={p.id === newProjectId}
                   onSave={data => saveProject(p.id, data)}
                   onDelete={() => deleteProject(p.id)}
                   onMoveUp={() => swapProjectOrder(i, i - 1)}
@@ -807,12 +853,16 @@ export default function ProfilePage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
-                transition={{ ...spring.standard, height: { duration: 0.22, ease: [0.25, 0, 0, 1] } }}
+                transition={{
+                  opacity: { duration: 0.15, ease: 'easeOut' },
+                  height: { duration: 0.2, ease: [0.25, 0, 0, 1] },
+                }}
                 className="overflow-hidden"
               >
                 <ExperienceCard
                   exp={e}
                   startEditing={e.id === newExpId}
+                  isNew={e.id === newExpId}
                   onSave={data => saveExperience(e.id, data)}
                   onDelete={() => deleteExperience(e.id)}
                   onMoveUp={() => swapExpOrder(i, i - 1)}
@@ -843,7 +893,10 @@ export default function ProfilePage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
-                transition={{ ...spring.standard, height: { duration: 0.22, ease: [0.25, 0, 0, 1] } }}
+                transition={{
+                  opacity: { duration: 0.15, ease: 'easeOut' },
+                  height: { duration: 0.2, ease: [0.25, 0, 0, 1] },
+                }}
                 className="overflow-hidden"
               >
                 <SkillCard
