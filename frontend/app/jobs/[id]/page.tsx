@@ -6,11 +6,29 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { spring } from '@/lib/motion'
+import { parseStrategicNote } from '@/lib/utils'
+
+function AnalysisSection({ title, bullets }: { title: string; bullets: string[] }) {
+  if (!bullets.length) return null
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-2">{title}</p>
+      <ul className="space-y-1.5">
+        {bullets.map((b, i) => (
+          <li key={i} className="flex gap-2.5 text-[15px] text-neutral-700 leading-snug">
+            <span className="text-neutral-400 shrink-0 mt-0.5 select-none">·</span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 function FitCard({ job }: { job: Job }) {
-  const [showRationale, setShowRationale] = useState(false)
   const score = job.fit_score ?? 0
-  const hasContent = job.strategic_note || (job.fit_rationale && job.fit_rationale.length > 0)
+  const analysis = parseStrategicNote(job.strategic_note)
+  const hasContent = analysis || job.strategic_note || (job.fit_rationale && job.fit_rationale.length > 0)
   if (!hasContent) return null
 
   return (
@@ -20,46 +38,29 @@ function FitCard({ job }: { job: Job }) {
       transition={spring.standard}
       className="py-2"
     >
-      {/* Strategic note — the lead */}
-      {job.strategic_note ? (
-        <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl mb-4">
-          {job.strategic_note}
-        </p>
-      ) : null}
-
-      {/* Score + collapsible rationale */}
-      <div className="flex items-center gap-4">
-        {score > 0 && (
-          <span className="text-xs text-neutral-500 tabular-nums">{score}/10</span>
-        )}
-        {job.fit_rationale && job.fit_rationale.length > 0 && (
-          <button
-            onClick={() => setShowRationale(v => !v)}
-            className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
-          >
-            {showRationale ? 'rationale ↑' : 'rationale ↓'}
-          </button>
-        )}
-      </div>
-
-      <AnimatePresence>
-        {showRationale && job.fit_rationale && (
-          <motion.ul
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="mt-3 space-y-1.5 overflow-hidden"
-          >
-            {job.fit_rationale.map((b, i) => (
-              <li key={i} className="flex gap-2 text-sm text-neutral-600">
-                <span className="text-neutral-500 shrink-0 mt-0.5 select-none">·</span>
-                <span className="leading-relaxed">{b}</span>
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
+      {analysis ? (
+        /* Structured analysis — new format */
+        <div className="space-y-6">
+          <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
+          <AnalysisSection title="Gaps" bullets={analysis.gaps} />
+          <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
+          {score > 0 && (
+            <p className="text-xs text-neutral-500 tabular-nums">{score}/10</p>
+          )}
+        </div>
+      ) : (
+        /* Fallback: old-format prose + rationale */
+        <>
+          {job.strategic_note && (
+            <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl mb-4">
+              {job.strategic_note}
+            </p>
+          )}
+          {score > 0 && (
+            <span className="text-xs text-neutral-500 tabular-nums">{score}/10</span>
+          )}
+        </>
+      )}
     </motion.div>
   )
 }

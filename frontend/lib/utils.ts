@@ -2,6 +2,47 @@
  * Shared utility functions.
  */
 
+// ─── Strategic note parsing ──────────────────────────────────────────────────
+
+export interface AnalysisSections {
+  goodFit: string[]
+  gaps: string[]
+  plan: string[]
+}
+
+/**
+ * Parse a structured strategic_note into three sections.
+ * Returns null when the note is plain prose (old format) or missing.
+ *
+ * Expected format:
+ *   GOOD FIT\n• bullet\n\nGAPS\n• bullet\n\nIMPROVEMENT PLAN\n• bullet
+ */
+export function parseStrategicNote(note: string | null | undefined): AnalysisSections | null {
+  if (!note) return null
+  if (!note.includes('GOOD FIT') && !note.includes('GAPS')) return null
+
+  const parseBullets = (text: string): string[] =>
+    text
+      .split('\n')
+      .map(l => l.replace(/^[•\-\*]\s*/, '').trim())
+      .filter(Boolean)
+
+  const goodFitMatch = note.match(/GOOD FIT\n([\s\S]*?)(?=\n\nGAPS|\n\nIMPROVEMENT|$)/)
+  const gapsMatch    = note.match(/GAPS\n([\s\S]*?)(?=\n\nIMPROVEMENT PLAN|$)/)
+  const planMatch    = note.match(/IMPROVEMENT PLAN\n([\s\S]*?)$/)
+
+  const result: AnalysisSections = {
+    goodFit: goodFitMatch ? parseBullets(goodFitMatch[1]) : [],
+    gaps:    gapsMatch    ? parseBullets(gapsMatch[1])    : [],
+    plan:    planMatch    ? parseBullets(planMatch[1])    : [],
+  }
+
+  if (!result.goodFit.length && !result.gaps.length && !result.plan.length) return null
+  return result
+}
+
+// ─── Dates ───────────────────────────────────────────────────────────────────
+
 /**
  * Returns a human-readable relative date string.
  * e.g. "Just now", "3h ago", "Yesterday", "2w ago", "Jan 5"

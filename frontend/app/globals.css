@@ -91,6 +91,27 @@ body::before {
 ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
 
+/* ─── Brand mark glow — MacBook charging light aesthetic ────────── */
+/* Muted warm tones cycling very slowly. Not RGB. Not neon.          */
+@keyframes brandGlowPulse {
+  0%   { background-color: rgba(251, 191,  36, 0.13); } /* warm amber  */
+  20%  { background-color: rgba(249, 115,  22, 0.11); } /* orange      */
+  40%  { background-color: rgba(205, 127,  50, 0.12); } /* copper      */
+  60%  { background-color: rgba(244, 114, 182, 0.09); } /* soft rose   */
+  80%  { background-color: rgba(234, 179,   8, 0.12); } /* muted gold  */
+  100% { background-color: rgba(251, 191,  36, 0.13); } /* back to amber */
+}
+
+.brand-glow {
+  position: absolute;
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  filter: blur(20px);
+  animation: brandGlowPulse 14s ease-in-out infinite;
+  pointer-events: none;
+}
+
 /* ─── JD textarea — bare canvas, no focus ring ───────────────── */
 .jd-textarea:focus {
   box-shadow: none !important;

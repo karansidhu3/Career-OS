@@ -8,7 +8,7 @@ import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
 import { BrandMark } from '@/components/BrandMark'
 import { spring } from '@/lib/motion'
-import { relativeDate } from '@/lib/utils'
+import { relativeDate, parseStrategicNote, AnalysisSections } from '@/lib/utils'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -29,6 +29,22 @@ function getGenMessage(elapsed: number): string {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
+function AnalysisSection({ title, bullets }: { title: string; bullets: string[] }) {
+  if (!bullets.length) return null
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-2">{title}</p>
+      <ul className="space-y-1.5">
+        {bullets.map((b, i) => (
+          <li key={i} className="flex gap-2.5 text-[15px] text-neutral-700 leading-snug">
+            <span className="text-neutral-400 shrink-0 mt-0.5 select-none">·</span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 function CoverLetterSection({ job }: { job: Job }) {
   const paragraphs = (job.cover_letter ?? '')
@@ -338,16 +354,20 @@ export default function Home() {
           >
             <div className="pt-10">
 
-              {/* ── Brand mark — visual anchor / signature element ── */}
+              {/* ── Brand mark — visual anchor with slow warm glow ── */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ ...spring.gentle, delay: 0.05 }}
                 className="flex justify-center mb-7"
               >
-                <span className="text-neutral-600" style={{ opacity: 0.22 }}>
-                  <BrandMark size={56} physicalStroke={1.5} />
-                </span>
+                <div className="relative flex items-center justify-center">
+                  {/* Ambient glow — cycles through muted warm tones, very slowly */}
+                  <div className="brand-glow" />
+                  <span className="text-neutral-600 relative" style={{ opacity: 0.35 }}>
+                    <BrandMark size={56} physicalStroke={1.5} />
+                  </span>
+                </div>
               </motion.div>
 
               {/* ── Workspace zone — glass focal point ── */}
@@ -382,7 +402,7 @@ export default function Home() {
                     onClick={handleGenerate}
                     disabled={submitting || !jd.trim()}
                     whileTap={{ scale: 0.97 }}
-                    className="flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 disabled:opacity-30 transition-colors"
+                    className="flex items-center gap-2 text-sm text-neutral-700 hover:text-neutral-900 disabled:opacity-30 transition-colors"
                   >
                     {submitting ? (
                       <>
@@ -408,17 +428,23 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* ── Candidacy signal — headline first ── */}
+              {/* ── Candidacy signal — "arrived at a conclusion" reveal ── */}
               <AnimatePresence>
                 {insights && insights.count > 0 && (
                   <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
+                    initial={{ height: 0 }}
+                    animate={{ height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.38, ease: [0.25, 0, 0, 1] }}
+                    transition={{ duration: 0.28, ease: [0.25, 0, 0, 1] }}
                     className="overflow-hidden"
                   >
-                    <div className="mt-10">
+                    {/* Inner reveal: delayed y-rise with spring — the "conclusion" motion */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ ...spring.gentle, delay: 0.2 }}
+                      className="mt-10"
+                    >
                       {(() => {
                         const headline = insights.count < 3
                           ? `${insights.count} application${insights.count === 1 ? '' : 's'}`
@@ -439,7 +465,7 @@ export default function Home() {
                           </>
                         )
                       })()}
-                    </div>
+                    </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -574,22 +600,36 @@ export default function Home() {
               <p className="text-[15px] text-neutral-600 mb-0">{appState.job.company}</p>
             )}
 
-            {/* Strategic note — the centerpiece */}
-            {appState.job.strategic_note && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ ...spring.gentle, delay: 0.1 }}
-                className="mt-8"
-              >
-                <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-3">
-                  what this reveals
-                </p>
-                <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl">
-                  {appState.job.strategic_note}
-                </p>
-              </motion.div>
-            )}
+            {/* Analysis — structured sections */}
+            {appState.job.strategic_note && (() => {
+              const analysis = parseStrategicNote(appState.job.strategic_note)
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...spring.gentle, delay: 0.1 }}
+                  className="mt-8"
+                >
+                  {analysis ? (
+                    <div className="space-y-6">
+                      <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
+                      <AnalysisSection title="Gaps" bullets={analysis.gaps} />
+                      <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
+                    </div>
+                  ) : (
+                    /* Fallback: old-format prose note */
+                    <>
+                      <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-3">
+                        what this reveals
+                      </p>
+                      <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl">
+                        {appState.job.strategic_note}
+                      </p>
+                    </>
+                  )}
+                </motion.div>
+              )
+            })()}
 
             <Divider />
 

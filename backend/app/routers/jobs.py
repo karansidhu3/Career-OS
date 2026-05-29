@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 
-from fpdf import FPDF
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy import select
@@ -41,104 +40,114 @@ async def _run_generation(job_id: int, jd_text: str) -> None:
             result = await generate_materials(db, jd_text)
             _apply_result(job, result)
             job.status = "generated"
-        except Exception as exc:
-            # Mark as failed so the UI can show a retry
+        except Exception:
             job.status = "failed"
             job.title = job.title if job.title != "Generating…" else "Generation failed"
         finally:
             await db.commit()
 
 
-def _to_latin1(text: str) -> str:
-    """
-    Replace common Unicode typographic characters with ASCII equivalents so
-    fpdf2's built-in Helvetica (latin-1 only) doesn't crash.
-    Any character still outside latin-1 after replacements is dropped.
-    """
+# ── Cover letter LaTeX builder ────────────────────────────────────────────────
+
+def _escape_latex(text: str) -> str:
+    """Escape plain text content for use inside a LaTeX document body."""
     return (
         text
-        .replace('—', '--')    # em dash  —
-        .replace('–', '-')     # en dash  –
-        .replace('‘', "'")     # left single quote  '
-        .replace('’', "'")     # right single quote  '
-        .replace('“', '"')     # left double quote  "
-        .replace('”', '"')     # right double quote  "
-        .replace('…', '...')   # ellipsis  …
-        .replace(' ', ' ')     # non-breaking space
-        .encode('latin-1', errors='ignore').decode('latin-1')
+        .replace("—", "---")      # em dash
+        .replace("–", "--")       # en dash
+        .replace("‘", "'")        # left single quote
+        .replace("’", "'")        # right single quote
+        .replace("“", "``")       # left double quote
+        .replace("”", "''")       # right double quote
+        .replace("…", "...")      # ellipsis
+        .replace(" ", " ")        # non-breaking space
+        .replace("%",  r"\%")
+        .replace("&",  r"\&")
+        .replace("$",  r"\$")
+        .replace("#",  r"\#")
+        .replace("_",  r"\_")
     )
 
 
-def _build_cover_letter_pdf(job: Job) -> bytes:
-    pdf = FPDF()
-    pdf.set_margins(28, 28, 28)
-    pdf.add_page()
+# LaTeX cover letter template.
+# Uses charter font, eso-pic gray header band, fontawesome5 contact icons.
+# Placeholders: <<DATE>>, <<RELINE>>, <<BODY>>
+_COVER_LETTER_LATEX = r"""\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{charter}
+\usepackage[left=0.85in, right=0.85in, top=0.5in, bottom=0.85in]{geometry}
+\usepackage{fontawesome5}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{eso-pic}
+\pagestyle{empty}
+\definecolor{hdrbg}{RGB}{234,234,230}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{10pt}
 
-    # ── Header: name ──────────────────────────────────────────────────
-    pdf.set_font("Helvetica", "B", 17)
-    pdf.set_text_color(20, 20, 20)
-    pdf.cell(0, 10, "Karanveer Sidhu", new_x="LMARGIN", new_y="NEXT")
+\begin{document}
 
-    # Contact line
-    pdf.set_font("Helvetica", "", 9)
-    pdf.set_text_color(110, 110, 110)
-    pdf.cell(
-        0, 5,
-        "karansidhu5550@gmail.com  |  +1 (250) 509-2500  |  linkedin.com/in/karan-sidhu3  |  github.com/karansidhu3",
-        new_x="LMARGIN", new_y="NEXT",
-    )
-    pdf.ln(2)
-    pdf.set_draw_color(210, 210, 210)
-    pdf.set_line_width(0.2)
-    pdf.line(28, pdf.get_y(), 182, pdf.get_y())
-    pdf.set_line_width(0.2)
-    pdf.ln(9)
+\AddToShipoutPictureBG*{%
+  \color{hdrbg}%
+  \AtPageUpperLeft{\rule[-1.30in]{\paperwidth}{1.30in}}%
+}
 
-    # ── Date ──────────────────────────────────────────────────────────
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(50, 50, 50)
+\vspace*{0.12in}
+\begin{center}
+{\fontsize{26}{30}\selectfont\scshape Karanveer Sidhu}\\[5pt]
+{\small\color[RGB]{80,80,80}
+  \href{mailto:karansidhu5550@gmail.com}{\faEnvelope\enspace karansidhu5550@gmail.com}\hspace{10pt}%
+  \href{tel:+12505092500}{\faPhone\enspace +1 (250) 509-2500}\hspace{10pt}%
+  \href{https://linkedin.com/in/karan-sidhu3}{\faLinkedinIn\enspace linkedin.com/in/karan-sidhu3}\hspace{10pt}%
+  \href{https://github.com/karansidhu3}{\faGithub\enspace github.com/karansidhu3}%
+}
+\end{center}
+\vspace*{0.18in}
+
+<<DATE>>
+
+\vspace{-4pt}<<RELINE>>
+
+Dear Hiring Manager,
+
+<<BODY>>
+
+\vspace{4pt}Sincerely,
+
+\vspace{18pt}\textbf{Karanveer Sidhu}
+
+\end{document}
+"""
+
+
+def _build_cover_letter_latex(job: Job) -> str:
+    """Build a LaTeX cover letter document for compilation by Tectonic."""
     date_str = datetime.date.today().strftime("%B %d, %Y")
-    pdf.cell(0, 6, date_str, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(7)
 
-    # ── Re: line ──────────────────────────────────────────────────────
-    if job.title or job.company:
-        re_parts = []
-        if job.title:
-            re_parts.append(_to_latin1(job.title))
-        if job.company:
-            re_parts.append(_to_latin1(job.company))
-        re_line = "Re: " + " -- ".join(re_parts)
-        pdf.set_font("Helvetica", "I", 10)
-        pdf.set_text_color(60, 60, 60)
-        pdf.cell(0, 6, re_line, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(7)
+    re_parts: list[str] = []
+    if job.title:
+        re_parts.append(_escape_latex(job.title))
+    if job.company:
+        re_parts.append(_escape_latex(job.company))
+    re_line = (r"\textit{Re:\ " + " -- ".join(re_parts) + "}") if re_parts else ""
 
-    # ── Salutation ────────────────────────────────────────────────────
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(20, 20, 20)
-    pdf.cell(0, 6, "Dear Hiring Manager,", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(6)
+    paragraphs = [
+        _escape_latex(p.strip())
+        for p in (job.cover_letter or "").split("\n\n")
+        if p.strip()
+    ]
+    body = "\n\n".join(paragraphs)
 
-    # ── Body paragraphs (left-aligned) ────────────────────────────────
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(30, 30, 30)
-    paragraphs = [p.strip() for p in (job.cover_letter or "").split("\n\n") if p.strip()]
-    for para in paragraphs:
-        pdf.multi_cell(0, 7.0, _to_latin1(para), align="L")
-        pdf.ln(5)
+    return (
+        _COVER_LETTER_LATEX
+        .replace("<<DATE>>", date_str)
+        .replace("<<RELINE>>", re_line)
+        .replace("<<BODY>>", body)
+    )
 
-    # ── Closing ───────────────────────────────────────────────────────
-    pdf.ln(2)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(30, 30, 30)
-    pdf.cell(0, 6, "Sincerely,", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(5)
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 6, "Karanveer Sidhu", new_x="LMARGIN", new_y="NEXT")
 
-    return bytes(pdf.output())
-
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.post("/generate", response_model=JobRead, status_code=201)
 async def generate_job(
@@ -213,7 +222,17 @@ async def download_cover_letter(id: int, db: AsyncSession = Depends(get_db)):
     if not job or not job.cover_letter:
         raise HTTPException(status_code=404, detail="Cover letter not found")
 
-    pdf_bytes = _build_cover_letter_pdf(job)
+    try:
+        latex = _build_cover_letter_latex(job)
+        pdf_bytes = await compile_latex_to_pdf(latex)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=503,
+            detail="PDF compilation not available (tectonic not installed on this server)",
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     company = (job.company or "company").replace(" ", "-").lower()
     filename = f"cover-letter-{company}.pdf"
 

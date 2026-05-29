@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
-import { relativeDate } from '@/lib/utils'
+import { relativeDate, parseStrategicNote } from '@/lib/utils'
 
 
 // Status text — CSS tokens where semantic color exists
@@ -49,10 +49,13 @@ function AppRow({ job, i }: { job: Job; i: number }) {
   const isSpecial = job.status === 'interview' || job.status === 'offer'
   const statusColor = STATUS_TEXT[job.status] ?? '#9ca3af'
 
-  // Extract first sentence of strategic note as the signal
-  const signal = job.strategic_note
-    ? job.strategic_note.split(/(?<=[.!?])\s+/)[0]?.replace(/[.!?]+$/, '').trim() ?? null
-    : null
+  // Signal: first gap bullet from structured analysis, or first sentence of prose fallback
+  const signal = (() => {
+    if (!job.strategic_note) return null
+    const analysis = parseStrategicNote(job.strategic_note)
+    if (analysis) return analysis.gaps[0] ?? analysis.goodFit[0] ?? null
+    return job.strategic_note.split(/(?<=[.!?])\s+/)[0]?.replace(/[.!?]+$/, '').trim() ?? null
+  })()
 
   return (
     <motion.button

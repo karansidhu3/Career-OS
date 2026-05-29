@@ -42,8 +42,8 @@ LATEX_TEMPLATE = r"""
 \setlength{\tabcolsep}{0in}
 
 \titleformat{\section}{
-  \vspace{-8pt}\scshape\raggedright\large
-}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+  \vspace{-5pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-4pt}]
 
 \newcommand{\iconlink}[1]{#1}
 \newcommand{\resumeItem}[2]{
@@ -62,8 +62,8 @@ LATEX_TEMPLATE = r"""
 \renewcommand{\labelitemii}{$\circ$}
 \newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*, topsep=0pt, itemsep=6pt]}
 \newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
-\newcommand{\resumeItemListStart}{\begin{itemize}[itemsep=-3pt, topsep=1pt]}
-\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[itemsep=-2pt, topsep=1pt]}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-3pt}}
 \newcommand{\projectSubheading}[5]{
   \vspace{-1pt}\item
     \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
@@ -178,11 +178,12 @@ PROJECTS SECTION:
 ━━━ ONE-PAGE HARD LIMIT ━━━
 
 The resume must fit on exactly one page. Enforce this strictly through content discipline:
-- Experience roles: max 3 bullets each
-- Projects: max 2 bullets each
-- Projects section: include at most 3 projects total
-- Bullet length: aim for 15 words or fewer — tight, punchy, no run-on sentences
+- Experience roles: aim for 3 bullets each — a half-empty experience section wastes page space
+- Projects: exactly 2 bullets each — never write only 1 unless the project is extremely minor
+- Projects section: include exactly 3 projects unless the profile genuinely has fewer strong ones
+- Bullet length: 12-18 words per bullet — specific enough to be credible, tight enough to scan
 - If something needs to be cut, cut the weakest bullet, never shrink content to 4+ projects
+- Skills section: include all relevant technology groupings — a short skills section leaves dead space
 - The LaTeX margins and spacing are already set for one page — trust them and keep bullets concise
 
 ━━━ LANGUAGE RULES ━━━
@@ -252,31 +253,44 @@ The 3 rationale bullets should be direct and specific:
 - Name what doesn't match and how significant the gap is
 - Help Karan make an actual decision about whether to apply
 
-━━━ STRATEGIC NOTE ━━━
+━━━ ANALYSIS ━━━
 
-Write 2-3 sentences of direct career intelligence. Not a summary. Not a score rephrasing.
+Generate a structured analysis in EXACTLY this format. No deviations. No prose paragraphs.
 
-Answer two things:
-1. What does this JD reveal about a real gap in Karan's candidacy right now?
-2. What is one concrete action to close it — a feature to add, a project to build, a specific thing to demonstrate?
+GOOD FIT
+• [reason this role fits — specific, name the technology or experience, under 12 words]
+• [second reason if genuinely distinct — omit if not]
 
-Right register:
-"This role wants MLOps and model serving. The profile shows model building but no deployment layer. \
-Adding a FastAPI serving endpoint with basic monitoring to MarketMind would address this directly."
-"Strong stack match. The gap is real-time data — the JD emphasizes event-driven pipelines and nothing here \
-shows that. A Redis Streams integration on any existing project would close it."
-"This is a backend infrastructure role with heavy emphasis on distributed systems design. The experience \
-section has good breadth but no explicit systems design work. Consider adding a design doc or architectural \
-writeup for the TA matching platform's data model."
+GAPS
+• [specific missing technology or experience type named in the JD]
+• [second gap if genuinely different — omit if not]
+• [third gap only if meaningfully distinct]
 
-Wrong register:
-"This is a strong match and Karan should apply." (no gap named, no action given)
-"Consider improving knowledge of distributed systems." (vague, no specifics)
-"The skills align well with the requirements." (template filler)
-"Great fit — Karan's background maps well to this role." (pure validation, useless)
+IMPROVEMENT PLAN
+• [concrete action naming a specific project (MarketMind, TA platform, etc.) or exact skill]
+• [second action if it addresses a different gap — omit if not]
 
-Hard rules: no em dashes, no adverbs, name specific technologies from the JD, name a specific project or \
-concrete action (not "build something with X").
+Rules:
+- 1-3 bullets per section
+- Each bullet under 12 words
+- GOOD FIT bullets name specific stack matches or experience types — not generic praise
+- GAPS bullets name exact technologies or experience types from the JD — not vague categories
+- IMPROVEMENT PLAN bullets name a specific project change or concrete skill — not "learn X"
+- No em dashes, no adverbs, no filler
+- NEVER write "Strong match", "Great fit", "Consider improving" — too vague to be useful
+
+Example output:
+GOOD FIT
+• FastAPI and PostgreSQL match the backend stack exactly
+• MarketMind demonstrates the required data pipeline depth
+
+GAPS
+• No Kubernetes or container orchestration beyond Docker
+• Missing CI/CD pipeline experience from JD requirements
+
+IMPROVEMENT PLAN
+• Add GitHub Actions CI workflow to MarketMind repository
+• Add a Kubernetes deployment manifest with basic health checks
 
 ━━━ HARD CONSTRAINTS ━━━
 
@@ -328,7 +342,7 @@ GENERATE_TOOL = {
             },
             "strategic_note": {
                 "type": "string",
-                "description": "2-3 sentences of direct career intelligence. Name the gap this JD reveals in Karan's candidacy. Name one concrete action to close it. See system prompt for format and examples.",
+                "description": "Structured analysis in EXACTLY this three-section format (no prose, no deviations):\n\nGOOD FIT\n• [reason — specific, under 12 words]\n• [optional second reason]\n\nGAPS\n• [missing technology or experience from JD]\n• [optional second gap]\n\nIMPROVEMENT PLAN\n• [concrete action naming a specific project or skill]\n• [optional second action]\n\nRules: 1-3 bullets per section, each under 12 words, name specific technologies and project names.",
             },
         },
         "required": ["fit_score", "fit_rationale", "resume_latex", "cover_letter", "job_title", "job_company", "strategic_note"],
