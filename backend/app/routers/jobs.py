@@ -1,7 +1,10 @@
 import asyncio
 import datetime
+import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +43,8 @@ async def _run_generation(job_id: int, jd_text: str) -> None:
             result = await generate_materials(db, jd_text)
             _apply_result(job, result)
             job.status = "generated"
-        except Exception:
+        except Exception as e:
+            logger.exception("Generation failed for job %d: %s", job_id, e)
             job.status = "failed"
             job.title = job.title if job.title != "Generating…" else "Generation failed"
         finally:

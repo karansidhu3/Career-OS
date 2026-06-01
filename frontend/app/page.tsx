@@ -550,11 +550,13 @@ export default function Home() {
                       href={`/jobs/${job.id}`}
                       className="flex items-center justify-between py-2.5 group"
                     >
-                      <span className="text-sm text-neutral-600 group-hover:text-neutral-800 transition-colors truncate mr-6">
-                        {job.title || 'Untitled'}
-                        {job.company ? ` — ${job.company}` : ''}
+                      <span className="flex items-center gap-1.5 min-w-0 mr-6">
+                        <span className="text-sm text-neutral-600 group-hover:text-neutral-800 transition-colors truncate">
+                          {job.title || 'Untitled'}
+                          {job.company ? ` — ${job.company}` : ''}
+                        </span>
                         {(job.status === 'interview' || job.status === 'offer') && (
-                          <span className="ml-2 text-amber-400/80 text-xs">✦</span>
+                          <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--c-warn)' }} />
                         )}
                       </span>
                       <span className="shrink-0 text-xs text-neutral-600 group-hover:text-neutral-700 transition-colors tabular-nums">

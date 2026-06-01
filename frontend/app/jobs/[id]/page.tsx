@@ -153,6 +153,7 @@ function CoverLetterSection({ job }: { job: Job }) {
 
   return (
     <div>
+      <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-4">Cover letter</p>
       <div style={{ maxWidth: '520px' }}>
         {paragraphs.map((para, i) => (
           <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">
@@ -222,10 +223,9 @@ function Divider() {
 }
 
 function getGenMessage(elapsed: number): string {
-  if (elapsed < 5) return 'Reading…'
-  if (elapsed < 12) return 'Scoring fit…'
-  if (elapsed < 22) return 'Writing your resume…'
-  return 'Polishing the cover letter…'
+  if (elapsed < 14) return 'Generating your application…'
+  if (elapsed < 32) return 'Matching your background to this role…'
+  return 'This is taking a moment…'
 }
 
 export default function JobPage() {
@@ -310,7 +310,7 @@ export default function JobPage() {
       <div className="px-6 pb-24 max-w-3xl mx-auto">
         <div className="pt-8 mb-10">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/')}
             className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1.5"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -323,36 +323,22 @@ export default function JobPage() {
           className="flex flex-col items-center justify-center gap-6"
           style={{ minHeight: 'calc(100vh - 200px)' }}
         >
-          <div className="relative flex items-center justify-center">
-            <div
-              className="absolute rounded-full"
-              style={{
-                width: 120,
-                height: 120,
-                background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)',
-                filter: 'blur(20px)',
-              }}
-            />
-            <div className="relative w-12 h-12">
-              <div className="absolute inset-0 rounded-full" style={{ border: '2.5px solid var(--c-accent-dim)' }} />
-              <div className="absolute inset-0 rounded-full animate-spin" style={{ border: '2.5px solid var(--c-accent)', borderTopColor: 'transparent' }} />
-            </div>
+          <div className="w-10 h-10 relative">
+            <div className="absolute inset-0 rounded-full" style={{ border: '2px solid var(--c-accent-dim)' }} />
+            <div className="absolute inset-0 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent)', borderTopColor: 'transparent' }} />
           </div>
-          <div className="text-center">
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={getGenMessage(genElapsed)}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -5 }}
-                transition={spring.snappy}
-                className="text-[15px] text-neutral-600 font-medium"
-              >
-                {getGenMessage(genElapsed)}
-              </motion.p>
-            </AnimatePresence>
-            <p className="text-xs text-neutral-500 mt-2 tabular-nums">{genElapsed}s</p>
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={getGenMessage(genElapsed)}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={spring.gentle}
+              className="text-[15px] text-neutral-600 font-medium text-center"
+            >
+              {getGenMessage(genElapsed)}
+            </motion.p>
+          </AnimatePresence>
         </div>
       </div>
     )
@@ -364,7 +350,7 @@ export default function JobPage() {
       <div className="px-6 pb-24 max-w-3xl mx-auto">
         <div className="pt-8 mb-10">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/')}
             className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1.5"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -418,9 +404,12 @@ export default function JobPage() {
       >
         <button
           onClick={() => router.back()}
-          className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1"
+          className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1.5"
         >
-          ← Applications
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Applications
         </button>
 
         <div className="flex items-start justify-between gap-4">

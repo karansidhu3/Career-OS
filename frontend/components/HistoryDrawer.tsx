@@ -210,9 +210,12 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
                 <div>
                   <button
                     onClick={() => setShowOlder(v => !v)}
-                    className="text-xs text-neutral-300 hover:text-neutral-500 px-4 py-1.5 transition-colors"
+                    className="text-xs text-neutral-300 hover:text-neutral-500 px-4 py-1.5 transition-colors flex items-center gap-1"
                   >
-                    {showOlder ? '↑ Hide older' : `↓ ${older.length} older`}
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      {showOlder ? <path d="M18 15l-6-6-6 6" /> : <path d="M6 9l6 6 6-6" />}
+                    </svg>
+                    {showOlder ? 'Hide older' : `${older.length} older`}
                   </button>
                   <AnimatePresence>
                     {showOlder && (

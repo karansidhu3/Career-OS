@@ -76,7 +76,7 @@ export function Navbar() {
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => setDrawerOpen(true)}
-              title="Log"
+              title="History"
               className="relative w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}

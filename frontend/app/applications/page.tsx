@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 // Status text — CSS tokens where semantic color exists
 const STATUS_TEXT: Record<string, string> = {
-  generated: '#7c3aed',
+  generated: '#6366F1',
   applied:   'var(--c-success)',
   skipped:   '#9ca3af',
   interview: 'var(--c-warn)',
