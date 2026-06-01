@@ -507,12 +507,16 @@ function SkillCard({
   skill,
   onSave,
   onDelete,
+  startEditing,
+  isNew,
 }: {
   skill: SkillCategory
   onSave: (d: Omit<SkillCategory, 'id'>) => Promise<void>
   onDelete: () => void
+  startEditing?: boolean
+  isNew?: boolean
 }) {
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(startEditing ?? false)
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [category, setCategory] = useState(skill.category)
@@ -547,7 +551,13 @@ function SkillCard({
             <div className="flex items-center justify-between pt-1">
               <SkillDeleteButton onDelete={onDelete} />
               <div className="flex gap-2">
-                <CancelButton onClick={() => setEditing(false)} />
+                <CancelButton onClick={() => {
+                  if (isNew) {
+                    onDelete()
+                  } else {
+                    setEditing(false)
+                  }
+                }} />
                 <SaveButton saving={saving} onClick={save} />
               </div>
             </div>
@@ -581,6 +591,7 @@ export default function ProfilePage() {
   const [loadError, setLoadError] = useState(false)
   const [newProjectId, setNewProjectId] = useState<number | null>(null)
   const [newExpId, setNewExpId] = useState<number | null>(null)
+  const [newSkillId, setNewSkillId] = useState<number | null>(null)
   const [addingProject, setAddingProject] = useState(false)
   const [addingExp, setAddingExp] = useState(false)
   const [addingSkill, setAddingSkill] = useState(false)
@@ -595,6 +606,34 @@ export default function ProfilePage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Scroll newly added items into view — they appear at the bottom of the list
+  useEffect(() => {
+    if (!newProjectId) return
+    const t = setTimeout(() => {
+      document.querySelector(`[data-project="${newProjectId}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 60)
+    return () => clearTimeout(t)
+  }, [newProjectId])
+
+  useEffect(() => {
+    if (!newExpId) return
+    const t = setTimeout(() => {
+      document.querySelector(`[data-exp="${newExpId}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 60)
+    return () => clearTimeout(t)
+  }, [newExpId])
+
+  useEffect(() => {
+    if (!newSkillId) return
+    const t = setTimeout(() => {
+      document.querySelector(`[data-skill="${newSkillId}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 60)
+    return () => clearTimeout(t)
+  }, [newSkillId])
 
   if (loadError) {
     return (
@@ -752,6 +791,7 @@ export default function ProfilePage() {
         sort_order: (profile.skills.at(-1)?.sort_order ?? -1) + 1,
       })
       setProfile(prev => prev ? { ...prev, skills: [...prev.skills, s] } : prev)
+      setNewSkillId(s.id)
     } finally {
       setAddingSkill(false)
     }
@@ -759,10 +799,12 @@ export default function ProfilePage() {
 
   const saveSkill = async (id: number, data: Omit<SkillCategory, 'id'>) => {
     const updated = await api.updateSkillCategory(id, data)
+    setNewSkillId(null)
     setProfile(prev => prev ? { ...prev, skills: prev.skills.map(s => s.id === id ? updated : s) } : prev)
   }
 
   const deleteSkill = (id: number) => {
+    if (newSkillId === id) setNewSkillId(null)
     const removed = profile!.skills.find(s => s.id === id)
     setProfile(prev => prev ? { ...prev, skills: prev.skills.filter(s => s.id !== id) } : prev)
 
@@ -799,6 +841,7 @@ export default function ProfilePage() {
             {profile.projects.map((p, i) => (
               <motion.div
                 key={p.id}
+                data-project={p.id}
                 layout
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -839,6 +882,7 @@ export default function ProfilePage() {
             {profile.experience.map((e, i) => (
               <motion.div
                 key={e.id}
+                data-exp={e.id}
                 layout
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -879,6 +923,7 @@ export default function ProfilePage() {
             {profile.skills.map(s => (
               <motion.div
                 key={s.id}
+                data-skill={s.id}
                 layout
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -891,6 +936,8 @@ export default function ProfilePage() {
               >
                 <SkillCard
                   skill={s}
+                  startEditing={s.id === newSkillId}
+                  isNew={s.id === newSkillId}
                   onSave={data => saveSkill(s.id, data)}
                   onDelete={() => deleteSkill(s.id)}
                 />

@@ -100,6 +100,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text()
     throw new Error(text || `HTTP ${res.status}`)
   }
+  // 204 No Content — DELETE endpoints return empty body, res.json() would throw
+  if (res.status === 204) return undefined as T
   return res.json()
 }
 
