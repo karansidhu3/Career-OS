@@ -106,16 +106,10 @@ function TechTags({ tags }: { tags: string[] }) {
   )
 }
 
-function Bullets({ bullets }: { bullets: string[] }) {
+function DescriptionText({ text }: { text: string }) {
+  if (!text) return null
   return (
-    <ul className="space-y-1 mt-2">
-      {bullets.map((b, i) => (
-        <li key={i} className="flex gap-2 text-sm text-neutral-600">
-          <span className="text-neutral-300 shrink-0 mt-0.5">•</span>
-          <span>{b}</span>
-        </li>
-      ))}
-    </ul>
+    <p className="text-sm text-neutral-500 leading-relaxed mt-2 whitespace-pre-wrap">{text}</p>
   )
 }
 
@@ -185,10 +179,9 @@ function ProjectCard({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [name, setName] = useState(project.name)
-  const [tech, setTech] = useState(project.tech.join(', '))
   const [startDate, setStartDate] = useState(project.start_date ?? '')
   const [endDate, setEndDate] = useState(project.end_date ?? '')
-  const [bullets, setBullets] = useState(project.bullets.join('\n'))
+  const [description, setDescription] = useState(project.description ?? '')
 
   useEffect(() => {
     if (!savedFlash) return
@@ -201,10 +194,9 @@ function ProjectCard({
     try {
       await onSave({
         name,
-        tech: tech.split(',').map(t => t.trim()).filter(Boolean),
         start_date: startDate || null,
         end_date: endDate || null,
-        bullets: bullets.split('\n').map(b => b.trim()).filter(Boolean),
+        description,
         sort_order: project.sort_order,
       })
       setEditing(false)
@@ -223,24 +215,21 @@ function ProjectCard({
               <Field label="Project name">
                 <Input value={name} onChange={setName} placeholder="MarketMind AI" />
               </Field>
-              <Field label="Tech stack (comma-separated)">
-                <Input value={tech} onChange={setTech} placeholder="Python, FastAPI, React" />
-              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Start date">
+                  <Input value={startDate} onChange={setStartDate} placeholder="Dec 2025" />
+                </Field>
+                <Field label="End date">
+                  <Input value={endDate} onChange={setEndDate} placeholder="Present" />
+                </Field>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Start date">
-                <Input value={startDate} onChange={setStartDate} placeholder="Dec 2025" />
-              </Field>
-              <Field label="End date">
-                <Input value={endDate} onChange={setEndDate} placeholder="Present (leave blank)" />
-              </Field>
-            </div>
-            <Field label="Bullets (one per line)">
+            <Field label="Description">
               <TextArea
-                value={bullets}
-                onChange={setBullets}
-                rows={5}
-                placeholder={"Built a multi-agent pipeline...\nReduced manual work by 70%..."}
+                value={description}
+                onChange={setDescription}
+                rows={7}
+                placeholder="Describe what you built, the technical decisions, the architecture, and outcomes. Write naturally — the AI reads this and writes tailored bullets for each application."
               />
             </Field>
             <div className="flex items-center justify-between pt-1">
@@ -280,7 +269,6 @@ function ProjectCard({
               <div className="flex gap-2">
                 <CancelButton onClick={() => {
                   if (isNew) {
-                    // New unsaved project — cancel means discard entirely
                     onDelete()
                   } else {
                     setEditing(false)
@@ -295,7 +283,7 @@ function ProjectCard({
           <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="flex items-start gap-4">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2.5 mb-1.5">
+                <div className="flex items-center gap-2.5 mb-1">
                   <h3 className="text-sm font-semibold text-neutral-800">{project.name}</h3>
                   {(project.start_date || project.end_date) && (
                     <span className="text-xs text-neutral-400">
@@ -304,10 +292,8 @@ function ProjectCard({
                   )}
                   <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
                 </div>
-                {project.tech.length > 0 && <TechTags tags={project.tech} />}
-                {project.bullets.length > 0 && <Bullets bullets={project.bullets} />}
+                <DescriptionText text={project.description} />
               </div>
-              {/* Hover-reveal actions */}
               <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
                 <button onClick={() => setEditing(true)}
@@ -354,7 +340,7 @@ function ExperienceCard({
   const [role, setRole] = useState(exp.role)
   const [startDate, setStartDate] = useState(exp.start_date ?? '')
   const [endDate, setEndDate] = useState(exp.end_date ?? '')
-  const [bullets, setBullets] = useState(exp.bullets.join('\n'))
+  const [description, setDescription] = useState(exp.description ?? '')
 
   useEffect(() => {
     if (!savedFlash) return
@@ -369,7 +355,7 @@ function ExperienceCard({
         company, role,
         start_date: startDate || null,
         end_date: endDate || null,
-        bullets: bullets.split('\n').map(b => b.trim()).filter(Boolean),
+        description,
         sort_order: exp.sort_order,
       })
       setEditing(false)
@@ -392,8 +378,13 @@ function ExperienceCard({
               <Field label="Start date"><Input value={startDate} onChange={setStartDate} placeholder="May 2025" /></Field>
               <Field label="End date"><Input value={endDate} onChange={setEndDate} placeholder="Aug 2025" /></Field>
             </div>
-            <Field label="Bullets (one per line)">
-              <TextArea value={bullets} onChange={setBullets} rows={4} placeholder="Built a platform that..." />
+            <Field label="Description">
+              <TextArea
+                value={description}
+                onChange={setDescription}
+                rows={6}
+                placeholder="Describe the work, the technical stack, what you built, and the impact. Write naturally — the AI reads this and writes tailored bullets for each application."
+              />
             </Field>
             <div className="flex items-center justify-between pt-1">
               <AnimatePresence mode="wait" initial={false}>
@@ -451,10 +442,10 @@ function ExperienceCard({
                   <span className="text-neutral-400 text-sm">at {exp.company}</span>
                   <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
                 </div>
-                <p className="text-xs text-neutral-400 mb-2">
+                <p className="text-xs text-neutral-400 mb-1">
                   {exp.start_date} – {exp.end_date || 'Present'}
                 </p>
-                <Bullets bullets={exp.bullets} />
+                <DescriptionText text={exp.description} />
               </div>
               <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
@@ -670,10 +661,9 @@ export default function ProfilePage() {
     try {
       const p = await api.createProject({
         name: 'New Project',
-        tech: [],
         start_date: null,
         end_date: null,
-        bullets: [],
+        description: '',
         sort_order: (profile.projects.at(-1)?.sort_order ?? -1) + 1,
       })
       setProfile(prev => prev ? { ...prev, projects: [...prev.projects, p] } : prev)
@@ -719,7 +709,7 @@ export default function ProfilePage() {
         role: 'Role',
         start_date: null,
         end_date: null,
-        bullets: [],
+        description: '',
         sort_order: (profile.experience.at(-1)?.sort_order ?? -1) + 1,
       })
       setProfile(prev => prev ? { ...prev, experience: [...prev.experience, e] } : prev)

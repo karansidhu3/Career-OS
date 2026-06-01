@@ -155,8 +155,10 @@ Every bullet must follow: strong verb → what you built/did → outcome or scal
 - If there's a number in the original profile, keep it and lead with it: "Reduced 120+ hours of manual
   work" beats "Automated the allocation process"
 - Cut any bullet that doesn't add signal for this specific JD — 3 sharp bullets beats 5 mediocre ones
-- Rewrite freely. The original bullets are a starting point, not constraints. If you can say it
-  better and more relevantly, do it — as long as the underlying fact remains true
+- Each role and project in the profile has a prose description of the work — raw context, not
+  pre-written bullets. Read the description, extract the most relevant facts for this JD, and
+  write bullets from scratch. The description is the source material; you are the writer.
+  Stay truthful to what the description says — do not invent facts not present in the text.
 
 EXPERIENCE SECTION:
 - Always include both technical roles (UBC Full Stack Developer, SIMLAB Research Assistant)
@@ -403,19 +405,17 @@ def _format_profile(
         for i, exp in enumerate(experience, 1):
             end = exp.end_date or "Present"
             lines.append(f"[{i}] {exp.role} at {exp.company} ({exp.start_date} – {end})")
-            for bullet in (exp.bullets or []):
-                lines.append(f"  • {bullet}")
+            if exp.description:
+                lines.append(f"  {exp.description}")
         lines.append("")
 
     if projects:
         lines.append("PROJECTS")
         for i, proj in enumerate(projects, 1):
             end = proj.end_date or "Present"
-            tech = ", ".join(proj.tech or [])
             lines.append(f"[{i}] {proj.name} ({proj.start_date} – {end})")
-            lines.append(f"  Tech: {tech}")
-            for bullet in (proj.bullets or []):
-                lines.append(f"  • {bullet}")
+            if proj.description:
+                lines.append(f"  {proj.description}")
         lines.append("")
 
     if skills:

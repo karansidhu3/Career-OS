@@ -37,7 +37,7 @@ class ExperienceBase(BaseModel):
     role: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    bullets: list[str] = []
+    description: str = ""
     sort_order: int = 0
 
 
@@ -48,10 +48,9 @@ class ExperienceRead(ExperienceBase):
 
 class ProjectBase(BaseModel):
     name: str
-    tech: list[str] = []
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    bullets: list[str] = []
+    description: str = ""
     sort_order: int = 0
 
 

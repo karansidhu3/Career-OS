@@ -42,17 +42,21 @@ async def seed():
             end_date="Jun 2026",
         ))
 
-        for i, exp in enumerate([
+        for exp in [
             Experience(
                 company="UBC",
                 role="Full Stack Developer",
                 start_date="May 2025",
                 end_date="Aug 2025",
-                bullets=[
-                    "Built TA matching platform with Next.js, React, Node.js; automated allocation across Science faculty; reduced 120+ hours of manual work per term",
-                    "Designed multi-step form workflow with schema-based validation",
-                    "Dockerized PostgreSQL schema with many-to-many relationships",
-                ],
+                description=(
+                    "Built a TA matching platform that automated course assistant allocation across UBC's Science faculty "
+                    "using Next.js, React, and Node.js. The system replaced a manual spreadsheet process that consumed "
+                    "120+ hours of coordination work per academic term. Designed a multi-step form workflow with "
+                    "schema-based validation to capture preferences from both students and coordinators. Implemented the "
+                    "allocation logic server-side, triggered from an admin interface that gave coordinators visibility "
+                    "into the matching results before finalizing. Dockerized the PostgreSQL database with many-to-many "
+                    "relationship tables linking courses, teaching assistants, and assignment records."
+                ),
                 sort_order=0,
             ),
             Experience(
@@ -60,52 +64,67 @@ async def seed():
                 role="Research Assistant",
                 start_date="May 2024",
                 end_date="Aug 2024",
-                bullets=[
-                    "Built spatial graph models for wildfire spread simulation (terrain, vegetation, powerline networks)",
-                    "Implemented graph algorithms for probabilistic fire propagation and infrastructure risk quantification",
-                ],
+                description=(
+                    "Built spatial graph models to simulate wildfire spread across terrain with varying vegetation types, "
+                    "powerline corridor networks, and infrastructure assets. Each node in the graph represents a geographic "
+                    "unit with associated fire risk properties; edges encode adjacency and wind-driven spread probabilities. "
+                    "Implemented probabilistic fire propagation algorithms that traverse the graph and accumulate risk "
+                    "scores for downstream infrastructure nodes. Used the outputs to quantify which powerline segments "
+                    "face the highest ignition exposure under different wind scenarios, producing a ranked list of "
+                    "at-risk infrastructure for utility operators."
+                ),
                 sort_order=1,
             ),
-        ]):
+        ]:
             db.add(exp)
 
         for project in [
             Project(
                 name="MarketMind AI",
-                tech=["Python", "FastAPI", "Next.js", "React", "PostgreSQL", "Redis", "Qdrant", "Ollama", "Docker"],
                 start_date="Dec 2025",
                 end_date=None,
-                bullets=[
-                    "Persistent investment intelligence platform; multi-agent pipeline ingesting SEC filings daily",
-                    "Temporal signal tracking across months; emergence velocity not retrieval",
-                    "Thesis confidence scoring, company radar, portfolio alignment layer",
-                    "Production Docker Compose stack; local LLM pipeline at scale",
-                ],
+                description=(
+                    "Investment intelligence platform built on a multi-agent pipeline that ingests SEC filings, "
+                    "earnings releases, and market data on a daily schedule. Architecture separates signal extraction "
+                    "from presentation: ingestion agents fetch and parse filings, analysis agents score thesis confidence "
+                    "and track drift over time, and a retrieval layer (Qdrant vector search plus Redis caching) serves "
+                    "queries to the Next.js frontend. Backend built with FastAPI and PostgreSQL for persistent state, "
+                    "with Ollama running local LLMs for on-premise analysis tasks. The design tracks signals temporally "
+                    "rather than giving one-shot answers: confidence scores strengthen or decay as new filings arrive, "
+                    "giving the portfolio view a time dimension that retrieval-only systems lack. Deployed with Docker Compose."
+                ),
                 sort_order=0,
             ),
             Project(
                 name="Agentic Market Sentiment System",
-                tech=["Python", "Groq AI", "YFinance API", "DuckDuckGo", "FastAPI"],
                 start_date="Dec 2025",
                 end_date="Dec 2025",
-                bullets=[
-                    "Multi-agent AI system; reduced manual research time by 70%",
-                    "Agents for market data, news, sentiment; 100+ structured data points per query",
-                ],
+                description=(
+                    "Multi-agent research system that compresses manual stock research from hours to minutes per query. "
+                    "Specialist agents handle market data (YFinance API), news aggregation (DuckDuckGo search), and "
+                    "sentiment scoring independently. A coordinator agent synthesizes their outputs into a structured "
+                    "report with 100+ data points per query: price history, momentum indicators, news volume, sentiment "
+                    "trend, and sector context. Built on Python with Groq AI for fast inference and a FastAPI interface "
+                    "for programmatic access. Reduced manual research time by 70% compared to checking each data source "
+                    "individually."
+                ),
                 sort_order=1,
             ),
             Project(
-                name="FDA Cancer Drug–Protein Network Analysis",
-                tech=["R", "igraph", "tidyverse"],
+                name="FDA Cancer Drug-Protein Network Analysis",
                 start_date="Nov 2025",
                 end_date="Nov 2025",
-                bullets=[
-                    "Bipartite drug–protein network from FDA oncology datasets + BioGRID PPI network",
-                    "Centrality and hub analysis for drug sensitivity/resistance pathways",
-                ],
+                description=(
+                    "Built a bipartite drug-protein interaction network by joining FDA oncology approval datasets with "
+                    "BioGRID protein-protein interaction (PPI) data. The resulting graph connects approved cancer drugs "
+                    "to their protein targets, then links those targets into the broader interaction network. Applied "
+                    "centrality analysis (degree, betweenness, eigenvector) using the igraph library in R to identify "
+                    "hub proteins appearing across multiple drug-sensitivity pathways. The analysis surfaced proteins "
+                    "with high betweenness centrality across oncology drug classes, flagging them as candidate "
+                    "cross-drug resistance mechanisms worth further investigation."
+                ),
                 sort_order=2,
             ),
-            # Movie Recommendation Engine removed — Karan will replace with a stronger project
         ]:
             db.add(project)
 

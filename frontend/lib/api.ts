@@ -64,17 +64,16 @@ export interface Experience {
   role: string
   start_date: string | null
   end_date: string | null
-  bullets: string[]
+  description: string
   sort_order: number
 }
 
 export interface Project {
   id: number
   name: string
-  tech: string[]
   start_date: string | null
   end_date: string | null
-  bullets: string[]
+  description: string
   sort_order: number
 }
 

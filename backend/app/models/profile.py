@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.database import Base
@@ -38,7 +38,7 @@ class Experience(Base):
     role = Column(String, nullable=False)
     start_date = Column(String)
     end_date = Column(String)
-    bullets = Column(JSONB, default=list)
+    description = Column(Text, default="")
     sort_order = Column(Integer, default=0)
 
 
@@ -47,10 +47,9 @@ class Project(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    tech = Column(JSONB, default=list)
     start_date = Column(String)
     end_date = Column(String)
-    bullets = Column(JSONB, default=list)
+    description = Column(Text, default="")
     sort_order = Column(Integer, default=0)
 
 
