@@ -9,7 +9,7 @@ import { AutoTextarea } from '@/components/AutoTextarea'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
-import { relativeDate, parseStrategicNote, AnalysisSections } from '@/lib/utils'
+import { relativeDate, parseStrategicNote } from '@/lib/utils'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -144,6 +144,11 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false)
   const [genElapsed, setGenElapsed] = useState(0)
   const [recentJobs, setRecentJobs] = useState<Job[]>([])
+  // Download completion — signals the loop has ended
+  const [resumeDownloaded, setResumeDownloaded] = useState(false)
+  const [coverLetterDownloaded, setCoverLetterDownloaded] = useState(false)
+  // Profile readiness — show setup prompt if profile is empty
+  const [profileEmpty, setProfileEmpty] = useState(false)
   const [insights, setInsights] = useState<CandidacyInsights | null>(() => {
     // Populate from cache synchronously so layout is stable on first render
     if (typeof window === 'undefined') return null
@@ -208,6 +213,17 @@ export default function Home() {
 
   useEffect(() => { loadRecent() }, [loadRecent])
   useEffect(() => { loadInsights() }, [loadInsights])
+
+  // ── Profile completeness — show setup note if profile is empty ──
+  useEffect(() => {
+    api.getProfile()
+      .then(p => {
+        const hasContent = (p.experience && p.experience.length > 0) ||
+                           (p.projects && p.projects.length > 0)
+        setProfileEmpty(!hasContent)
+      })
+      .catch(() => {})
+  }, [])
 
   // ── Elapsed timer while generating ──
   useEffect(() => {
@@ -281,6 +297,8 @@ export default function Home() {
   // ── Reset to idle ──
   const resetToIdle = () => {
     setJd('')
+    setResumeDownloaded(false)
+    setCoverLetterDownloaded(false)
     sessionStorage.removeItem('careeros-jd')
     setAppState({ mode: 'idle' })
     // Re-focus textarea after state settles
@@ -397,10 +415,24 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* ── Output hint — what arrives after generation ── */}
-              <p className="text-center text-xs text-neutral-400 mt-3 tracking-wide">
-                Resume · Cover letter · Fit analysis
-              </p>
+              {/* ── Output hint — what arrives, or setup nudge if profile is empty ── */}
+              <div className="mt-3 text-center">
+                {profileEmpty ? (
+                  <p className="text-xs text-neutral-400">
+                    <Link
+                      href="/profile"
+                      className="underline decoration-neutral-300 hover:text-neutral-600 transition-colors"
+                    >
+                      Add your experience
+                    </Link>
+                    {' '}for a tailored resume
+                  </p>
+                ) : (
+                  <p className="text-xs text-neutral-400 tracking-wide">
+                    Resume · Cover letter · Fit analysis
+                  </p>
+                )}
+              </div>
 
               {/* ── Candidacy signal — "arrived at a conclusion" reveal ── */}
               <AnimatePresence>
@@ -541,17 +573,21 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={spring.standard}
           >
-            {/* Header */}
+            {/* Header — elevates after download to signal readiness for next */}
             <div className="pt-8 mb-8">
               <button
                 onClick={resetToIdle}
-                className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
+                className={`text-sm transition-colors flex items-center gap-1.5 ${
+                  resumeDownloaded || coverLetterDownloaded
+                    ? 'text-neutral-700 hover:text-neutral-900 font-medium'
+                    : 'text-neutral-500 hover:text-neutral-800'
+                }`}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 12H5M12 19l-7-7 7-7" />
                 </svg>
                 New application
-                <span className="text-xs text-neutral-500 font-normal ml-1">⌘N</span>
+                <span className="text-xs font-normal ml-1 opacity-60">⌘N</span>
               </button>
             </div>
 
@@ -583,14 +619,21 @@ export default function Home() {
                 <motion.a
                   href={api.resumePdfUrl(appState.job.id)}
                   download
+                  onClick={() => setResumeDownloaded(true)}
                   whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
                   style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
                 >
-                  Download Resume
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
+                  {resumeDownloaded ? 'Resume saved' : 'Download Resume'}
+                  {resumeDownloaded ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  )}
                 </motion.a>
               )}
               <InterviewFlag
@@ -608,14 +651,21 @@ export default function Home() {
                   <motion.a
                     href={api.coverLetterPdfUrl(appState.job.id)}
                     download
+                    onClick={() => setCoverLetterDownloaded(true)}
                     whileTap={{ scale: 0.97 }}
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
                     style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
                   >
-                    Download Cover Letter
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
+                    {coverLetterDownloaded ? 'Letter saved' : 'Download Cover Letter'}
+                    {coverLetterDownloaded ? (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    )}
                   </motion.a>
                   <CopyButton text={appState.job.cover_letter} label="Copy" />
                 </div>

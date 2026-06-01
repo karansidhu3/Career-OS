@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
@@ -206,6 +206,9 @@ export default function JobPage() {
   const [updating, setUpdating] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [genElapsed, setGenElapsed] = useState(0)
+  // Undo state — 5-second window after any status transition
+  const [undoPrev, setUndoPrev] = useState<string | null>(null)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     api.getJob(id)
@@ -236,9 +239,17 @@ export default function JobPage() {
 
   const handleStatus = async (status: string) => {
     if (!job) return
+    const previous = job.status
     setUpdating(true)
-    try { setJob(await api.updateStatus(job.id, status)) }
-    finally { setUpdating(false) }
+    try {
+      setJob(await api.updateStatus(job.id, status))
+      // Open 5-second undo window
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+      setUndoPrev(previous)
+      undoTimerRef.current = setTimeout(() => setUndoPrev(null), 5000)
+    } finally {
+      setUpdating(false)
+    }
   }
 
   const handleRegenerate = async () => {
@@ -339,7 +350,11 @@ export default function JobPage() {
             className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{ background: 'rgba(239,68,68,0.08)' }}
           >
-            <span className="text-red-400 text-2xl">✕</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
           </div>
           <div className="text-center">
             <p className="text-neutral-700 font-medium">Generation failed</p>
@@ -409,9 +424,28 @@ export default function JobPage() {
               <button onClick={() => handleStatus('offer')} disabled={updating}
                 className="text-xs font-medium disabled:opacity-40 transition-colors"
                 style={{ color: 'var(--c-warn)' }}>
-                Got offer ✦
+                Got offer
               </button>
             )}
+            {/* Undo — 5-second window after any status change */}
+            <AnimatePresence>
+              {undoPrev && (
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={() => {
+                    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+                    setUndoPrev(null)
+                    handleStatus(undoPrev)
+                  }}
+                  className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors underline decoration-neutral-300"
+                >
+                  Undo
+                </motion.button>
+              )}
+            </AnimatePresence>
             {/* Regenerate — always available */}
             <button onClick={handleRegenerate} disabled={regenerating || updating}
               className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
