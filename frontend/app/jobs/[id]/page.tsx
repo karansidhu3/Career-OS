@@ -122,7 +122,7 @@ function CoverLetterSection({ job }: { job: Job }) {
 
   return (
     <div>
-      <div className="max-w-2xl">
+      <div style={{ maxWidth: '520px' }}>
         {paragraphs.map((para, i) => (
           <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">
             {para}
@@ -161,7 +161,9 @@ function JdSection({ description }: { description: string }) {
         className="w-full px-5 py-3.5 flex items-center justify-between text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
       >
         <span>View original job description</span>
-        <span>{expanded ? '▲' : '▼'}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            {expanded ? <path d="M18 15l-6-6-6 6" /> : <path d="M6 9l6 6 6-6" />}
+          </svg>
       </button>
       <AnimatePresence>
         {expanded && (
@@ -267,9 +269,12 @@ export default function JobPage() {
         <div className="pt-8 mb-10">
           <button
             onClick={() => router.back()}
-            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-3 flex items-center gap-1"
+            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1.5"
           >
-            ← Applications
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Applications
           </button>
         </div>
         <div
@@ -318,9 +323,12 @@ export default function JobPage() {
         <div className="pt-8 mb-10">
           <button
             onClick={() => router.back()}
-            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-3 flex items-center gap-1"
+            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1.5"
           >
-            ← Applications
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Applications
           </button>
         </div>
         <div
@@ -414,10 +422,7 @@ export default function JobPage() {
         </div>
       </motion.div>
 
-      {/* Fit card */}
-      {job.fit_score != null && <FitCard job={job} />}
-
-      {/* Single-scroll content */}
+      {/* Single-scroll content — resume first, letter next, analysis after */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -430,6 +435,14 @@ export default function JobPage() {
           <>
             <Divider />
             <CoverLetterSection job={job} />
+          </>
+        )}
+
+        {/* Analysis — after deliverables */}
+        {job.fit_score != null && (
+          <>
+            <Divider />
+            <FitCard job={job} />
           </>
         )}
 

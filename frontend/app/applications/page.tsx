@@ -9,6 +9,16 @@ import { spring } from '@/lib/motion'
 import { relativeDate, parseStrategicNote } from '@/lib/utils'
 
 
+// Status display labels — user-facing language, not internal state names
+const STATUS_LABEL: Record<string, string> = {
+  generated: 'Ready',
+  applied:   'Applied',
+  skipped:   'Skipped',
+  interview: 'Interview',
+  offer:     'Offer',
+  new:       'New',
+}
+
 // Status text — CSS tokens where semantic color exists
 const STATUS_TEXT: Record<string, string> = {
   generated: '#7c3aed',
@@ -87,8 +97,8 @@ function AppRow({ job, i }: { job: Job; i: number }) {
       </div>
 
       {/* Status */}
-      <span className="text-xs font-medium shrink-0 capitalize" style={{ color: statusColor }}>
-        {job.status}
+      <span className="text-xs font-medium shrink-0" style={{ color: statusColor }}>
+        {STATUS_LABEL[job.status] ?? job.status}
       </span>
 
       {/* Date */}

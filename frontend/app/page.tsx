@@ -22,10 +22,9 @@ type AppState =
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getGenMessage(elapsed: number): string {
-  if (elapsed < 5)  return 'Reading the job description…'
-  if (elapsed < 12) return 'Scoring fit…'
-  if (elapsed < 22) return 'Writing your resume…'
-  return 'Polishing the cover letter…'
+  if (elapsed < 14) return 'Generating your application…'
+  if (elapsed < 32) return 'Matching your background to this role…'
+  return 'This is taking a moment…'
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -54,7 +53,7 @@ function CoverLetterSection({ job }: { job: Job }) {
     .filter(Boolean)
 
   return (
-    <div>
+    <div style={{ maxWidth: '520px' }}>
       {paragraphs.map((para, i) => (
         <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">
           {para}
@@ -99,37 +98,6 @@ function LatexSection({ latex }: { latex: string }) {
   )
 }
 
-function JdSection({ description }: { description: string }) {
-  const [expanded, setExpanded] = useState(false)
-
-  return (
-    <div>
-      <button
-        onClick={() => setExpanded(v => !v)}
-        className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
-      >
-        {expanded ? 'Hide job description ↑' : 'Original job description ↓'}
-      </button>
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
-              <pre className="text-xs text-neutral-500 leading-relaxed whitespace-pre-wrap">
-                {description}
-              </pre>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
 
 function InterviewFlag({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const [flagging, setFlagging] = useState(false)
@@ -137,8 +105,8 @@ function InterviewFlag({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
 
   if (isSpecial) {
     return (
-      <span className="text-xs font-medium" style={{ color: '#f59e0b' }}>
-        ✦ {job.status === 'offer' ? 'Offer received' : 'Interview stage'}
+      <span className="text-xs font-medium" style={{ color: 'var(--c-warn)' }}>
+        {job.status === 'offer' ? 'Offer received' : 'Interview stage'}
       </span>
     )
   }
@@ -157,7 +125,7 @@ function InterviewFlag({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       disabled={flagging}
       className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
     >
-      {flagging ? 'Saving…' : '✦ Flag as interview'}
+      {flagging ? 'Saving…' : 'Mark as interview'}
     </button>
   )
 }
@@ -429,6 +397,11 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* ── Output hint — what arrives after generation ── */}
+              <p className="text-center text-xs text-neutral-400 mt-3 tracking-wide">
+                Resume · Cover letter · Fit analysis
+              </p>
+
               {/* ── Candidacy signal — "arrived at a conclusion" reveal ── */}
               <AnimatePresence>
                 {insights && insights.count > 0 && (
@@ -533,51 +506,28 @@ export default function Home() {
             transition={spring.gentle}
           >
             <div
-              className="flex flex-col items-center justify-center gap-6"
+              className="flex flex-col items-center justify-center gap-8"
               style={{ minHeight: 'calc(100vh - 180px)' }}
             >
-              {/* Spinner with ambient atmosphere */}
-              <div className="relative flex items-center justify-center">
-                <div
-                  className="absolute rounded-full"
-                  style={{
-                    width: 80,
-                    height: 80,
-                    background: 'radial-gradient(circle, var(--c-accent-dim) 0%, transparent 70%)',
-                    filter: 'blur(16px)',
-                    opacity: 0.7,
-                  }}
-                />
-                <div className="relative w-12 h-12">
-                  <div className="absolute inset-0 rounded-full" style={{ border: '2.5px solid var(--c-accent-dim)' }} />
-                  <div className="absolute inset-0 rounded-full animate-spin" style={{ border: '2.5px solid var(--c-accent)', borderTopColor: 'transparent' }} />
-                </div>
+              {/* Spinner — clean, no ambient glow */}
+              <div className="w-10 h-10 relative">
+                <div className="absolute inset-0 rounded-full" style={{ border: '2px solid var(--c-accent-dim)' }} />
+                <div className="absolute inset-0 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent)', borderTopColor: 'transparent' }} />
               </div>
 
-              {/* Cycling message */}
-              <div className="text-center">
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={getGenMessage(genElapsed)}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={spring.snappy}
-                    className="text-[15px] text-neutral-600 font-medium"
-                  >
-                    {getGenMessage(genElapsed)}
-                  </motion.p>
-                </AnimatePresence>
-                <p className="text-xs text-neutral-500 mt-2 tabular-nums">{genElapsed}s</p>
-              </div>
-
-              {/* Abandon */}
-              <button
-                onClick={() => setAppState({ mode: 'idle' })}
-                className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
-              >
-                Cancel
-              </button>
+              {/* Message — honest stages, calm transitions */}
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={getGenMessage(genElapsed)}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={spring.gentle}
+                  className="text-[15px] text-neutral-600 font-medium text-center"
+                >
+                  {getGenMessage(genElapsed)}
+                </motion.p>
+              </AnimatePresence>
             </div>
           </motion.div>
         )}
@@ -620,44 +570,13 @@ export default function Home() {
               <p className="text-[15px] text-neutral-600 mb-0">{appState.job.company}</p>
             )}
 
-            {/* Analysis — structured sections */}
-            {appState.job.strategic_note && (() => {
-              const analysis = parseStrategicNote(appState.job.strategic_note)
-              return (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ ...spring.gentle, delay: 0.1 }}
-                  className="mt-8"
-                >
-                  {analysis ? (
-                    <div className="space-y-6">
-                      <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
-                      <AnalysisSection title="Gaps" bullets={analysis.gaps} />
-                      <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
-                    </div>
-                  ) : (
-                    /* Fallback: old-format prose note */
-                    <>
-                      <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-3">
-                        what this reveals
-                      </p>
-                      <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl">
-                        {appState.job.strategic_note}
-                      </p>
-                    </>
-                  )}
-                </motion.div>
-              )
-            })()}
-
             <Divider />
 
-            {/* Downloads — primary action */}
+            {/* Downloads — resume is the primary action */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ ...spring.gentle, delay: 0.15 }}
+              transition={{ ...spring.gentle, delay: 0.1 }}
               className="flex items-center gap-4 flex-wrap"
             >
               {appState.job.resume_latex && (
@@ -680,7 +599,7 @@ export default function Home() {
               />
             </motion.div>
 
-            {/* Cover letter */}
+            {/* Cover letter — read, then download */}
             {appState.job.cover_letter && (
               <>
                 <Divider />
@@ -703,19 +622,38 @@ export default function Home() {
               </>
             )}
 
+            {/* Analysis — after deliverables, reflection not preview */}
+            {appState.job.strategic_note && (() => {
+              const analysis = parseStrategicNote(appState.job.strategic_note)
+              return (
+                <>
+                  <Divider />
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...spring.gentle, delay: 0.05 }}
+                  >
+                    {analysis ? (
+                      <div className="space-y-6">
+                        <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
+                        <AnalysisSection title="Gaps" bullets={analysis.gaps} />
+                        <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
+                      </div>
+                    ) : (
+                      <p className="text-[15px] text-neutral-700 leading-[1.8] max-w-[520px]">
+                        {appState.job.strategic_note}
+                      </p>
+                    )}
+                  </motion.div>
+                </>
+              )
+            })()}
+
             {/* LaTeX source */}
             {appState.job.resume_latex && (
               <>
                 <Divider />
                 <LatexSection latex={appState.job.resume_latex} />
-              </>
-            )}
-
-            {/* Original JD */}
-            {appState.job.description && (
-              <>
-                <Divider />
-                <JdSection description={appState.job.description} />
               </>
             )}
           </motion.div>

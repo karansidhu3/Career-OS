@@ -19,7 +19,6 @@ export interface Job {
   output_tokens: number | null
   cache_read_tokens: number | null
   cache_write_tokens: number | null
-  cost_usd: number | null
 }
 
 export interface CandidacyInsights {
