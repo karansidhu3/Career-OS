@@ -91,25 +91,20 @@ body::before {
 ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
 
-/* ─── Brand mark glow — MacBook charging light aesthetic ────────── */
-/* Muted warm tones cycling very slowly. Not RGB. Not neon.          */
-/* Glow matches ring diameter exactly — tight bloom, not ambient fog */
-@keyframes brandGlowPulse {
-  0%   { background-color: rgba(251, 191,  36, 0.20); } /* warm amber  */
-  20%  { background-color: rgba(249, 115,  22, 0.17); } /* orange      */
-  40%  { background-color: rgba(205, 127,  50, 0.19); } /* copper      */
-  60%  { background-color: rgba(244, 114, 182, 0.14); } /* soft rose   */
-  80%  { background-color: rgba(234, 179,   8, 0.19); } /* muted gold  */
-  100% { background-color: rgba(251, 191,  36, 0.20); } /* back to amber */
+/* ─── Brand mark glow — drop-shadow follows the ring stroke exactly ── */
+/* Glow emanates from the ring itself, not from a disc behind it.        */
+/* Muted warm tones cycling very slowly. Not RGB. Not neon.              */
+@keyframes brandRingGlow {
+  0%   { filter: drop-shadow(0 0 7px rgba(251, 191,  36, 0.75)); } /* warm amber  */
+  20%  { filter: drop-shadow(0 0 7px rgba(249, 115,  22, 0.65)); } /* orange      */
+  40%  { filter: drop-shadow(0 0 7px rgba(205, 127,  50, 0.70)); } /* copper      */
+  60%  { filter: drop-shadow(0 0 7px rgba(244, 114, 182, 0.55)); } /* soft rose   */
+  80%  { filter: drop-shadow(0 0 7px rgba(234, 179,   8, 0.70)); } /* muted gold  */
+  100% { filter: drop-shadow(0 0 7px rgba(251, 191,  36, 0.75)); } /* back to amber */
 }
 
-.brand-glow {
-  position: absolute;
-  border-radius: 50%;
-  width: 56px;   /* matches ring size exactly */
-  height: 56px;
-  filter: blur(9px);  /* tight halo, not floating blob */
-  animation: brandGlowPulse 14s ease-in-out infinite;
+.brand-ring-glow {
+  animation: brandRingGlow 14s ease-in-out infinite;
   pointer-events: none;
 }
 
