@@ -130,6 +130,50 @@ function InterviewFlag({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   )
 }
 
+// ─── Resume preview — inline PDF, the actual artifact ────────────────────────
+
+function ResumePreview({ jobId }: { jobId: number }) {
+  const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  if (failed) return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: loaded ? 1 : 0.3, y: 0 }}
+      transition={{ ...spring.gentle, delay: 0.1 }}
+      className="relative mb-6 rounded-sm overflow-hidden"
+      style={{
+        height: 880,
+        boxShadow: '0 4px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
+        border: '1px solid var(--c-border)',
+        background: '#fff',
+      }}
+    >
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
+          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+        </div>
+      )}
+      <iframe
+        src={api.resumePreviewUrl(jobId)}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        title="Resume"
+        style={{
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          display: 'block',
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity 0.4s ease',
+        }}
+      />
+    </motion.div>
+  )
+}
+
 // ─── Divider ─────────────────────────────────────────────────────────────────
 
 function Divider() {
@@ -608,7 +652,12 @@ export default function Home() {
 
             <Divider />
 
-            {/* Downloads — resume is the primary action */}
+            {/* Resume preview — see the artifact before downloading */}
+            {appState.job.resume_latex && (
+              <ResumePreview jobId={appState.job.id} />
+            )}
+
+            {/* Downloads — primary actions */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

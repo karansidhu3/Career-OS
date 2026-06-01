@@ -67,10 +67,41 @@ function FitCard({ job }: { job: Job }) {
 
 function ResumeSection({ job }: { job: Job }) {
   const [expanded, setExpanded] = useState(false)
+  const [previewLoaded, setPreviewLoaded] = useState(false)
   if (!job.resume_latex) return null
 
   return (
     <div>
+      {/* Preview — the actual document */}
+      <div
+        className="relative mb-5 rounded-sm overflow-hidden"
+        style={{
+          height: 880,
+          boxShadow: '0 4px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
+          border: '1px solid var(--c-border)',
+          background: '#fff',
+        }}
+      >
+        {!previewLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
+            <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+          </div>
+        )}
+        <iframe
+          src={api.resumePreviewUrl(job.id)}
+          onLoad={() => setPreviewLoaded(true)}
+          title="Resume"
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            display: 'block',
+            opacity: previewLoaded ? 1 : 0,
+            transition: 'opacity 0.4s ease',
+          }}
+        />
+      </div>
+
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Resume</span>
         <div className="flex items-center gap-2">

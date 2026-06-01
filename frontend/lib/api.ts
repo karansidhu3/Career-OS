@@ -122,6 +122,7 @@ export const api = {
   regenerate: (id: number, signal?: AbortSignal) =>
     request<Job>(`/admin/jobs/${id}/regenerate`, { method: 'POST', signal }),
   resumePdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/resume.pdf`,
+  resumePreviewUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/resume-preview.pdf`,
   coverLetterPdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/cover-letter.pdf`,
 
   // Profile

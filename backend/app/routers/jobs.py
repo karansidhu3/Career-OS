@@ -216,6 +216,27 @@ async def download_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.get("/{id}/resume-preview.pdf")
+async def preview_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
+    """Serve resume PDF inline — for browser embedding, not forced download."""
+    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    if not job or not job.resume_latex:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    try:
+        pdf_bytes = await compile_latex_to_pdf(job.resume_latex)
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="PDF compilation not available")
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline"},
+    )
+
+
 @router.get("/{id}/cover-letter.pdf")
 async def download_cover_letter(id: int, db: AsyncSession = Depends(get_db)):
     job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
