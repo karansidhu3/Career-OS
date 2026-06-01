@@ -430,7 +430,7 @@ export default function JobPage() {
           </div>
 
           <div className="flex items-center gap-4 shrink-0">
-            {/* Status transitions — text-level, no chrome */}
+            {/* Status transitions — forward and reverse */}
             {job.status === 'generated' && (
               <>
                 <button onClick={() => handleStatus('applied')} disabled={updating}
@@ -445,17 +445,41 @@ export default function JobPage() {
               </>
             )}
             {job.status === 'applied' && (
-              <button onClick={() => handleStatus('interview')} disabled={updating}
-                className="text-xs font-medium disabled:opacity-40 transition-colors"
-                style={{ color: 'var(--c-warn)' }}>
-                Got interview
-              </button>
+              <>
+                <button onClick={() => handleStatus('interview')} disabled={updating}
+                  className="text-xs font-medium disabled:opacity-40 transition-colors"
+                  style={{ color: 'var(--c-warn)' }}>
+                  Got interview
+                </button>
+                <button onClick={() => handleStatus('generated')} disabled={updating}
+                  className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+                  ← Unmark
+                </button>
+              </>
             )}
             {job.status === 'interview' && (
-              <button onClick={() => handleStatus('offer')} disabled={updating}
-                className="text-xs font-medium disabled:opacity-40 transition-colors"
-                style={{ color: 'var(--c-warn)' }}>
-                Got offer
+              <>
+                <button onClick={() => handleStatus('offer')} disabled={updating}
+                  className="text-xs font-medium disabled:opacity-40 transition-colors"
+                  style={{ color: 'var(--c-warn)' }}>
+                  Got offer
+                </button>
+                <button onClick={() => handleStatus('applied')} disabled={updating}
+                  className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+                  ← Applied
+                </button>
+              </>
+            )}
+            {job.status === 'offer' && (
+              <button onClick={() => handleStatus('interview')} disabled={updating}
+                className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+                ← Interview
+              </button>
+            )}
+            {job.status === 'skipped' && (
+              <button onClick={() => handleStatus('generated')} disabled={updating}
+                className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+                ← Reopen
               </button>
             )}
             {/* Undo — 5-second window after any status change */}
@@ -487,7 +511,19 @@ export default function JobPage() {
         </div>
       </motion.div>
 
-      {/* Single-scroll content — resume first, letter next, analysis after */}
+      {/* Analysis at top — archive view is revisit context, not first-time reveal */}
+      {job.fit_score != null && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring.gentle, delay: 0.08 }}
+          className="mb-2"
+        >
+          <FitCard job={job} />
+        </motion.div>
+      )}
+
+      {/* Single-scroll content */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -500,14 +536,6 @@ export default function JobPage() {
           <>
             <Divider />
             <CoverLetterSection job={job} />
-          </>
-        )}
-
-        {/* Analysis — after deliverables */}
-        {job.fit_score != null && (
-          <>
-            <Divider />
-            <FitCard job={job} />
           </>
         )}
 
