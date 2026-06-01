@@ -44,20 +44,14 @@ function FitCard({ job }: { job: Job }) {
           <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
           <AnalysisSection title="Gaps" bullets={analysis.gaps} />
           <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
-          {score > 0 && (
-            <p className="text-xs text-neutral-500 tabular-nums">{score}/10</p>
-          )}
         </div>
       ) : (
-        /* Fallback: old-format prose + rationale */
+        /* Fallback: old-format prose */
         <>
           {job.strategic_note && (
             <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl mb-4">
               {job.strategic_note}
             </p>
-          )}
-          {score > 0 && (
-            <span className="text-xs text-neutral-500 tabular-nums">{score}/10</span>
           )}
         </>
       )}

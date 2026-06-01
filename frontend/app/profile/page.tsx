@@ -584,6 +584,59 @@ function SkillCard({
   )
 }
 
+// ---- Voice editor ----
+
+function VoiceEditor({ personal, onSave }: { personal: import('@/lib/api').PersonalInfo; onSave: (p: import('@/lib/api').PersonalInfo) => void }) {
+  const [voice, setVoice] = useState(personal.cover_letter_voice ?? '')
+  const [saving, setSaving] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+  const isDirty = voice !== (personal.cover_letter_voice ?? '')
+
+  useEffect(() => {
+    if (!savedFlash) return
+    const t = setTimeout(() => setSavedFlash(false), 2000)
+    return () => clearTimeout(t)
+  }, [savedFlash])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const { id, ...rest } = personal
+      const updated = await api.updatePersonal({ ...rest, cover_letter_voice: voice })
+      onSave(updated)
+      setSavedFlash(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <SectionLabel>Cover letter voice</SectionLabel>
+        <AnimatePresence>
+          {savedFlash && <SavedFlash />}
+        </AnimatePresence>
+      </div>
+      <p className="text-xs text-neutral-400 mb-3 leading-relaxed">
+        How you write. Paste a sentence or two from something you've written that sounds like you,
+        or describe your tone. Fed into every cover letter generation.
+      </p>
+      <TextArea
+        value={voice}
+        onChange={setVoice}
+        rows={4}
+        placeholder={'e.g. "I write directly and don\'t over-explain. Short sentences. I open with the problem, not with myself. Technical but not dense."'}
+      />
+      {isDirty && (
+        <div className="mt-3 flex justify-end">
+          <SaveButton saving={saving} onClick={save} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---- Main page ----
 
 export default function ProfilePage() {
@@ -965,6 +1018,18 @@ export default function ProfilePage() {
           ))}
         </div>
       </motion.section>
+
+      {/* Cover letter voice — fed into every generation */}
+      {profile.personal && (
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring.gentle, delay: 0.22 }}
+          className="mb-10"
+        >
+          <VoiceEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
+        </motion.section>
+      )}
     </div>
   )
 }

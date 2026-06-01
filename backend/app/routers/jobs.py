@@ -27,6 +27,7 @@ def _apply_result(job: Job, result: dict) -> None:
     job.resume_latex = result["resume_latex"]
     job.cover_letter = result["cover_letter"]
     job.strategic_note = result.get("strategic_note") or None
+    job.selected_projects = result.get("selected_projects") or None
     job.input_tokens = result.get("input_tokens")
     job.output_tokens = result.get("output_tokens")
     job.cache_read_tokens = result.get("cache_read_tokens")
@@ -239,6 +240,21 @@ async def preview_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
         media_type="application/pdf",
         headers={"Content-Disposition": "inline"},
     )
+
+
+@router.patch("/{id}/cover-letter", response_model=JobRead)
+async def update_cover_letter(id: int, body: dict, db: AsyncSession = Depends(get_db)):
+    """Persist an edited cover letter. The existing PDF endpoint will compile from the new text."""
+    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Not found")
+    text = body.get("cover_letter", "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="cover_letter is required")
+    job.cover_letter = text
+    await db.commit()
+    await db.refresh(job)
+    return job
 
 
 @router.get("/{id}/cover-letter.pdf")

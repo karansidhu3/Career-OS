@@ -16,6 +16,7 @@ class PersonalInfo(Base):
     location = Column(String)
     target_roles = Column(JSONB, default=list)
     target_locations = Column(JSONB, default=list)
+    cover_letter_voice = Column(Text, default="")
 
 
 class Education(Base):

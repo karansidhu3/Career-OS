@@ -46,22 +46,6 @@ function AnalysisSection({ title, bullets }: { title: string; bullets: string[] 
   )
 }
 
-function CoverLetterSection({ job }: { job: Job }) {
-  const paragraphs = (job.cover_letter ?? '')
-    .split(/\n\n+/)
-    .map(p => p.trim())
-    .filter(Boolean)
-
-  return (
-    <div style={{ maxWidth: '520px' }}>
-      {paragraphs.map((para, i) => (
-        <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">
-          {para}
-        </p>
-      ))}
-    </div>
-  )
-}
 
 function LatexSection({ latex }: { latex: string }) {
   const [expanded, setExpanded] = useState(false)
@@ -99,11 +83,20 @@ function LatexSection({ latex }: { latex: string }) {
 }
 
 
-function InterviewFlag({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
-  const [flagging, setFlagging] = useState(false)
-  const isSpecial = job.status === 'interview' || job.status === 'offer'
+function StatusActions({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const [updating, setUpdating] = useState<string | null>(null)
 
-  if (isSpecial) {
+  const mark = async (status: string) => {
+    setUpdating(status)
+    try {
+      const updated = await api.updateStatus(job.id, status)
+      onUpdate(updated)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  if (job.status === 'interview' || job.status === 'offer') {
     return (
       <span className="text-xs font-medium" style={{ color: 'var(--c-warn)' }}>
         {job.status === 'offer' ? 'Offer received' : 'Interview stage'}
@@ -111,22 +104,128 @@ function InterviewFlag({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
     )
   }
 
+  if (job.status === 'applied') {
+    return (
+      <button
+        onClick={() => mark('interview')}
+        disabled={!!updating}
+        className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
+      >
+        {updating === 'interview' ? 'Saving…' : 'Got interview'}
+      </button>
+    )
+  }
+
+  // generated / default
   return (
-    <button
-      onClick={async () => {
-        setFlagging(true)
-        try {
-          const updated = await api.updateStatus(job.id, 'interview')
-          onUpdate(updated)
-        } finally {
-          setFlagging(false)
-        }
-      }}
-      disabled={flagging}
-      className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
-    >
-      {flagging ? 'Saving…' : 'Mark as interview'}
-    </button>
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => mark('applied')}
+        disabled={!!updating}
+        className="text-xs font-medium disabled:opacity-40 transition-colors"
+        style={{ color: 'var(--c-success)' }}
+      >
+        {updating === 'applied' ? 'Saving…' : 'Mark applied'}
+      </button>
+      <button
+        onClick={() => mark('interview')}
+        disabled={!!updating}
+        className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
+      >
+        {updating === 'interview' ? 'Saving…' : 'Got interview'}
+      </button>
+    </div>
+  )
+}
+
+// ─── Selected projects bar — verify what the AI chose ────────────────────────
+
+function SelectedProjectsBar({ projects }: { projects: string[] }) {
+  if (!projects.length) return null
+  return (
+    <div className="flex items-center gap-2 flex-wrap mb-6">
+      <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-400 shrink-0">Emphasized</span>
+      {projects.map(p => (
+        <span
+          key={p}
+          className="text-xs text-neutral-600 px-2 py-0.5 rounded-full"
+          style={{ background: 'var(--c-accent-dim)', border: '1px solid var(--c-accent-border)' }}
+        >
+          {p}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// ─── Cover letter editor — editable before download ──────────────────────────
+
+function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) => void }) {
+  const [text, setText] = useState(job.cover_letter ?? '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [downloaded, setDownloaded] = useState(false)
+
+  const save = async () => {
+    if (!text.trim()) return
+    setSaving(true)
+    try {
+      const updated = await api.updateCoverLetter(job.id, text)
+      onSave(updated)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const isDirty = text !== (job.cover_letter ?? '')
+
+  return (
+    <div>
+      <textarea
+        value={text}
+        onChange={e => { setText(e.target.value); setSaved(false) }}
+        rows={12}
+        className="w-full text-[15px] text-neutral-700 leading-[1.8] resize-none focus:outline-none rounded-xl p-4"
+        style={{
+          background: 'var(--c-glass-bg)',
+          border: '1px solid var(--c-glass-border)',
+          maxWidth: '520px',
+        }}
+      />
+      <div className="mt-4 flex items-center gap-4 flex-wrap" style={{ maxWidth: '520px' }}>
+        <motion.a
+          href={api.coverLetterPdfUrl(job.id)}
+          download
+          onClick={() => setDownloaded(true)}
+          whileTap={{ scale: 0.97 }}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
+          style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
+        >
+          {downloaded ? 'Letter saved' : 'Download Cover Letter'}
+          {downloaded ? (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          )}
+        </motion.a>
+        <CopyButton text={text} label="Copy" />
+        {isDirty && (
+          <button
+            onClick={save}
+            disabled={saving}
+            className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
+          >
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save edits'}
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -190,7 +289,6 @@ export default function Home() {
   const [recentJobs, setRecentJobs] = useState<Job[]>([])
   // Download completion — signals the loop has ended
   const [resumeDownloaded, setResumeDownloaded] = useState(false)
-  const [coverLetterDownloaded, setCoverLetterDownloaded] = useState(false)
   // Profile readiness — show setup prompt if profile is empty
   const [profileEmpty, setProfileEmpty] = useState(false)
   const [insights, setInsights] = useState<CandidacyInsights | null>(() => {
@@ -342,7 +440,6 @@ export default function Home() {
   const resetToIdle = () => {
     setJd('')
     setResumeDownloaded(false)
-    setCoverLetterDownloaded(false)
     sessionStorage.removeItem('careeros-jd')
     setAppState({ mode: 'idle' })
     // Re-focus textarea after state settles
@@ -620,7 +717,7 @@ export default function Home() {
               <button
                 onClick={resetToIdle}
                 className={`text-sm transition-colors flex items-center gap-1.5 ${
-                  resumeDownloaded || coverLetterDownloaded
+                  resumeDownloaded
                     ? 'text-neutral-700 hover:text-neutral-900 font-medium'
                     : 'text-neutral-500 hover:text-neutral-800'
                 }`}
@@ -638,29 +735,57 @@ export default function Home() {
               <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
                 {appState.job.title}
               </h1>
-              {appState.job.fit_score != null && (
-                <span className="text-xs text-neutral-500 tabular-nums">
-                  {appState.job.fit_score}/10
-                </span>
-              )}
             </div>
             {appState.job.company && (
               <p className="text-[15px] text-neutral-600 mb-0">{appState.job.company}</p>
             )}
 
+            {/* Analysis first — decide whether to apply before you download */}
+            {appState.job.strategic_note && (() => {
+              const analysis = parseStrategicNote(appState.job.strategic_note)
+              return (
+                <>
+                  <Divider />
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...spring.gentle, delay: 0.05 }}
+                    className="mb-2"
+                  >
+                    {analysis ? (
+                      <div className="space-y-6">
+                        <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
+                        <AnalysisSection title="Gaps" bullets={analysis.gaps} />
+                        <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
+                      </div>
+                    ) : (
+                      <p className="text-[15px] text-neutral-700 leading-[1.8] max-w-[520px]">
+                        {appState.job.strategic_note}
+                      </p>
+                    )}
+                  </motion.div>
+                </>
+              )
+            })()}
+
             <Divider />
 
-            {/* Resume preview — see the artifact before downloading */}
+            {/* Which projects the AI chose — verify before downloading */}
+            {appState.job.selected_projects && appState.job.selected_projects.length > 0 && (
+              <SelectedProjectsBar projects={appState.job.selected_projects} />
+            )}
+
+            {/* Resume preview */}
             {appState.job.resume_latex && (
               <ResumePreview jobId={appState.job.id} />
             )}
 
-            {/* Downloads — primary actions */}
+            {/* Resume download + status actions */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ ...spring.gentle, delay: 0.1 }}
-              className="flex items-center gap-4 flex-wrap"
+              className="flex items-center gap-4 flex-wrap mb-2"
             >
               {appState.job.resume_latex && (
                 <motion.a
@@ -683,68 +808,22 @@ export default function Home() {
                   )}
                 </motion.a>
               )}
-              <InterviewFlag
+              <StatusActions
                 job={appState.job}
                 onUpdate={job => setAppState({ mode: 'result', job })}
               />
             </motion.div>
 
-            {/* Cover letter — read, then download */}
+            {/* Cover letter — editable before download */}
             {appState.job.cover_letter && (
               <>
                 <Divider />
-                <CoverLetterSection job={appState.job} />
-                <div className="mt-5 flex items-center gap-4 flex-wrap">
-                  <motion.a
-                    href={api.coverLetterPdfUrl(appState.job.id)}
-                    download
-                    onClick={() => setCoverLetterDownloaded(true)}
-                    whileTap={{ scale: 0.97 }}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
-                    style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-                  >
-                    {coverLetterDownloaded ? 'Letter saved' : 'Download Cover Letter'}
-                    {coverLetterDownloaded ? (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    ) : (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                      </svg>
-                    )}
-                  </motion.a>
-                  <CopyButton text={appState.job.cover_letter} label="Copy" />
-                </div>
+                <CoverLetterEditor
+                  job={appState.job}
+                  onSave={job => setAppState({ mode: 'result', job })}
+                />
               </>
             )}
-
-            {/* Analysis — after deliverables, reflection not preview */}
-            {appState.job.strategic_note && (() => {
-              const analysis = parseStrategicNote(appState.job.strategic_note)
-              return (
-                <>
-                  <Divider />
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ ...spring.gentle, delay: 0.05 }}
-                  >
-                    {analysis ? (
-                      <div className="space-y-6">
-                        <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
-                        <AnalysisSection title="Gaps" bullets={analysis.gaps} />
-                        <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
-                      </div>
-                    ) : (
-                      <p className="text-[15px] text-neutral-700 leading-[1.8] max-w-[520px]">
-                        {appState.job.strategic_note}
-                      </p>
-                    )}
-                  </motion.div>
-                </>
-              )
-            })()}
 
             {/* LaTeX source */}
             {appState.job.resume_latex && (

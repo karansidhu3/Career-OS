@@ -15,6 +15,7 @@ export interface Job {
   resume_latex: string | null
   cover_letter: string | null
   strategic_note: string | null
+  selected_projects: string[] | null
   input_tokens: number | null
   output_tokens: number | null
   cache_read_tokens: number | null
@@ -46,6 +47,7 @@ export interface PersonalInfo {
   location: string | null
   target_roles: string[]
   target_locations: string[]
+  cover_letter_voice: string
 }
 
 export interface Education {
@@ -125,6 +127,8 @@ export const api = {
   resumePdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/resume.pdf`,
   resumePreviewUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/resume-preview.pdf`,
   coverLetterPdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/cover-letter.pdf`,
+  updateCoverLetter: (id: number, cover_letter: string) =>
+    request<Job>(`/admin/jobs/${id}/cover-letter`, json('PATCH', { cover_letter })),
 
   // Profile
   getProfile: () => request<FullProfile>('/admin/profile'),

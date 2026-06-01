@@ -11,6 +11,7 @@ class PersonalInfoBase(BaseModel):
     location: Optional[str] = None
     target_roles: list[str] = []
     target_locations: list[str] = []
+    cover_letter_voice: str = ""
 
 
 class PersonalInfoRead(PersonalInfoBase):

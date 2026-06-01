@@ -22,6 +22,7 @@ class JobRead(BaseModel):
     resume_latex: Optional[str] = None
     cover_letter: Optional[str] = None
     strategic_note: Optional[str] = None
+    selected_projects: Optional[list[str]] = None
 
     # Token tracking
     input_tokens: Optional[int] = None
