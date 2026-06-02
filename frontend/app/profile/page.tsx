@@ -181,6 +181,7 @@ function ProjectCard({
   const [name, setName] = useState(project.name)
   const [startDate, setStartDate] = useState(project.start_date ?? '')
   const [endDate, setEndDate] = useState(project.end_date ?? '')
+  const [githubUrl, setGithubUrl] = useState(project.github_url ?? '')
   const [description, setDescription] = useState(project.description ?? '')
 
   useEffect(() => {
@@ -196,6 +197,7 @@ function ProjectCard({
         name,
         start_date: startDate || null,
         end_date: endDate || null,
+        github_url: githubUrl || null,
         description,
         sort_order: project.sort_order,
       })
@@ -224,6 +226,9 @@ function ProjectCard({
                 </Field>
               </div>
             </div>
+            <Field label="GitHub URL (optional)">
+              <Input value={githubUrl} onChange={setGithubUrl} placeholder="https://github.com/karansidhu3/marketmind" />
+            </Field>
             <Field label="Description">
               <TextArea
                 value={description}
@@ -292,6 +297,21 @@ function ProjectCard({
                   )}
                   <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
                 </div>
+                {project.github_url && (
+                  <a
+                    href={project.github_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs mb-1 transition-colors"
+                    style={{ color: 'var(--c-accent)' }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    {project.github_url.replace(/^https?:\/\/(www\.)?github\.com\//, 'github.com/')}
+                  </a>
+                )}
                 <DescriptionText text={project.description} />
               </div>
               <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -340,6 +360,7 @@ function ExperienceCard({
   const [role, setRole] = useState(exp.role)
   const [startDate, setStartDate] = useState(exp.start_date ?? '')
   const [endDate, setEndDate] = useState(exp.end_date ?? '')
+  const [location, setLocation] = useState(exp.location ?? '')
   const [description, setDescription] = useState(exp.description ?? '')
 
   useEffect(() => {
@@ -355,6 +376,7 @@ function ExperienceCard({
         company, role,
         start_date: startDate || null,
         end_date: endDate || null,
+        location: location || null,
         description,
         sort_order: exp.sort_order,
       })
@@ -370,9 +392,10 @@ function ExperienceCard({
       <AnimatePresence mode="wait">
         {editing ? (
           <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <Field label="Role"><Input value={role} onChange={setRole} placeholder="Full Stack Developer" /></Field>
               <Field label="Company"><Input value={company} onChange={setCompany} placeholder="UBC" /></Field>
+              <Field label="Location (optional)"><Input value={location} onChange={setLocation} placeholder="Kelowna, BC" /></Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Start date"><Input value={startDate} onChange={setStartDate} placeholder="May 2025" /></Field>
@@ -444,6 +467,7 @@ function ExperienceCard({
                 </div>
                 <p className="text-xs text-neutral-400 mb-1">
                   {exp.start_date} – {exp.end_date || 'Present'}
+                  {exp.location && <span className="ml-2 text-neutral-300">· {exp.location}</span>}
                 </p>
                 <DescriptionText text={exp.description} />
               </div>
@@ -755,6 +779,7 @@ export default function ProfilePage() {
         name: 'New Project',
         start_date: null,
         end_date: null,
+        github_url: null,
         description: '',
         sort_order: (profile.projects.at(-1)?.sort_order ?? -1) + 1,
       })
@@ -801,6 +826,7 @@ export default function ProfilePage() {
         role: 'Role',
         start_date: null,
         end_date: null,
+        location: null,
         description: '',
         sort_order: (profile.experience.at(-1)?.sort_order ?? -1) + 1,
       })

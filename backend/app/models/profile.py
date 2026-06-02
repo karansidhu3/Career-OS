@@ -39,6 +39,7 @@ class Experience(Base):
     role = Column(String, nullable=False)
     start_date = Column(String)
     end_date = Column(String)
+    location = Column(Text)
     description = Column(Text, default="")
     sort_order = Column(Integer, default=0)
 
@@ -50,6 +51,7 @@ class Project(Base):
     name = Column(String, nullable=False)
     start_date = Column(String)
     end_date = Column(String)
+    github_url = Column(Text)
     description = Column(Text, default="")
     sort_order = Column(Integer, default=0)
 

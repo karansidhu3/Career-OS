@@ -39,6 +39,7 @@ class ExperienceBase(BaseModel):
     role: str = Field(..., max_length=200)
     start_date: Optional[str] = Field(None, max_length=50)
     end_date: Optional[str] = Field(None, max_length=50)
+    location: Optional[str] = Field(None, max_length=200)
     # Sent verbatim to Claude — cap to prevent context bloat and abuse
     description: str = Field("", max_length=5_000)
     sort_order: int = Field(0, ge=0, le=9999)
@@ -53,6 +54,7 @@ class ProjectBase(BaseModel):
     name: str = Field(..., max_length=200)
     start_date: Optional[str] = Field(None, max_length=50)
     end_date: Optional[str] = Field(None, max_length=50)
+    github_url: Optional[str] = Field(None, max_length=500)
     # Sent verbatim to Claude — cap to prevent context bloat and abuse
     description: str = Field("", max_length=5_000)
     sort_order: int = Field(0, ge=0, le=9999)

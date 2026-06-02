@@ -475,7 +475,8 @@ def _format_profile(
         lines.append("EXPERIENCE")
         for i, exp in enumerate(experience, 1):
             end = exp.end_date or "Present"
-            lines.append(f"[{i}] {exp.role} at {exp.company} ({exp.start_date} – {end})")
+            loc = f" — {exp.location}" if getattr(exp, "location", None) else ""
+            lines.append(f"[{i}] {exp.role} at {exp.company} ({exp.start_date} – {end}){loc}")
             if exp.description:
                 lines.append(f"  {exp.description}")
         lines.append("")
@@ -484,7 +485,8 @@ def _format_profile(
         lines.append("PROJECTS")
         for i, proj in enumerate(projects, 1):
             end = proj.end_date or "Present"
-            lines.append(f"[{i}] {proj.name} ({proj.start_date} – {end})")
+            gh = f" — GitHub: {proj.github_url}" if getattr(proj, "github_url", None) else ""
+            lines.append(f"[{i}] {proj.name} ({proj.start_date} – {end}){gh}")
             if proj.description:
                 lines.append(f"  {proj.description}")
         lines.append("")
