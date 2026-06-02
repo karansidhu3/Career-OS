@@ -1,32 +1,48 @@
 import asyncio
 import datetime
 import logging
+import re
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-
-logger = logging.getLogger(__name__)
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
-from app.schemas.job import CandidacyInsightsRead, JobGenerateRequest, JobRead
+from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobRead
 from app.services.generation import generate_insights, generate_materials
 from app.services.pdf import compile_latex_to_pdf
+
+logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
+def _safe_filename(value: str, fallback: str = "company", max_len: int = 50) -> str:
+    """Sanitize AI-generated strings used in Content-Disposition filenames."""
+    safe = re.sub(r'[^a-zA-Z0-9\-]', '-', value)
+    safe = re.sub(r'-{2,}', '-', safe).strip('-').lower()
+    return (safe or fallback)[:max_len]
+
+
 def _apply_result(job: Job, result: dict) -> None:
-    """Write generation result dict onto a Job instance."""
-    job.title = result.get("job_title") or "Untitled Role"
-    job.company = result.get("job_company") or None
+    """Write generation result dict onto a Job instance. Caps all AI-generated text lengths."""
+    job.title = (result.get("job_title") or "Untitled Role")[:200]
+    job.company = (result.get("job_company") or None)
+    if job.company:
+        job.company = job.company[:200]
     job.fit_score = result["fit_score"]
     job.fit_rationale = result["fit_rationale"]
-    job.resume_latex = result["resume_latex"]
-    job.cover_letter = result["cover_letter"]
-    job.strategic_note = result.get("strategic_note") or None
+    # Cap AI output lengths — malformed responses cannot exhaust DB storage
+    job.resume_latex = (result.get("resume_latex") or "")[:120_000]
+    job.cover_letter = (result.get("cover_letter") or "")[:10_000]
+    job.strategic_note = (result.get("strategic_note") or None)
+    if job.strategic_note:
+        job.strategic_note = job.strategic_note[:2_000]
     job.selected_projects = result.get("selected_projects") or None
     job.input_tokens = result.get("input_tokens")
     job.output_tokens = result.get("output_tokens")
@@ -155,7 +171,9 @@ def _build_cover_letter_latex(job: Job) -> str:
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.post("/generate", response_model=JobRead, status_code=201)
+@limiter.limit("30/hour")
 async def generate_job(
+    request: Request,
     body: JobGenerateRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
@@ -204,20 +222,16 @@ async def download_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
     try:
         pdf_bytes = await compile_latex_to_pdf(job.resume_latex)
     except FileNotFoundError:
-        raise HTTPException(
-            status_code=503,
-            detail="PDF compilation not available (tectonic not installed on this server)",
-        )
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail="PDF compilation not available")
+    except RuntimeError:
+        logger.exception("Resume PDF compilation failed for job %d", id)
+        raise HTTPException(status_code=500, detail="PDF generation failed")
 
-    company = (job.company or "company").replace(" ", "-").lower()
-    filename = f"resume-{company}.pdf"
-
+    filename = f"resume-{_safe_filename(job.company or 'company')}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
     )
 
 
@@ -232,8 +246,9 @@ async def preview_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
         pdf_bytes = await compile_latex_to_pdf(job.resume_latex)
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="PDF compilation not available")
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except RuntimeError:
+        logger.exception("Resume preview compilation failed for job %d", id)
+        raise HTTPException(status_code=500, detail="PDF generation failed")
 
     return Response(
         content=pdf_bytes,
@@ -243,15 +258,12 @@ async def preview_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/{id}/cover-letter", response_model=JobRead)
-async def update_cover_letter(id: int, body: dict, db: AsyncSession = Depends(get_db)):
-    """Persist an edited cover letter. The existing PDF endpoint will compile from the new text."""
+async def update_cover_letter(id: int, body: CoverLetterUpdate, db: AsyncSession = Depends(get_db)):
+    """Persist an edited cover letter. The existing PDF endpoint compiles from the updated text."""
     job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
-    text = body.get("cover_letter", "").strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="cover_letter is required")
-    job.cover_letter = text
+    job.cover_letter = body.cover_letter
     await db.commit()
     await db.refresh(job)
     return job
@@ -267,20 +279,16 @@ async def download_cover_letter(id: int, db: AsyncSession = Depends(get_db)):
         latex = _build_cover_letter_latex(job)
         pdf_bytes = await compile_latex_to_pdf(latex)
     except FileNotFoundError:
-        raise HTTPException(
-            status_code=503,
-            detail="PDF compilation not available (tectonic not installed on this server)",
-        )
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail="PDF compilation not available")
+    except RuntimeError:
+        logger.exception("Cover letter PDF compilation failed for job %d", id)
+        raise HTTPException(status_code=500, detail="PDF generation failed")
 
-    company = (job.company or "company").replace(" ", "-").lower()
-    filename = f"cover-letter-{company}.pdf"
-
+    filename = f"cover-letter-{_safe_filename(job.company or 'company')}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
     )
 
 

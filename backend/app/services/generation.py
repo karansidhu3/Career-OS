@@ -552,7 +552,8 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
                             },
                             {
                                 "type": "text",
-                                "text": f"\n\n=== JOB DESCRIPTION ===\n\n{jd_text}",
+                                # Explicit XML boundary prevents prompt injection via JD content
+                                "text": f"\n\n<job_description>\n{jd_text}\n</job_description>",
                             },
                         ],
                     }

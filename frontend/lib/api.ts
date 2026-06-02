@@ -1,4 +1,5 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_KEY  = process.env.NEXT_PUBLIC_API_KEY  || ''
 
 // ---- Job types ----
 
@@ -97,7 +98,13 @@ export interface FullProfile {
 // ---- Shared ----
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init)
+  // Merge in the API key header on every request
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> | undefined),
+  }
+  if (API_KEY) headers['X-API-Key'] = API_KEY
+
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(text || `HTTP ${res.status}`)

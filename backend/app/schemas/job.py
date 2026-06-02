@@ -1,12 +1,16 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, Field, computed_field
 
 
 class JobGenerateRequest(BaseModel):
-    description: str
-    url: str = ""
+    description: str = Field(..., min_length=10, max_length=50_000)
+    url: str = Field("", max_length=2_048)
+
+
+class CoverLetterUpdate(BaseModel):
+    cover_letter: str = Field(..., min_length=1, max_length=10_000)
 
 
 class JobRead(BaseModel):
