@@ -39,12 +39,51 @@ async def _run_migrations() -> None:
                     await conn.execute(text(stmt))
 
 
+async def _warmup_tectonic() -> None:
+    """Compile a minimal LaTeX doc at startup to pre-download Tectonic packages.
+    Runs in the background so startup is not blocked. First cold-start compilation
+    takes 30–90 s; warming the cache here means the first real user PDF request is fast.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+    _WARMUP_LATEX = r"""
+\documentclass[letterpaper,11pt]{article}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{fontawesome5}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{charter}
+\usepackage{xcolor}
+\usepackage{eso-pic}
+\begin{document}
+CareerOS warmup.
+\end{document}
+"""
+    try:
+        from app.services.pdf import compile_latex_to_pdf
+        await compile_latex_to_pdf(_WARMUP_LATEX)
+        _log.info("Tectonic warmup complete — PDF cache is ready")
+    except Exception as exc:
+        _log.warning("Tectonic warmup failed (PDFs will compile on first request): %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _run_migrations()
     await seed()
+    # Warm up Tectonic package cache in the background — doesn't block startup
+    import asyncio
+    asyncio.create_task(_warmup_tectonic())
     yield
 
 

@@ -63,15 +63,29 @@ function ResumeSection({ job }: { job: Job }) {
   const [expanded, setExpanded] = useState(false)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [previewLoaded, setPreviewLoaded] = useState(false)
-  if (!job.resume_latex) return null
+  const [previewFailed, setPreviewFailed] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
+  // Hooks must come before any conditional return
   useEffect(() => {
+    if (!job.resume_latex) return
     let objectUrl: string | null = null
     api.fetchResumePdfPreview(job.id)
       .then(url => { objectUrl = url; setBlobUrl(url) })
-      .catch(() => {})
+      .catch(() => setPreviewFailed(true))
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [job.id])
+  }, [job.id, job.resume_latex])
+
+  if (!job.resume_latex) return null
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      await api.downloadResumePdf(job.id, job.company)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div>
@@ -85,9 +99,16 @@ function ResumeSection({ job }: { job: Job }) {
           background: '#fff',
         }}
       >
-        {!previewLoaded && (
+        {previewFailed ? (
           <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
-            <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+            <p className="text-xs text-neutral-400">PDF preview unavailable — download to view</p>
+          </div>
+        ) : !previewLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+              <p className="text-xs text-neutral-400">Compiling PDF…</p>
+            </div>
           </div>
         )}
         {blobUrl && (
@@ -111,12 +132,13 @@ function ResumeSection({ job }: { job: Job }) {
         <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Resume</span>
         <div className="flex items-center gap-2">
           <motion.button
-            onClick={() => api.downloadResumePdf(job.id, job.company)}
+            onClick={handleDownload}
+            disabled={downloading}
             whileTap={{ scale: 0.97 }}
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
             style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
           >
-            Download PDF
+            {downloading ? 'Compiling…' : 'Download PDF'}
           </motion.button>
           <CopyButton text={job.resume_latex} label="Copy .tex" />
         </div>
@@ -152,8 +174,15 @@ function ResumeSection({ job }: { job: Job }) {
 }
 
 function CoverLetterSection({ job }: { job: Job }) {
+  const [downloading, setDownloading] = useState(false)
   const paragraphs = (job.cover_letter ?? '').split(/\n\n+/).map(p => p.trim()).filter(Boolean)
   if (!paragraphs.length) return null
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    try { await api.downloadCoverLetterPdf(job.id, job.company) }
+    finally { setDownloading(false) }
+  }
 
   return (
     <div>
@@ -167,12 +196,13 @@ function CoverLetterSection({ job }: { job: Job }) {
       </div>
       <div className="mt-5 flex items-center gap-4 flex-wrap">
         <motion.button
-          onClick={() => api.downloadCoverLetterPdf(job.id, job.company)}
+          onClick={handleDownload}
+          disabled={downloading}
           whileTap={{ scale: 0.97 }}
-          className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center gap-2"
+          className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center gap-2 disabled:opacity-60"
           style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
         >
-          Download Cover Letter
+          {downloading ? 'Compiling…' : 'Download Cover Letter'}
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
           </svg>

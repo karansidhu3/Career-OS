@@ -165,6 +165,7 @@ function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) =
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   const save = async () => {
     if (!text.trim()) return
@@ -197,14 +198,20 @@ function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) =
       <div className="mt-4 flex items-center gap-4 flex-wrap" style={{ maxWidth: '520px' }}>
         <motion.button
           onClick={async () => {
-            await api.downloadCoverLetterPdf(job.id, job.company)
-            setDownloaded(true)
+            setDownloading(true)
+            try {
+              await api.downloadCoverLetterPdf(job.id, job.company)
+              setDownloaded(true)
+            } finally {
+              setDownloading(false)
+            }
           }}
+          disabled={downloading}
           whileTap={{ scale: 0.97 }}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
           style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
         >
-          {downloaded ? 'Letter saved' : 'Download Cover Letter'}
+          {downloading ? 'Compiling…' : downloaded ? 'Letter saved' : 'Download Cover Letter'}
           {downloaded ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
@@ -245,8 +252,6 @@ function ResumePreview({ jobId }: { jobId: number }) {
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [jobId])
 
-  if (failed) return null
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -260,9 +265,16 @@ function ResumePreview({ jobId }: { jobId: number }) {
         background: '#fff',
       }}
     >
-      {!loaded && (
+      {failed ? (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
-          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+          <p className="text-xs text-neutral-400">PDF preview unavailable — download to view</p>
+        </div>
+      ) : !loaded && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+            <p className="text-xs text-neutral-400">Compiling PDF…</p>
+          </div>
         </div>
       )}
       {blobUrl && (
@@ -299,8 +311,9 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false)
   const [genElapsed, setGenElapsed] = useState(0)
   const [recentJobs, setRecentJobs] = useState<Job[]>([])
-  // Download completion — signals the loop has ended
+  // Download state — completion signals loop has ended; loading shows compile progress
   const [resumeDownloaded, setResumeDownloaded] = useState(false)
+  const [resumeDownloading, setResumeDownloading] = useState(false)
   // Profile readiness — show setup prompt if profile is empty
   const [profileEmpty, setProfileEmpty] = useState(false)
   const [insights, setInsights] = useState<CandidacyInsights | null>(() => {
@@ -802,14 +815,20 @@ export default function Home() {
               {appState.job.resume_latex && (
                 <motion.button
                   onClick={async () => {
-                    await api.downloadResumePdf(appState.job.id, appState.job.company)
-                    setResumeDownloaded(true)
+                    setResumeDownloading(true)
+                    try {
+                      await api.downloadResumePdf(appState.job.id, appState.job.company)
+                      setResumeDownloaded(true)
+                    } finally {
+                      setResumeDownloading(false)
+                    }
                   }}
+                  disabled={resumeDownloading}
                   whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
                   style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
                 >
-                  {resumeDownloaded ? 'Resume saved' : 'Download Resume'}
+                  {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Resume saved' : 'Download Resume'}
                   {resumeDownloaded ? (
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />
