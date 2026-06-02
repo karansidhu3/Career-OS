@@ -23,6 +23,9 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
     # Remove it so the document compiles cleanly under XeTeX.
     latex_content = latex_content.replace("[pdftex]{hyperref}", "{hyperref}")
 
+    # Ensure cache dir exists and is writable before Tectonic tries to create it.
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = os.path.join(tmpdir, "resume.tex")
         pdf_path = os.path.join(tmpdir, "resume.pdf")
@@ -32,6 +35,11 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
 
         env = {
             **os.environ,
+            # appuser is created with --no-create-home so $HOME is /nonexistent.
+            # Tectonic falls back to $HOME/.cache when XDG vars are unset, which
+            # causes EPERM. Override both so all writes land in /tmp.
+            "HOME": "/tmp",
+            "XDG_CACHE_HOME": "/tmp/.cache",
             "TECTONIC_CACHE_DIR": _CACHE_DIR,
             # Suppress interactive prompts in the TeX engine
             "TEXMFHOME": tmpdir,
@@ -39,7 +47,7 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
 
         proc = await asyncio.create_subprocess_exec(
             "tectonic",
-            "--keep-logs",
+            "--cache-dir", _CACHE_DIR,  # explicit CLI arg, not just env var
             tex_path,
             cwd=tmpdir,
             stdout=asyncio.subprocess.PIPE,
