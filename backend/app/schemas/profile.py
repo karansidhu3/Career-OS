@@ -11,8 +11,8 @@ class PersonalInfoBase(BaseModel):
     location: Optional[str] = Field(None, max_length=200)
     target_roles: list[str] = []
     target_locations: list[str] = []
-    # Injected into every Claude prompt — cap it so it can't bloat the context
-    cover_letter_voice: str = Field("", max_length=800)
+    # Stored up to 2000 chars; truncated to 800 when injected into Claude prompts
+    cover_letter_voice: str = Field("", max_length=2000)
 
 
 class PersonalInfoRead(PersonalInfoBase):

@@ -460,7 +460,7 @@ def _format_profile(
         if getattr(personal, "cover_letter_voice", None):
             lines += [
                 "COVER LETTER VOICE GUIDANCE",
-                personal.cover_letter_voice,
+                personal.cover_letter_voice[:800],
                 "",
             ]
 
