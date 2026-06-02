@@ -13,6 +13,10 @@ class CoverLetterUpdate(BaseModel):
     cover_letter: str = Field(..., min_length=1, max_length=10_000)
 
 
+class StatusUpdate(BaseModel):
+    status: str = Field(..., pattern=r"^(generated|applied|skipped|interview|offer)$")
+
+
 class JobRead(BaseModel):
     id: int
     title: str

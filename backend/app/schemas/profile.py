@@ -1,17 +1,18 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PersonalInfoBase(BaseModel):
-    name: str
-    email: str
-    phone: Optional[str] = None
-    linkedin: Optional[str] = None
-    github: Optional[str] = None
-    location: Optional[str] = None
+    name: str = Field(..., max_length=200)
+    email: str = Field(..., max_length=254)
+    phone: Optional[str] = Field(None, max_length=50)
+    linkedin: Optional[str] = Field(None, max_length=200)
+    github: Optional[str] = Field(None, max_length=200)
+    location: Optional[str] = Field(None, max_length=200)
     target_roles: list[str] = []
     target_locations: list[str] = []
-    cover_letter_voice: str = ""
+    # Injected into every Claude prompt — cap it so it can't bloat the context
+    cover_letter_voice: str = Field("", max_length=800)
 
 
 class PersonalInfoRead(PersonalInfoBase):
@@ -20,12 +21,12 @@ class PersonalInfoRead(PersonalInfoBase):
 
 
 class EducationBase(BaseModel):
-    school: str
-    degree: str
-    field: Optional[str] = None
-    minor: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    school: str = Field(..., max_length=200)
+    degree: str = Field(..., max_length=200)
+    field: Optional[str] = Field(None, max_length=200)
+    minor: Optional[str] = Field(None, max_length=200)
+    start_date: Optional[str] = Field(None, max_length=50)
+    end_date: Optional[str] = Field(None, max_length=50)
 
 
 class EducationRead(EducationBase):
@@ -34,12 +35,13 @@ class EducationRead(EducationBase):
 
 
 class ExperienceBase(BaseModel):
-    company: str
-    role: str
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    description: str = ""
-    sort_order: int = 0
+    company: str = Field(..., max_length=200)
+    role: str = Field(..., max_length=200)
+    start_date: Optional[str] = Field(None, max_length=50)
+    end_date: Optional[str] = Field(None, max_length=50)
+    # Sent verbatim to Claude — cap to prevent context bloat and abuse
+    description: str = Field("", max_length=5_000)
+    sort_order: int = Field(0, ge=0, le=9999)
 
 
 class ExperienceRead(ExperienceBase):
@@ -48,11 +50,12 @@ class ExperienceRead(ExperienceBase):
 
 
 class ProjectBase(BaseModel):
-    name: str
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    description: str = ""
-    sort_order: int = 0
+    name: str = Field(..., max_length=200)
+    start_date: Optional[str] = Field(None, max_length=50)
+    end_date: Optional[str] = Field(None, max_length=50)
+    # Sent verbatim to Claude — cap to prevent context bloat and abuse
+    description: str = Field("", max_length=5_000)
+    sort_order: int = Field(0, ge=0, le=9999)
 
 
 class ProjectRead(ProjectBase):
@@ -61,9 +64,9 @@ class ProjectRead(ProjectBase):
 
 
 class SkillCategoryBase(BaseModel):
-    category: str
-    items: list[str] = []
-    sort_order: int = 0
+    category: str = Field(..., max_length=100)
+    items: list[str] = Field([], max_length=50)  # max 50 items per category
+    sort_order: int = Field(0, ge=0, le=9999)
 
 
 class SkillCategoryRead(SkillCategoryBase):

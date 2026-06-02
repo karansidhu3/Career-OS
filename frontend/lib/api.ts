@@ -128,7 +128,9 @@ export const api = {
   getJob: (id: number) => request<Job>(`/admin/jobs/${id}`),
   getInsights: () => request<CandidacyInsights>('/admin/jobs/insights'),
   updateStatus: (id: number, status: string) =>
-    request<Job>(`/admin/jobs/${id}/status?status=${status}`, { method: 'PATCH' }),
+    request<Job>(`/admin/jobs/${id}/status`, json('PATCH', { status })),
+  deleteJob: (id: number) =>
+    request<void>(`/admin/jobs/${id}`, { method: 'DELETE' }),
   regenerate: (id: number, signal?: AbortSignal) =>
     request<Job>(`/admin/jobs/${id}/regenerate`, { method: 'POST', signal }),
   resumePdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/resume.pdf`,

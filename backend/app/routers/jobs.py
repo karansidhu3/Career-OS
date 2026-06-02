@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
-from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobRead
+from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobRead, StatusUpdate
 from app.services.generation import generate_insights, generate_materials
 from app.services.pdf import compile_latex_to_pdf
 
@@ -194,7 +194,9 @@ async def generate_job(
 
 
 @router.post("/{id}/regenerate", response_model=JobRead)
+@limiter.limit("30/hour")
 async def regenerate_job(
+    request: Request,
     id: int,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
@@ -293,7 +295,8 @@ async def download_cover_letter(id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/insights", response_model=CandidacyInsightsRead)
-async def get_candidacy_insights(db: AsyncSession = Depends(get_db)):
+@limiter.limit("20/hour")
+async def get_candidacy_insights(request: Request, db: AsyncSession = Depends(get_db)):
     """Return a synthesized candidacy observation derived from all past applications."""
     completed_statuses = ("generated", "applied", "interview", "offer", "skipped")
     jobs = (await db.execute(
@@ -327,6 +330,16 @@ async def get_candidacy_insights(db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.delete("/{id}", status_code=204)
+async def delete_job(id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a single job record and all its generated content."""
+    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Not found")
+    await db.delete(job)
+    await db.commit()
+
+
 @router.get("", response_model=list[JobRead])
 async def list_jobs(status: str | None = None, db: AsyncSession = Depends(get_db)):
     q = select(Job).order_by(Job.created_at.desc())
@@ -344,13 +357,12 @@ async def get_job(id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/{id}/status", response_model=JobRead)
-async def update_status(id: int, status: str, db: AsyncSession = Depends(get_db)):
-    if status not in {"generated", "applied", "skipped", "interview", "offer"}:
-        raise HTTPException(status_code=400, detail="Invalid status")
+async def update_status(id: int, body: StatusUpdate, db: AsyncSession = Depends(get_db)):
+    """Update job status. Status is validated by Pydantic pattern, not a query string."""
     job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
-    job.status = status
+    job.status = body.status
     await db.commit()
     await db.refresh(job)
     return job

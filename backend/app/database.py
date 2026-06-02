@@ -18,7 +18,15 @@ def _get_db_url() -> str:
     return url
 
 
-engine = create_async_engine(_get_db_url(), echo=False)
+engine = create_async_engine(
+    _get_db_url(),
+    echo=False,
+    # Limit connections to prevent exhaustion under concurrent requests or runaway clients
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,  # recycle connections every 30 min to avoid stale connections
+)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

@@ -2,8 +2,9 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Required in production — no default prevents accidental wrong-DB connections
-    database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/careeros"
+    # No default — app refuses to start if DATABASE_URL is not set.
+    # For local dev, set it in backend/.env
+    database_url: str
     anthropic_api_key: str = ""
 
     # Shared secret for X-API-Key header auth. Empty = auth disabled (local dev only).
