@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "careeros-demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "3002"],
+      "port": 3002,
+      "autoPort": false,
+      "cwd": "frontend",
+      "env": {
+        "NEXT_PUBLIC_API_URL": "http://localhost:8001",
+        "NEXT_PUBLIC_API_KEY": ""
+      }
+    }
+  ]
+}
