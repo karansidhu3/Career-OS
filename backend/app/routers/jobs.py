@@ -39,7 +39,11 @@ def _apply_result(job: Job, result: dict) -> None:
     job.fit_rationale = result["fit_rationale"]
     # Cap AI output lengths — malformed responses cannot exhaust DB storage
     job.resume_latex = (result.get("resume_latex") or "")[:120_000]
-    job.cover_letter = (result.get("cover_letter") or "")[:10_000]
+    # Strip em dashes from cover letter — model sometimes ignores the language rule.
+    # " — " → ", "  |  bare "—" → ", "  (handles spaced and unspaced variants)
+    cover = (result.get("cover_letter") or "")
+    cover = cover.replace(" — ", ", ").replace("— ", ", ").replace(" —", ",").replace("—", ", ")
+    job.cover_letter = cover[:10_000]
     job.strategic_note = (result.get("strategic_note") or None)
     if job.strategic_note:
         job.strategic_note = job.strategic_note[:2_000]
