@@ -47,7 +47,6 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
 
         proc = await asyncio.create_subprocess_exec(
             "tectonic",
-            "--cache-dir", _CACHE_DIR,  # explicit CLI arg, not just env var
             tex_path,
             cwd=tmpdir,
             stdout=asyncio.subprocess.PIPE,
