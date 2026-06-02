@@ -40,8 +40,8 @@ class ExperienceBase(BaseModel):
     start_date: Optional[str] = Field(None, max_length=50)
     end_date: Optional[str] = Field(None, max_length=50)
     location: Optional[str] = Field(None, max_length=200)
-    # Sent verbatim to Claude — cap to prevent context bloat and abuse
-    description: str = Field("", max_length=5_000)
+    # Stored up to 10000 chars; Claude prompt context uses this verbatim so keep it focused
+    description: str = Field("", max_length=10_000)
     sort_order: int = Field(0, ge=0, le=9999)
 
 
@@ -55,8 +55,8 @@ class ProjectBase(BaseModel):
     start_date: Optional[str] = Field(None, max_length=50)
     end_date: Optional[str] = Field(None, max_length=50)
     github_url: Optional[str] = Field(None, max_length=500)
-    # Sent verbatim to Claude — cap to prevent context bloat and abuse
-    description: str = Field("", max_length=5_000)
+    # Stored up to 10000 chars; Claude prompt context uses this verbatim so keep it focused
+    description: str = Field("", max_length=10_000)
     sort_order: int = Field(0, ge=0, le=9999)
 
 

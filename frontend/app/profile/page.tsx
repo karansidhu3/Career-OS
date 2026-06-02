@@ -81,16 +81,24 @@ function Input({ value, onChange, placeholder }: { value: string; onChange: (v: 
   )
 }
 
-function TextArea({ value, onChange, placeholder, rows = 4 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
+function TextArea({ value, onChange, placeholder, rows = 4, maxLength }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number; maxLength?: number }) {
   return (
-    <textarea
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      className={`${inputCls} resize-none leading-relaxed`}
-      style={inputStyle}
-    />
+    <div className="relative">
+      <textarea
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        maxLength={maxLength}
+        className={`${inputCls} resize-none leading-relaxed`}
+        style={inputStyle}
+      />
+      {maxLength && value.length > maxLength * 0.85 && (
+        <span className={`absolute bottom-2 right-3 text-xs tabular-nums ${value.length >= maxLength ? 'text-red-400' : 'text-neutral-300'}`}>
+          {value.length}/{maxLength}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -234,6 +242,7 @@ function ProjectCard({
                 value={description}
                 onChange={setDescription}
                 rows={7}
+                maxLength={10000}
                 placeholder="Describe what you built, the technical decisions, the architecture, and outcomes. Write naturally — the AI reads this and writes tailored bullets for each application."
               />
             </Field>
@@ -406,6 +415,7 @@ function ExperienceCard({
                 value={description}
                 onChange={setDescription}
                 rows={6}
+                maxLength={10000}
                 placeholder="Describe the work, the technical stack, what you built, and the impact. Write naturally — the AI reads this and writes tailored bullets for each application."
               />
             </Field>
@@ -650,6 +660,7 @@ function VoiceEditor({ personal, onSave }: { personal: import('@/lib/api').Perso
         value={voice}
         onChange={setVoice}
         rows={4}
+        maxLength={2000}
         placeholder={'e.g. "I write directly and don\'t over-explain. Short sentences. I open with the problem, not with myself. Technical but not dense."'}
       />
       {isDirty && (
