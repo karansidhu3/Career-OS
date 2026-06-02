@@ -195,10 +195,11 @@ function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) =
         }}
       />
       <div className="mt-4 flex items-center gap-4 flex-wrap" style={{ maxWidth: '520px' }}>
-        <motion.a
-          href={api.coverLetterPdfUrl(job.id)}
-          download
-          onClick={() => setDownloaded(true)}
+        <motion.button
+          onClick={async () => {
+            await api.downloadCoverLetterPdf(job.id, job.company)
+            setDownloaded(true)
+          }}
           whileTap={{ scale: 0.97 }}
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
           style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
@@ -213,7 +214,7 @@ function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) =
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           )}
-        </motion.a>
+        </motion.button>
         <CopyButton text={text} label="Copy" />
         {isDirty && (
           <button
@@ -232,8 +233,17 @@ function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) =
 // ─── Resume preview — inline PDF, the actual artifact ────────────────────────
 
 function ResumePreview({ jobId }: { jobId: number }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let objectUrl: string | null = null
+    api.fetchResumePdfPreview(jobId)
+      .then(url => { objectUrl = url; setBlobUrl(url) })
+      .catch(() => setFailed(true))
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [jobId])
 
   if (failed) return null
 
@@ -255,20 +265,22 @@ function ResumePreview({ jobId }: { jobId: number }) {
           <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
         </div>
       )}
-      <iframe
-        src={api.resumePreviewUrl(jobId)}
-        onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
-        title="Resume"
-        style={{
-          width: '100%',
-          height: '100%',
-          border: 'none',
-          display: 'block',
-          opacity: loaded ? 1 : 0,
-          transition: 'opacity 0.4s ease',
-        }}
-      />
+      {blobUrl && (
+        <iframe
+          src={blobUrl}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          title="Resume"
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            display: 'block',
+            opacity: loaded ? 1 : 0,
+            transition: 'opacity 0.4s ease',
+          }}
+        />
+      )}
     </motion.div>
   )
 }
@@ -788,10 +800,11 @@ export default function Home() {
               className="flex items-center gap-4 flex-wrap mb-2"
             >
               {appState.job.resume_latex && (
-                <motion.a
-                  href={api.resumePdfUrl(appState.job.id)}
-                  download
-                  onClick={() => setResumeDownloaded(true)}
+                <motion.button
+                  onClick={async () => {
+                    await api.downloadResumePdf(appState.job.id, appState.job.company)
+                    setResumeDownloaded(true)
+                  }}
                   whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
                   style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
@@ -806,7 +819,7 @@ export default function Home() {
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                   )}
-                </motion.a>
+                </motion.button>
               )}
               <StatusActions
                 job={appState.job}

@@ -116,6 +116,32 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
+// Fetch a binary endpoint (PDF) with auth and return an object URL.
+// Caller is responsible for revoking with URL.revokeObjectURL when done.
+async function requestBlob(path: string): Promise<string> {
+  const headers: Record<string, string> = {}
+  if (API_KEY) headers['X-API-Key'] = API_KEY
+  const res = await fetch(`${API_BASE}${path}`, { headers })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
+// Fetch a PDF and immediately trigger a browser download, then revoke the blob URL.
+async function downloadBlob(path: string, filename: string): Promise<void> {
+  const url = await requestBlob(path)
+  try {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 function json(method: string, body: unknown): RequestInit {
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
 }
@@ -135,9 +161,13 @@ export const api = {
     request<void>(`/admin/jobs/${id}`, { method: 'DELETE' }),
   regenerate: (id: number, signal?: AbortSignal) =>
     request<Job>(`/admin/jobs/${id}/regenerate`, { method: 'POST', signal }),
-  resumePdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/resume.pdf`,
-  resumePreviewUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/resume-preview.pdf`,
-  coverLetterPdfUrl: (id: number) => `${API_BASE}/admin/jobs/${id}/cover-letter.pdf`,
+  // PDF methods — use authenticated fetch rather than bare URL so X-API-Key is sent.
+  // Iframes and <a href> are plain browser requests that cannot carry custom headers.
+  fetchResumePdfPreview: (id: number) => requestBlob(`/admin/jobs/${id}/resume-preview.pdf`),
+  downloadResumePdf: (id: number, company: string | null) =>
+    downloadBlob(`/admin/jobs/${id}/resume.pdf`, `resume-${(company ?? 'company').toLowerCase().replace(/[^a-z0-9]/g, '-')}.pdf`),
+  downloadCoverLetterPdf: (id: number, company: string | null) =>
+    downloadBlob(`/admin/jobs/${id}/cover-letter.pdf`, `cover-letter-${(company ?? 'company').toLowerCase().replace(/[^a-z0-9]/g, '-')}.pdf`),
   updateCoverLetter: (id: number, cover_letter: string) =>
     request<Job>(`/admin/jobs/${id}/cover-letter`, json('PATCH', { cover_letter })),
 

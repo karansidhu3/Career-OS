@@ -61,8 +61,17 @@ function FitCard({ job }: { job: Job }) {
 
 function ResumeSection({ job }: { job: Job }) {
   const [expanded, setExpanded] = useState(false)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [previewLoaded, setPreviewLoaded] = useState(false)
   if (!job.resume_latex) return null
+
+  useEffect(() => {
+    let objectUrl: string | null = null
+    api.fetchResumePdfPreview(job.id)
+      .then(url => { objectUrl = url; setBlobUrl(url) })
+      .catch(() => {})
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [job.id])
 
   return (
     <div>
@@ -81,33 +90,34 @@ function ResumeSection({ job }: { job: Job }) {
             <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
           </div>
         )}
-        <iframe
-          src={api.resumePreviewUrl(job.id)}
-          onLoad={() => setPreviewLoaded(true)}
-          title="Resume"
-          style={{
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            display: 'block',
-            opacity: previewLoaded ? 1 : 0,
-            transition: 'opacity 0.4s ease',
-          }}
-        />
+        {blobUrl && (
+          <iframe
+            src={blobUrl}
+            onLoad={() => setPreviewLoaded(true)}
+            title="Resume"
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              display: 'block',
+              opacity: previewLoaded ? 1 : 0,
+              transition: 'opacity 0.4s ease',
+            }}
+          />
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Resume</span>
         <div className="flex items-center gap-2">
-          <motion.a
-            href={api.resumePdfUrl(job.id)}
-            download
+          <motion.button
+            onClick={() => api.downloadResumePdf(job.id, job.company)}
             whileTap={{ scale: 0.97 }}
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
             style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
           >
             Download PDF
-          </motion.a>
+          </motion.button>
           <CopyButton text={job.resume_latex} label="Copy .tex" />
         </div>
       </div>
@@ -156,9 +166,8 @@ function CoverLetterSection({ job }: { job: Job }) {
         ))}
       </div>
       <div className="mt-5 flex items-center gap-4 flex-wrap">
-        <motion.a
-          href={api.coverLetterPdfUrl(job.id)}
-          download
+        <motion.button
+          onClick={() => api.downloadCoverLetterPdf(job.id, job.company)}
           whileTap={{ scale: 0.97 }}
           className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center gap-2"
           style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
@@ -167,7 +176,7 @@ function CoverLetterSection({ job }: { job: Job }) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-        </motion.a>
+        </motion.button>
         <CopyButton text={job.cover_letter!} label="Copy" />
       </div>
     </div>
