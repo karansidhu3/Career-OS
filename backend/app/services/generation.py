@@ -25,7 +25,7 @@ LATEX_TEMPLATE = r"""
 \usepackage{enumitem}
 \usepackage{hyperref}
 \usepackage{fancyhdr}
-\usepackage{fontawesome5}
+\usepackage{fontawesome}
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -177,27 +177,36 @@ ATS KEYWORD MIRRORING — this is the highest priority:
 - A keyword that appears in both the JD and the resume is worth more than any amount of polish
 
 BULLET POINT QUALITY BAR:
-Every bullet must follow: strong verb → what you built/did → outcome or scale
+Every bullet follows the XYZ formula: Accomplished [X] as measured by [Y] by doing [Z].
+Translate this into resume language: strong verb → what you built/did → concrete outcome or scale.
+
 - Use precise, active verbs: Architected, Engineered, Designed, Reduced, Automated, Deployed,
-  Integrated, Optimized, Implemented, Built, Developed, Shipped
+  Integrated, Optimized, Implemented, Built, Developed, Shipped, Replaced, Eliminated
 - Never use weak openers: "Worked on", "Helped with", "Assisted", "Participated in", "Was responsible for"
-- Every bullet should answer "so what?" — what did it do, what did it change, what was the impact?
-- If there's a number in the original profile, keep it and lead with it: "Reduced 120+ hours of manual
-  work" beats "Automated the allocation process"
+- Every bullet answers "so what?" — what changed, what was the measurable impact?
+
+NUMBER RULE — this is mandatory, not a suggestion:
+  If the profile description contains any number — hours saved, percentage improvement, throughput,
+  dataset size, user count, error rate, latency — that number MUST appear in the corresponding bullet.
+  A number in the source material that doesn't appear in the resume is a generation failure.
+  Lead with it: "Eliminated 120+ hours of manual allocation work" beats "Automated the allocation process".
+  If no number exists in the source, name a concrete scale or system scope instead.
+
 - Cut any bullet that doesn't add signal for this specific JD — 3 sharp bullets beats 5 mediocre ones
 - The profile gives prose descriptions of each role and project — raw context, not pre-written bullets.
-  Read each description, extract the most relevant facts for this JD, and write bullets from scratch.
+  Read each description, mine every number and concrete fact, then write bullets from scratch.
   Stay truthful to what the description says — do not invent facts not present in the text.
 
 BULLET QUALITY TEST — run this on every bullet before including it:
 □ Does it name a specific technology, tool, architecture, or system?
-□ Does it include a measurable outcome, concrete scale, or real impact?
+□ Does it include a measurable outcome, concrete scale, or real impact — with a number if one exists in the source?
 □ Could it NOT appear in a resume for a different software engineer at a different company?
 If any answer is no, rewrite the bullet until all three pass.
 
 FAILING: "Built an automated matching system that improved efficiency"
+FAILING: "Implemented a workflow that improved maintainability across the codebase"
 PASSING: "Built a TA matching platform with Next.js and Node.js, eliminating 120+ hours of manual
-          allocation work per term across the Science faculty"
+          allocation work per term for the UBC Science faculty"
 
 EXPERIENCE SECTION:
 - Always include both technical roles (UBC Full Stack Developer, SIMLAB Research Assistant)
@@ -239,6 +248,12 @@ BANNED. Never use any of these:
 - "passionate about", "strong foundation in", "deep understanding of", "proven track record"
 - Padding adverbs: "truly", "highly", "greatly", "deeply", "effectively", "successfully"
 - Adjectival filler before a noun: "dynamic", "impactful", "results-driven"
+- "AI-assisted development" as a skill — never list this
+- The word "across" — find a more specific construction every time
+- "improving [quality attribute]" with no number: "improving maintainability", "improving reliability",
+  "improving performance" — these are all banned unless a concrete metric follows
+- "support research-driven decision-making", "support decision-making", "support analysis" — vague filler
+- "participating in sprint planning", "coordinating code quality" — soft process claims that add no signal
 
 DO instead:
 - Contractions are fine and natural: "it's", "I've", "didn't", "I'm"
@@ -344,6 +359,8 @@ RESUME:
 □ Every required/preferred skill from the JD appears somewhere in the resume
 □ Every bullet names a specific technology, tool, or system — no generic descriptions
 □ Every bullet has a concrete outcome, scale, or impact — not just what was done but what changed
+□ Every number in the source profile description appears in the corresponding resume bullet — if not, fix it
+□ No bullet contains "across", "improving [X]" without a metric, or "support [Y] decision-making"
 □ No two bullets in the same section start with the same verb
 □ The selected projects are the ones that most directly address this JD's highest-weight requirements
 
