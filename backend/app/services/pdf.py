@@ -22,6 +22,9 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
     # Tectonic (XeTeX engine) doesn't need the [pdftex] hyperref driver option.
     # Remove it so the document compiles cleanly under XeTeX.
     latex_content = latex_content.replace("[pdftex]{hyperref}", "{hyperref}")
+    # fontawesome5 crashes Tectonic on macOS (SIGABRT). fontawesome (v4) is
+    # compatible and uses identical icon command names (\faEnvelope etc).
+    latex_content = latex_content.replace("{fontawesome5}", "{fontawesome}")
 
     # Ensure cache dir exists and is writable before Tectonic tries to create it.
     os.makedirs(_CACHE_DIR, exist_ok=True)
@@ -33,17 +36,19 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
         with open(tex_path, "w", encoding="utf-8") as f:
             f.write(latex_content)
 
-        env = {
-            **os.environ,
-            # appuser is created with --no-create-home so $HOME is /nonexistent.
-            # Tectonic falls back to $HOME/.cache when XDG vars are unset, which
-            # causes EPERM. Override both so all writes land in /tmp.
-            "HOME": "/tmp",
-            "XDG_CACHE_HOME": "/tmp/.cache",
-            "TECTONIC_CACHE_DIR": _CACHE_DIR,
-            # Suppress interactive prompts in the TeX engine
-            "TEXMFHOME": tmpdir,
-        }
+        # In the Docker container, appuser has no real home dir, so we override
+        # HOME and XDG_CACHE_HOME to keep all writes in /tmp.
+        # Locally (dev), $HOME exists and Tectonic works without overrides —
+        # forcing HOME=/tmp causes SIGABRT on macOS. Only apply in container.
+        in_container = not os.path.expanduser("~").startswith("/Users")
+        env = {**os.environ}
+        if in_container:
+            env.update({
+                "HOME": "/tmp",
+                "XDG_CACHE_HOME": "/tmp/.cache",
+                "TECTONIC_CACHE_DIR": _CACHE_DIR,
+                "TEXMFHOME": tmpdir,
+            })
 
         proc = await asyncio.create_subprocess_exec(
             "tectonic",
@@ -55,7 +60,7 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
         )
 
         try:
-            _stdout, stderr = await asyncio.wait_for(
+            stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
                 timeout=180.0,  # generous for first-run package downloads
             )
@@ -64,7 +69,8 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
             raise RuntimeError("LaTeX compilation timed out (180 s)")
 
         if proc.returncode != 0:
-            err = stderr.decode("utf-8", errors="replace")
+            # Tectonic writes errors to stdout; stderr is usually empty.
+            err = (stdout + stderr).decode("utf-8", errors="replace")
             raise RuntimeError(f"LaTeX compilation failed:\n{err[:800]}")
 
         if not os.path.exists(pdf_path):

@@ -3,7 +3,7 @@
 import {
   forwardRef,
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useRef,
   type TextareaHTMLAttributes,
   type MutableRefObject,
@@ -35,12 +35,15 @@ export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
     const resize = useCallback(() => {
       const el = innerRef.current
       if (!el) return
-      el.style.height = 'auto'
+      // Set to 0 first — 'auto' doesn't force a reflow before scrollHeight is read,
+      // causing it to return a stale large value. 0px makes scrollHeight content-only.
+      el.style.height = '0px'
       el.style.height = `${el.scrollHeight}px`
     }, [])
 
-    // Resize whenever value changes (covers external changes, e.g. sessionStorage restore)
-    useEffect(() => {
+    // useLayoutEffect fires synchronously after DOM mutations, before paint.
+    // This ensures layout is settled when we measure scrollHeight.
+    useLayoutEffect(() => {
       resize()
     }, [value, resize])
 
@@ -48,6 +51,7 @@ export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
       <textarea
         ref={setRef}
         value={value}
+        rows={1}
         onChange={e => {
           onChange?.(e)
           resize()

@@ -80,7 +80,7 @@ function HistoryRow({ job, onClick }: { job: Job; onClick: () => void }) {
             {job.fit_score}/10
           </p>
         )}
-        <p className="text-xs text-neutral-300 mt-0.5">
+        <p className="text-xs text-neutral-500 mt-0.5">
           {job.created_at ? relativeDate(job.created_at) : ''}
         </p>
       </div>
@@ -176,7 +176,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
             {/* List */}
             <div className="flex-1 overflow-y-auto px-2 py-3">
               {!hasAny && (
-                <p className="text-xs text-neutral-300 text-center py-12">
+                <p className="text-xs text-neutral-500 text-center py-12">
                   No applications yet.
                 </p>
               )}
@@ -210,7 +210,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
                 <div>
                   <button
                     onClick={() => setShowOlder(v => !v)}
-                    className="text-xs text-neutral-300 hover:text-neutral-500 px-4 py-1.5 transition-colors flex items-center gap-1"
+                    className="text-xs text-neutral-500 hover:text-neutral-700 px-4 py-1.5 transition-colors flex items-center gap-1"
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       {showOlder ? <path d="M18 15l-6-6-6 6" /> : <path d="M6 9l6 6 6-6" />}

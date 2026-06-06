@@ -60,6 +60,10 @@ html, body { height: 100%; }
 
   /* Surface overlay — true opaque layer (modals, tooltips) */
   --c-surface-overlay: rgba(255, 255, 255, 1);
+
+  /* Tag / pill — selected project badges, emphasis chips */
+  --c-tag-bg:     rgba(0, 0, 0, 0.065);
+  --c-tag-border: rgba(0, 0, 0, 0.14);
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
@@ -172,6 +176,10 @@ body::before {
 
     /* Surface overlay (dark) */
     --c-surface-overlay: rgba(26, 26, 24, 0.98);
+
+    /* Tag / pill — dark mode */
+    --c-tag-bg:     rgba(255, 255, 255, 0.09);
+    --c-tag-border: rgba(255, 255, 255, 0.18);
   }
 
   body {

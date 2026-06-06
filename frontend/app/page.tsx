@@ -148,8 +148,8 @@ function SelectedProjectsBar({ projects }: { projects: string[] }) {
       {projects.map(p => (
         <span
           key={p}
-          className="text-xs text-neutral-600 px-2 py-0.5 rounded-full"
-          style={{ background: 'var(--c-accent-dim)', border: '1px solid var(--c-accent-border)' }}
+          className="text-xs text-neutral-700 px-2 py-0.5 rounded-full"
+          style={{ background: 'var(--c-tag-bg)', border: '1px solid var(--c-tag-border)' }}
         >
           {p}
         </span>
