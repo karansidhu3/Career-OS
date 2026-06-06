@@ -15,20 +15,23 @@ using his persistent profile DB. Copy into Overleaf, apply on LinkedIn.
 - Admin CRUD endpoints: `GET/PUT /admin/profile/*`
 - Tables auto-created on server startup
 
-### Sprint 2 — Generation Pipeline 🔨 Next
-- `POST /admin/jobs/generate` — accepts raw JD text + optional title/company
-- Single Claude API call returns: fit score (1–10) + 3-bullet rationale + LaTeX resume + cover letter
-- Job record stored to DB with all generated content
-- Prompt engineering: profile context + LaTeX template + cover letter spec baked in
+### Sprint 2 — Generation Pipeline ✅ Done
+- `POST /admin/jobs/generate` — accepts raw JD text, returns immediately (status=processing)
+- Background task calls Claude via tool use; writes fit score + rationale + LaTeX + cover letter to DB
+- Prompt engineering: scanner-first, compression-first system prompt with mandatory number preservation
+- JD auto-extracts job title + company; no manual input fields
 
-### Sprint 3 — Dashboard UI
-- Next.js 15 frontend
-- Paste box for raw JD text
-- Loading state while Claude generates (~10–20s)
-- Display: fit score, rationale, resume (.tex), cover letter
-- One-click copy for .tex and cover letter text
-- Mark job as applied / skipped
-- History list: all past generations, filterable by status
+### Sprint 3 — Dashboard UI ✅ Done
+- Next.js frontend (App Router)
+- Paste box with JD persisted in sessionStorage across refreshes
+- Inline PDF preview (iframe, Tectonic-compiled) in result state
+- Strategic analysis (GOOD FIT / GAPS / IMPROVEMENT PLAN) shown before download
+- Selected projects bar — see which projects the AI chose to emphasize
+- Cover letter editable before download; PATCH endpoint persists edits
+- Cover letter PDF download (LaTeX-compiled, charter font)
+- LaTeX source toggle with copy button
+- Mark applied / Got interview / offer status actions
+- `/applications` page — full history with filter tabs and grouped timeline
 
 ### Sprint 4 — Deploy to Railway ✅ Done
 - Backend service: FastAPI on Railway (railway.toml + nixpacks)
@@ -44,11 +47,19 @@ using his persistent profile DB. Copy into Overleaf, apply on LinkedIn.
 
 - Auto-extract job title + company from JD (no manual input fields)
 - Token usage tracking per generation (input, output, cache read/write)
-- Cost estimate per generation (`cost_usd` computed from token counts, shown on results page)
-- Cover letter PDF download endpoint (`GET /admin/jobs/{id}/cover-letter.pdf`)
-- Regenerate button on results page (re-runs generation with stored JD)
-- Removed duplicate fit rationale card
-- Merged "Analyze Fit" + "Generate Materials" into single button
+- Cost estimate per generation (`cost_usd` computed from token counts)
+- Cover letter PDF download — separate LaTeX template (charter font, gray header band)
+- Cover letter editable in UI before download (PATCH endpoint persists edits)
+- Regenerate button (re-runs generation with stored JD)
+- Inline PDF preview in result state (iframe via `/resume-preview.pdf`)
+- Selected projects field — AI commits to project list before writing; shown as "Emphasized" pills
+- Candidacy insights — synthesizes pattern across 3+ applications; cached 1 hour in localStorage
+- `/applications` page — full history browser with filter tabs and grouped timeline
+- `cover_letter_voice` field on PersonalInfo — injected into cover letter generation prompt
+- Rate limiting: 30/hour generate/regenerate, 20/hour insights (slowapi)
+- API key auth on all `/admin/` routes (opt-in via `API_KEY` env var)
+- SQL migration runner on startup (idempotent, alphabetical order from `backend/migrations/`)
+- Tectonic package cache warmed at startup in background task
 
 ## Later (when new projects ship)
 

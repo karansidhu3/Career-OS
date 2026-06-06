@@ -64,37 +64,57 @@ No navigation. No page transitions. One surface.
 
 ```
 PRIMARY SURFACE: /
-  idle       → textarea focused, faint recent list (≤4 bare text rows)
+  idle       → textarea focused, JD persisted in sessionStorage and restored on load
+               candidacy insights (headline/observed/gap/action) shown after 3+ applications
+               faint recent list (≤4 bare text rows)
+               setup nudge if profile is empty
   generating → cycling messages + elapsed timer, no navigation
-  result     → inline: fit + downloads + cover letter + LaTeX source
+  result     → strategic analysis (GOOD FIT / GAPS / IMPROVEMENT PLAN)
+               selected projects bar (which projects the AI chose — "Emphasized" pills)
+               inline PDF preview (iframe, compiled on demand)
+               resume download button + status actions (Mark applied / Got interview)
+               cover letter — editable before download, saved via PATCH
+               cover letter PDF download (compiled via LaTeX, charter font + gray header)
+               LaTeX source toggle (expandable, copy button)
   error      → message + retry/reset inline
 
 ARCHIVE: /jobs/[id]
   → Deep-link to a specific past result
   → Single-scroll layout, no tabs
 
+APPLICATIONS: /applications
+  → Full history browser
+  → Filter tabs (all / generated / applied / interview / offer / skipped)
+  → Grouped timeline (Active pinned at top, This week, Earlier)
+  → Each row shows gap signal from strategic_note
+
 HISTORY DRAWER
   → Archive icon in navbar → slides in from right
-  → Bare list: title, fit score, date
-  → Interview/offer items pinned at top with amber marker
+  → Bare list: title, company, date
+  → Interview/offer items highlighted with amber dot
 
 PROFILE: /profile
   → Person icon in navbar
-  → Full profile editor
-  → Rare interaction — configure once, update occasionally
+  → Full profile editor: personal info, education, experience, projects, skills
+  → cover_letter_voice field — how Karan writes, injected into cover letter prompt
+  → Rare interaction — configure once, update when new work lands
 ```
 
-Navbar: wordmark left, two icons right (history, profile). No labels.
+Navbar: wordmark left, two icons right (archive/history drawer, profile). No labels. Amber dot on archive icon when interview/offer jobs exist.
 
 ---
 
 ## Visual identity
 
-Accent: indigo (`#6366F1`). Chosen for this product; not prescribed by doctrine.
+Accent: ink (`#18181B`). Chosen for this product; not prescribed by doctrine. More professional, less identifiable as a default palette choice.
 
 ---
 
-## Karan's profile (seed data)
+## Karan's profile (initial seed — DB is the source of truth)
+
+The DB is the live source of truth. The profile page (`/profile`) is where updates are made.
+This section reflects the initial seed state; the actual DB may have newer project descriptions
+or updated experience bullets.
 
 ### Personal
 - Name: Karanveer Sidhu
@@ -151,11 +171,13 @@ Accent: indigo (`#6366F1`). Chosen for this product; not prescribed by doctrine.
 
 3 paragraphs. No filler. Must read like a person wrote it.
 
-**Para 1:** What specifically caught attention about this role (from JD). One concrete sentence about fit.
-**Para 2:** The most relevant project, described technically. Name it. Results where possible.
+**Para 1:** What specifically caught attention about this role (from JD). One concrete sentence about fit. Don't open with "I".
+**Para 2:** The most relevant project, described technically. Name it. Name the specific technical problem and architecture decision. Results where possible. Specific enough for a hiring manager to ask a follow-up.
 **Para 3:** Short close. Available June 2026. Open to discussion.
 
-Tone: direct, confident. No em dashes. No "leveraging." No AI-sounding language.
+Voice is driven by `cover_letter_voice` in the profile — if set, apply it to every sentence. Default: direct, technical, first-person, confident without being inflated.
+
+Tone: direct, confident. No em dashes. No "leveraging." No AI-sounding language. No banned phrases (see system prompt in `generation.py` for the full list).
 
 ---
 
@@ -166,8 +188,12 @@ Tone: direct, confident. No em dashes. No "leveraging." No AI-sounding language.
 - Never fabricate experience or skills not in profile
 - Heading and education: identical every time
 - ATS keyword mirroring: extract exact terms from JD, use verbatim
-- Bullet structure: strong verb → what you built → outcome/scale
-- Max 3 bullets per experience role, max 2 per project, max 3 projects total
+- Bullet structure: specific technical noun first → number or concrete scale → what changed/replaced
+- Max 3 bullets per experience role (only if 3 strong bullets exist — two sharp beats three with filler)
+- Exactly 2 bullets per project
+- 2–4 projects total (selected by AI based on JD; committed to `selected_projects` before writing)
+- Numbers from source description are mandatory — a number in the source that's absent from the bullet is a generation failure
+- See `_SYSTEM_PROMPT_BODY` in `backend/app/services/generation.py` for the full prompt
 
 ---
 
@@ -185,9 +211,17 @@ The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generati
 
 **ADR-003** — Railway, Dockerfile-based build. Tectonic binary installed via curl during image build for server-side LaTeX→PDF compilation.
 
-**ADR-004** — Background task generation. POST `/generate` returns immediately (status="processing"). Background task calls Claude, writes result to DB. Frontend polls until done. Sidesteps Railway's HTTP proxy timeout.
+**ADR-004** — Background task generation. POST `/admin/jobs/generate` returns immediately (status="processing"). Background task calls Claude, writes result to DB. Frontend polls every 2.5s until done. Sidesteps Railway's HTTP proxy timeout.
 
 **ADR-005** — Inline generation flow. The home page (/) handles all states: idle → generating → result. No route change during the core loop. `/jobs/[id]` is the archive deep-link viewer only.
+
+**ADR-006** — All API routes are under `/admin/` prefix with optional API key auth (`X-API-Key` header). Auth is enabled when `API_KEY` env var is set; disabled in local dev. Rate limiting via slowapi: 30/hour on generate/regenerate, 20/hour on insights.
+
+**ADR-007** — Candidacy insights. After 3+ completed applications, `GET /admin/jobs/insights` synthesizes a pattern across all job strategic_notes and returns headline/observed/gap/action. Cached in localStorage for 1 hour on the frontend.
+
+**ADR-008** — Cover letter compiled to PDF server-side using a separate LaTeX template (charter font, gray header band). Plain text cover letter is stored in DB and can be edited before download; PATCH `/admin/jobs/{id}/cover-letter` persists edits.
+
+**ADR-009** — Tectonic package cache warmed at startup. First real PDF request is fast; warmup happens in a background asyncio task so it doesn't block server startup.
 
 ---
 

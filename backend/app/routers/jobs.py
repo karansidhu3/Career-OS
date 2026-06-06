@@ -36,7 +36,6 @@ def _apply_result(job: Job, result: dict) -> None:
     if job.company:
         job.company = job.company[:200]
     job.fit_score = result["fit_score"]
-    job.fit_rationale = result["fit_rationale"]
     # Cap AI output lengths — malformed responses cannot exhaust DB storage
     job.resume_latex = (result.get("resume_latex") or "")[:120_000]
     # Strip em dashes from cover letter — model sometimes ignores the language rule.
@@ -95,14 +94,14 @@ def _escape_latex(text: str) -> str:
 
 
 # LaTeX cover letter template.
-# Uses charter font, eso-pic gray header band, fontawesome5 contact icons.
+# Uses charter font, eso-pic gray header band, fontawesome contact icons.
 # Placeholders: <<DATE>>, <<RELINE>>, <<BODY>>
 _COVER_LETTER_LATEX = r"""\documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{charter}
 \usepackage[left=0.85in, right=0.85in, top=0.5in, bottom=0.85in]{geometry}
-\usepackage{fontawesome5}
+\usepackage{fontawesome}
 \usepackage[hidelinks]{hyperref}
 \usepackage{xcolor}
 \usepackage{eso-pic}

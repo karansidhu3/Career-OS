@@ -26,7 +26,6 @@ function AnalysisSection({ title, bullets }: { title: string; bullets: string[] 
 }
 
 function FitCard({ job }: { job: Job }) {
-  const score = job.fit_score ?? 0
   const analysis = parseStrategicNote(job.strategic_note)
   const hasContent = analysis || job.strategic_note || (job.fit_rationale && job.fit_rationale.length > 0)
   if (!hasContent) return null

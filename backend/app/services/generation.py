@@ -499,13 +499,6 @@ GENERATE_TOOL = {
                 "minimum": 1,
                 "maximum": 10,
             },
-            "fit_rationale": {
-                "type": "array",
-                "description": "Exactly 3 specific bullets explaining the score. Name what matches exactly and name real gaps. Help Karan decide whether to apply — not validate a decision already made.",
-                "items": {"type": "string"},
-                "minItems": 3,
-                "maxItems": 3,
-            },
             "resume_latex": {
                 "type": "string",
                 "description": (
@@ -538,7 +531,7 @@ GENERATE_TOOL = {
                 "description": "Structured analysis in EXACTLY this format:\n\nGOOD FIT\n• [specific reason, under 12 words]\n• [second reason if distinct]\n\nGAPS\n• [specific missing technology or experience from JD]\n• [second gap if different]\n\nIMPROVEMENT PLAN\n• [concrete action naming a specific project or skill]\n• [second action if different gap]\n\nRules: 1-3 bullets per section, each under 12 words, specific technologies and project names only.",
             },
         },
-        "required": ["selected_projects", "fit_score", "fit_rationale", "resume_latex", "cover_letter", "job_title", "job_company", "strategic_note"],
+        "required": ["selected_projects", "fit_score", "resume_latex", "cover_letter", "job_title", "job_company", "strategic_note"],
     },
 }
 
