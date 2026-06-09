@@ -119,11 +119,11 @@ _COVER_LETTER_LATEX = r"""\documentclass[11pt]{article}
 
 \vspace*{0.04in}
 \begin{center}
-{\fontsize{26}{30}\selectfont\scshape Karanveer Sidhu}\\[5pt]
+{\fontsize{26}{30}\selectfont\scshape Karanveer Sidhu}\\\vspace{5pt}
 {\small\color[RGB]{80,80,80}
   \href{mailto:karansidhu5550@gmail.com}{\faEnvelope\enspace karansidhu5550@gmail.com}\hspace{10pt}%
   \href{tel:+12505092500}{\faPhone\enspace +1 (250) 509-2500}\hspace{10pt}%
-  \href{https://linkedin.com/in/karan-sidhu3}{\faLinkedinIn\enspace linkedin.com/in/karan-sidhu3}\hspace{10pt}%
+  \href{https://linkedin.com/in/karan-sidhu3}{\faLinkedin\enspace linkedin.com/in/karan-sidhu3}\hspace{10pt}%
   \href{https://github.com/karansidhu3}{\faGithub\enspace github.com/karansidhu3}%
 }
 \end{center}
