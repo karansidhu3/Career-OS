@@ -24,7 +24,7 @@ type AppState =
 function getGenMessage(elapsed: number): string {
   if (elapsed < 14) return 'Generating your application…'
   if (elapsed < 32) return 'Matching your background to this role…'
-  return 'This is taking a moment…'
+  return 'Finishing your resume…'
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ function AnalysisSection({ title, bullets }: { title: string; bullets: string[] 
   if (!bullets.length) return null
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-2">{title}</p>
+      <SectionLabel className="mb-2">{title}</SectionLabel>
       <ul className="space-y-1.5">
         {bullets.map((b, i) => (
           <li key={i} className="flex gap-2.5 text-[15px] text-neutral-700 leading-snug">
@@ -67,7 +67,7 @@ function LatexSection({ latex }: { latex: string }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={spring.snappy}
             className="overflow-hidden"
           >
             <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
@@ -681,7 +681,7 @@ export default function Home() {
                           <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--c-warn)' }} />
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-neutral-600 group-hover:text-neutral-700 transition-colors tabular-nums">
+                      <span className="shrink-0 text-xs text-neutral-500 font-mono tabular-nums">
                         {job.created_at ? relativeDate(job.created_at) : ''}
                       </span>
                     </Link>
@@ -701,10 +701,7 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={spring.gentle}
           >
-            <div
-              className="flex flex-col items-center justify-center gap-8"
-              style={{ minHeight: 'calc(100vh - 180px)' }}
-            >
+            <div className="flex flex-col items-center gap-5 pt-28">
               {/* Spinner — clean, no ambient glow */}
               <div className="w-10 h-10 relative">
                 <div className="absolute inset-0 rounded-full" style={{ border: '2px solid var(--c-accent-dim)' }} />
@@ -719,7 +716,7 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={spring.gentle}
-                  className="text-[15px] text-neutral-600 font-medium text-center"
+                  className="text-[14px] text-neutral-500 text-center"
                 >
                   {getGenMessage(genElapsed)}
                 </motion.p>
@@ -892,8 +889,7 @@ export default function Home() {
               </div>
 
               <div className="text-center">
-                <p className="text-neutral-700 font-medium">Something went wrong</p>
-                <p className="text-sm text-neutral-400 mt-1 max-w-xs">{appState.message}</p>
+                <p className="text-[15px] text-neutral-700 font-medium max-w-xs">{appState.message}</p>
               </div>
 
               <div className="flex items-center gap-3 mt-2">

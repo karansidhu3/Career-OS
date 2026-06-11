@@ -102,7 +102,7 @@ function AppRow({ job, i }: { job: Job; i: number }) {
       </span>
 
       {/* Date */}
-      <span className="text-xs text-neutral-500 shrink-0">
+      <span className="text-xs text-neutral-500 font-mono tabular-nums shrink-0">
         {job.created_at ? relativeDate(job.created_at) : ''}
       </span>
     </motion.button>
