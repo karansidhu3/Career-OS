@@ -4,8 +4,8 @@
     {
       "name": "careeros-demo",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "3002"],
-      "port": 3002,
+      "runtimeArgs": ["run", "dev", "--", "--port", "3003"],
+      "port": 3003,
       "autoPort": false,
       "cwd": "frontend",
       "env": {
