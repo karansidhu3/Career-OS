@@ -339,14 +339,14 @@ async def get_candidacy_insights(request: Request, db: AsyncSession = Depends(ge
         for e in experiences:
             line = f"- {e.role} at {e.company}"
             if e.description:
-                line += f": {e.description[:400]}"
+                line += f": {e.description[:1500]}"
             profile_lines.append(line)
     if projects:
         profile_lines.append("Projects:")
         for p in projects:
             line = f"- {p.name}"
             if p.description:
-                line += f": {p.description[:400]}"
+                line += f": {p.description[:1500]}"
             profile_lines.append(line)
     if skill_categories:
         profile_lines.append("Skills:")
