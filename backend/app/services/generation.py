@@ -685,12 +685,14 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
 
 _INSIGHTS_SYSTEM = (
     "You are reviewing Karanveer Sidhu's job search history as a direct advisor. "
-    "The input begins with 'Current profile skills' — these are the skills currently in the profile.\n\n"
+    "The input begins with 'Current profile' — the full current state of the profile "
+    "(experience descriptions, project descriptions, and skill categories).\n\n"
     "Find the single most actionable pattern across all applications: a technology, skill type, "
     "or experience gap that appears repeatedly in JDs and is absent from the profile.\n\n"
-    "IMPORTANT: Before calling any skill a gap, check it against 'Current profile skills'. "
-    "If a technology flagged in old applications is now in the current profile skills list, "
-    "it is no longer a gap — find a different actionable gap instead.\n\n"
+    "IMPORTANT: Read the full profile carefully before identifying any gap. "
+    "A technology mentioned anywhere in the profile — experience descriptions, project descriptions, "
+    "or skill lists — is NOT a gap. Only flag something as a gap if it genuinely does not appear "
+    "anywhere in the current profile.\n\n"
     "Produce four fields. Each field is one thing, stated once, under 25 words.\n\n"
     "Hard rules: no em dashes, no adverbs, no filler phrases. "
     "Name exact technologies. Name specific projects (MarketMind, TA platform). Be precise."
@@ -740,18 +742,19 @@ _INSIGHTS_TOOL = {
 
 async def generate_insights(
     job_summaries: list[dict],
-    profile_skills: list[str] | None = None,
+    profile_context: str | None = None,
 ) -> dict[str, str | None]:
     """Synthesize a candidacy observation from a list of job application summaries.
 
     Returns: {"headline": str | None, "observed": str | None, "gap": str | None, "action": str | None}
     Each summary dict should have: title, company (optional), strategic_note (optional),
     description_snippet (optional, first 400 chars of JD for older jobs without a strategic_note).
-    profile_skills: current flat list of skills from the profile (used to avoid flagging addressed gaps).
+    profile_context: full profile text (experience/project descriptions + skills) used to avoid
+    flagging gaps the candidate has already addressed.
     """
     lines: list[str] = []
-    if profile_skills:
-        lines.append(f"Current profile skills: {', '.join(profile_skills)}\n")
+    if profile_context:
+        lines.append(f"Current profile:\n{profile_context}\n")
     lines.append(f"Applications analyzed: {len(job_summaries)}\n")
     for s in job_summaries:
         entry = f"- {s.get('title') or 'Unknown role'}"

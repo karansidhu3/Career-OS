@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
-from app.models.profile import SkillCategory
+from app.models.profile import Experience, Project, SkillCategory
 from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobRead, StatusUpdate
 from app.services.generation import generate_insights, generate_materials
 from app.services.pdf import compile_latex_to_pdf
@@ -324,12 +324,38 @@ async def get_candidacy_insights(request: Request, db: AsyncSession = Depends(ge
         for j in jobs
     ]
 
-    skill_categories = (await db.execute(
-        select(SkillCategory).order_by(SkillCategory.sort_order)
-    )).scalars().all()
-    profile_skills = [s for cat in skill_categories for s in (cat.items or []) if s and s.strip()]
+    skill_categories, experiences, projects = await asyncio.gather(
+        db.execute(select(SkillCategory).order_by(SkillCategory.sort_order)),
+        db.execute(select(Experience).order_by(Experience.sort_order)),
+        db.execute(select(Project).order_by(Project.sort_order)),
+    )
+    skill_categories = skill_categories.scalars().all()
+    experiences = experiences.scalars().all()
+    projects = projects.scalars().all()
 
-    result = await generate_insights(summaries, profile_skills=profile_skills)
+    profile_lines: list[str] = []
+    if experiences:
+        profile_lines.append("Experience:")
+        for e in experiences:
+            line = f"- {e.role} at {e.company}"
+            if e.description:
+                line += f": {e.description[:400]}"
+            profile_lines.append(line)
+    if projects:
+        profile_lines.append("Projects:")
+        for p in projects:
+            line = f"- {p.name}"
+            if p.description:
+                line += f": {p.description[:400]}"
+            profile_lines.append(line)
+    if skill_categories:
+        profile_lines.append("Skills:")
+        for cat in skill_categories:
+            if cat.items:
+                profile_lines.append(f"- {cat.category}: {', '.join(cat.items)}")
+    profile_context = "\n".join(profile_lines) if profile_lines else None
+
+    result = await generate_insights(summaries, profile_context=profile_context)
     return CandidacyInsightsRead(
         headline=result.get("headline"),
         observed=result.get("observed"),
