@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, FullProfile, Project, Experience, SkillCategory } from '@/lib/api'
+import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
 
@@ -915,6 +916,15 @@ export default function ProfilePage() {
         transition={spring.gentle}
         className="pt-10 mb-10"
       >
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ ...spring.bouncy, delay: 0.04 }}
+          className="mb-4 text-neutral-600"
+          style={{ opacity: 0.45 }}
+        >
+          <BrandMark size={28} physicalStroke={1.5} />
+        </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Profile</h1>
       </motion.div>
 

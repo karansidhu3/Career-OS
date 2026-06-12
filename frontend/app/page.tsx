@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { api, CandidacyInsights, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
@@ -20,6 +20,12 @@ type AppState =
   | { mode: 'error'; jobId?: number; message: string }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+function fitScoreColor(score: number): string {
+  if (score >= 8) return '#10b981'
+  if (score >= 6) return '#f59e0b'
+  return '#ef4444'
+}
 
 function getGenMessage(elapsed: number): string {
   if (elapsed < 14) return 'Generating your application…'
@@ -356,16 +362,6 @@ export default function Home() {
   })
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  // Gradient border — tracks focus state of the JD input
-  const [jdFocused, setJdFocused] = useState(false)
-  // Cursor spotlight — ref-based to avoid React re-renders on every mousemove
-  const spotlightRef = useRef<HTMLDivElement>(null)
-  // Magnetic generate button
-  const generateBtnRef = useRef<HTMLButtonElement>(null)
-  const magnetX = useMotionValue(0)
-  const magnetY = useMotionValue(0)
-  const springX = useSpring(magnetX, { stiffness: 520, damping: 32 })
-  const springY = useSpring(magnetY, { stiffness: 520, damping: 32 })
 
   // ── Restore JD from sessionStorage on mount ──
   useEffect(() => {
@@ -526,48 +522,9 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appState.mode, submitting, jd])
 
-  // ── Cursor spotlight — warm ambient light follows the mouse ──
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (spotlightRef.current) {
-        spotlightRef.current.style.background =
-          `radial-gradient(700px circle at ${e.clientX}px ${e.clientY}px, rgba(245,158,11,0.065), transparent 50%)`
-      }
-    }
-    window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [])
-
-  // ── Magnetic generate button ──
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const btn = generateBtnRef.current
-      if (!btn) return
-      const rect = btn.getBoundingClientRect()
-      const dx = e.clientX - (rect.left + rect.width / 2)
-      const dy = e.clientY - (rect.top + rect.height / 2)
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      const threshold = 80
-      if (dist < threshold) {
-        const pull = (1 - dist / threshold) * 0.4
-        magnetX.set(dx * pull)
-        magnetY.set(dy * pull)
-      } else {
-        magnetX.set(0)
-        magnetY.set(0)
-      }
-    }
-    window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [magnetX, magnetY])
-
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <>
-    {/* Cursor spotlight — warm light follows mouse, no React re-renders */}
-    <div ref={spotlightRef} aria-hidden className="pointer-events-none fixed inset-0" style={{ zIndex: 0 }} />
-
     <div className="max-w-3xl mx-auto px-6 pb-24">
       <AnimatePresence mode="wait">
 
@@ -584,9 +541,9 @@ export default function Home() {
 
               {/* ── Brand mark — glow emanates from the ring stroke itself ── */}
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ ...spring.gentle, delay: 0.05 }}
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ ...spring.bouncy, delay: 0.05 }}
                 className="flex justify-center mb-5"
               >
                 <span className="brand-ring-glow text-neutral-600" style={{ opacity: 0.55 }}>
@@ -594,20 +551,13 @@ export default function Home() {
                 </span>
               </motion.div>
 
-              {/* ── Workspace zone — gradient border animates when empty ── */}
+              {/* ── Workspace zone ── */}
               <div
-                className={`rounded-2xl p-[1px] transition-all duration-500 ${!jd.trim() && !jdFocused ? 'jd-border-animated' : ''}`}
-                style={{
-                  background: !jd.trim() && !jdFocused
-                    ? `conic-gradient(from var(--border-angle, 0deg), rgba(245,158,11,0.22), rgba(205,127,50,0.16), rgba(244,114,182,0.12), rgba(205,127,50,0.16), rgba(245,158,11,0.22))`
-                    : 'var(--c-glass-border)',
-                }}
-              >
-              <div
-                className="rounded-[15px] relative cursor-text"
+                className="rounded-2xl relative cursor-text"
                 onClick={() => textareaRef.current?.focus()}
                 style={{
                   background: 'var(--c-glass-bg)',
+                  border: '1px solid var(--c-glass-border)',
                   boxShadow: 'var(--c-glass-shadow)',
                 }}
               >
@@ -620,8 +570,6 @@ export default function Home() {
                     ref={textareaRef}
                     value={jd}
                     onChange={e => handleJdChange(e.target.value)}
-                    onFocus={() => setJdFocused(true)}
-                    onBlur={() => setJdFocused(false)}
                     placeholder="Paste a job description…"
                     disabled={submitting}
                     className="jd-textarea w-full text-[15px] text-neutral-800 placeholder-neutral-500 focus:outline-none leading-relaxed disabled:opacity-40"
@@ -632,11 +580,9 @@ export default function Home() {
                 {/* Generate affordance — anchored bottom-right inside the zone */}
                 <div className="absolute bottom-5 right-7">
                   <motion.button
-                    ref={generateBtnRef}
                     onClick={handleGenerate}
                     disabled={submitting || !jd.trim()}
                     whileTap={{ scale: 0.97 }}
-                    style={{ x: springX, y: springY }}
                     className="flex items-center gap-2 text-sm text-neutral-700 hover:text-neutral-900 disabled:opacity-30 transition-colors"
                   >
                     {submitting ? (
@@ -662,7 +608,6 @@ export default function Home() {
                   </motion.button>
                 </div>
               </div>
-              </div>{/* end gradient border wrapper */}
 
               {/* ── Output hint — what arrives, or setup nudge if profile is empty ── */}
               <div className="mt-3 text-center">
@@ -870,30 +815,27 @@ export default function Home() {
 
             {/* Title + company */}
             <div className="flex items-baseline gap-3 flex-wrap mb-1">
-              <h1
-                className="text-[2rem] font-semibold leading-tight tracking-tight"
-                aria-label={appState.job.title}
-                style={{
-                  background: 'linear-gradient(160deg, #111110 0%, #3a1e0c 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                {appState.job.title.split('').map((char, i) => (
-                  <motion.span
-                    key={i}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.22, delay: 0.04 + i * 0.011 }}
-                  >
-                    {char === ' ' ? ' ' : char}
-                  </motion.span>
-                ))}
+              <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
+                {appState.job.title}
               </h1>
             </div>
             {appState.job.company && (
               <p className="text-[15px] text-neutral-600 mb-0">{appState.job.company}</p>
+            )}
+            {appState.job.fit_score != null && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ ...spring.bouncy, delay: 0.1 }}
+                className="flex items-center gap-1.5 mt-2"
+              >
+                <span style={{ color: fitScoreColor(appState.job.fit_score), filter: `drop-shadow(0 0 4px ${fitScoreColor(appState.job.fit_score)})` }}>
+                  <BrandMark size={14} physicalStroke={1.8} />
+                </span>
+                <span className="text-xs font-mono tabular-nums" style={{ color: fitScoreColor(appState.job.fit_score) }}>
+                  {appState.job.fit_score}/10
+                </span>
+              </motion.div>
             )}
 
             {/* Analysis first — decide whether to apply before you download */}
@@ -1055,6 +997,5 @@ export default function Home() {
 
       </AnimatePresence>
     </div>
-    </>
   )
 }

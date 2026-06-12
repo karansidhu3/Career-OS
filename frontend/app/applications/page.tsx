@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { api, Job } from '@/lib/api'
+import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
 import { relativeDate, parseStrategicNote } from '@/lib/utils'
@@ -147,6 +148,15 @@ export default function ApplicationsPage() {
         transition={spring.gentle}
         className="pt-10 mb-6"
       >
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ ...spring.bouncy, delay: 0.04 }}
+          className="mb-4 text-neutral-600"
+          style={{ opacity: 0.45 }}
+        >
+          <BrandMark size={28} physicalStroke={1.5} />
+        </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Applications</h1>
         <p className="text-neutral-600 mt-1 text-sm">{jobs.length} total</p>
 

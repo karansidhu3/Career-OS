@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
+from app.models.profile import SkillCategory
 from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobRead, StatusUpdate
 from app.services.generation import generate_insights, generate_materials
 from app.services.pdf import compile_latex_to_pdf
@@ -323,7 +324,12 @@ async def get_candidacy_insights(request: Request, db: AsyncSession = Depends(ge
         for j in jobs
     ]
 
-    result = await generate_insights(summaries)
+    skill_categories = (await db.execute(
+        select(SkillCategory).order_by(SkillCategory.sort_order)
+    )).scalars().all()
+    profile_skills = [s for cat in skill_categories for s in (cat.items or []) if s and s.strip()]
+
+    result = await generate_insights(summaries, profile_skills=profile_skills)
     return CandidacyInsightsRead(
         headline=result.get("headline"),
         observed=result.get("observed"),
