@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion'
 import { api, CandidacyInsights, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
@@ -303,6 +303,32 @@ function Divider() {
   return <div className="my-8" style={{ borderTop: '1px solid var(--c-border)' }} />
 }
 
+// ─── Generating skeleton — ghost of what's being built ──────────────────────
+
+function GeneratingSkeleton() {
+  return (
+    <div className="w-full mt-14 pointer-events-none" aria-hidden>
+      <div className="opacity-[0.065]">
+        {/* Title + company placeholders */}
+        <div className="h-9 w-[58%] rounded-lg skeleton-shimmer mb-2.5" />
+        <div className="h-4 w-[26%] rounded skeleton-shimmer mb-10" />
+        {/* Three analysis stubs */}
+        {([[58, 44], [62, 50], [54, 46]] as [number, number][]).map(([w1, w2], i) => (
+          <div key={i} className="mb-7">
+            <div className="h-2 w-12 rounded skeleton-shimmer mb-3" />
+            <div className="space-y-2.5">
+              <div className="h-4 rounded skeleton-shimmer" style={{ width: `${w1}%` }} />
+              <div className="h-4 rounded skeleton-shimmer" style={{ width: `${w2}%` }} />
+            </div>
+          </div>
+        ))}
+        {/* PDF ghost */}
+        <div className="h-[340px] rounded-sm skeleton-shimmer mt-8" />
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -330,6 +356,16 @@ export default function Home() {
   })
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Gradient border — tracks focus state of the JD input
+  const [jdFocused, setJdFocused] = useState(false)
+  // Cursor spotlight — ref-based to avoid React re-renders on every mousemove
+  const spotlightRef = useRef<HTMLDivElement>(null)
+  // Magnetic generate button
+  const generateBtnRef = useRef<HTMLButtonElement>(null)
+  const magnetX = useMotionValue(0)
+  const magnetY = useMotionValue(0)
+  const springX = useSpring(magnetX, { stiffness: 520, damping: 32 })
+  const springY = useSpring(magnetY, { stiffness: 520, damping: 32 })
 
   // ── Restore JD from sessionStorage on mount ──
   useEffect(() => {
@@ -490,9 +526,48 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appState.mode, submitting, jd])
 
+  // ── Cursor spotlight — warm ambient light follows the mouse ──
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (spotlightRef.current) {
+        spotlightRef.current.style.background =
+          `radial-gradient(700px circle at ${e.clientX}px ${e.clientY}px, rgba(245,158,11,0.065), transparent 50%)`
+      }
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [])
+
+  // ── Magnetic generate button ──
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const btn = generateBtnRef.current
+      if (!btn) return
+      const rect = btn.getBoundingClientRect()
+      const dx = e.clientX - (rect.left + rect.width / 2)
+      const dy = e.clientY - (rect.top + rect.height / 2)
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const threshold = 80
+      if (dist < threshold) {
+        const pull = (1 - dist / threshold) * 0.4
+        magnetX.set(dx * pull)
+        magnetY.set(dy * pull)
+      } else {
+        magnetX.set(0)
+        magnetY.set(0)
+      }
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [magnetX, magnetY])
+
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <>
+    {/* Cursor spotlight — warm light follows mouse, no React re-renders */}
+    <div ref={spotlightRef} aria-hidden className="pointer-events-none fixed inset-0" style={{ zIndex: 0 }} />
+
     <div className="max-w-3xl mx-auto px-6 pb-24">
       <AnimatePresence mode="wait">
 
@@ -519,13 +594,20 @@ export default function Home() {
                 </span>
               </motion.div>
 
-              {/* ── Workspace zone — glass focal point ── */}
+              {/* ── Workspace zone — gradient border animates when empty ── */}
               <div
-                className="rounded-2xl relative cursor-text"
+                className={`rounded-2xl p-[1px] transition-all duration-500 ${!jd.trim() && !jdFocused ? 'jd-border-animated' : ''}`}
+                style={{
+                  background: !jd.trim() && !jdFocused
+                    ? `conic-gradient(from var(--border-angle, 0deg), rgba(245,158,11,0.22), rgba(205,127,50,0.16), rgba(244,114,182,0.12), rgba(205,127,50,0.16), rgba(245,158,11,0.22))`
+                    : 'var(--c-glass-border)',
+                }}
+              >
+              <div
+                className="rounded-[15px] relative cursor-text"
                 onClick={() => textareaRef.current?.focus()}
                 style={{
                   background: 'var(--c-glass-bg)',
-                  border: '1px solid var(--c-glass-border)',
                   boxShadow: 'var(--c-glass-shadow)',
                 }}
               >
@@ -538,6 +620,8 @@ export default function Home() {
                     ref={textareaRef}
                     value={jd}
                     onChange={e => handleJdChange(e.target.value)}
+                    onFocus={() => setJdFocused(true)}
+                    onBlur={() => setJdFocused(false)}
                     placeholder="Paste a job description…"
                     disabled={submitting}
                     className="jd-textarea w-full text-[15px] text-neutral-800 placeholder-neutral-500 focus:outline-none leading-relaxed disabled:opacity-40"
@@ -548,9 +632,11 @@ export default function Home() {
                 {/* Generate affordance — anchored bottom-right inside the zone */}
                 <div className="absolute bottom-5 right-7">
                   <motion.button
+                    ref={generateBtnRef}
                     onClick={handleGenerate}
                     disabled={submitting || !jd.trim()}
                     whileTap={{ scale: 0.97 }}
+                    style={{ x: springX, y: springY }}
                     className="flex items-center gap-2 text-sm text-neutral-700 hover:text-neutral-900 disabled:opacity-30 transition-colors"
                   >
                     {submitting ? (
@@ -576,6 +662,7 @@ export default function Home() {
                   </motion.button>
                 </div>
               </div>
+              </div>{/* end gradient border wrapper */}
 
               {/* ── Output hint — what arrives, or setup nudge if profile is empty ── */}
               <div className="mt-3 text-center">
@@ -701,14 +788,28 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={spring.gentle}
           >
-            <div className="flex flex-col items-center gap-5 pt-28">
-              {/* Spinner — clean, no ambient glow */}
-              <div className="w-10 h-10 relative">
-                <div className="absolute inset-0 rounded-full" style={{ border: '2px solid var(--c-accent-dim)' }} />
-                <div className="absolute inset-0 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent)', borderTopColor: 'transparent' }} />
-              </div>
+            {/* Brand arc + message — compressed upper area */}
+            <div className="flex flex-col items-center gap-5 pt-24">
+              {/* Ring becomes a spinning arc — same mark, active state */}
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
+                style={{ width: 52, height: 52 }}
+                className="brand-ring-glow"
+              >
+                <svg width={52} height={52} viewBox="0 0 52 52" fill="none">
+                  <circle cx={26} cy={26} r={19.5} stroke="var(--c-accent-dim)" strokeWidth={1.5} />
+                  <circle
+                    cx={26} cy={26} r={19.5}
+                    stroke="var(--c-accent)"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeDasharray="79.6 42.9"
+                  />
+                </svg>
+              </motion.div>
 
-              {/* Message — honest stages, calm transitions */}
+              {/* Message */}
               <AnimatePresence mode="wait">
                 <motion.p
                   key={getGenMessage(genElapsed)}
@@ -722,6 +823,9 @@ export default function Home() {
                 </motion.p>
               </AnimatePresence>
             </div>
+
+            {/* Skeleton — ghost of what's being built */}
+            <GeneratingSkeleton />
           </motion.div>
         )}
 
@@ -734,6 +838,18 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={spring.standard}
           >
+            {/* Watermark ring — atmospheric depth, barely there */}
+            <div
+              aria-hidden
+              className="pointer-events-none fixed"
+              style={{ right: -140, top: '50%', transform: 'translateY(-50%)', opacity: 0.038, zIndex: 0, color: 'var(--c-accent)' }}
+            >
+              <svg width={520} height={520} viewBox="0 0 520 520" fill="none" stroke="currentColor">
+                <circle cx={260} cy={260} r={238} strokeWidth={1} />
+                <circle cx={260} cy={260} r={188} strokeWidth={0.5} />
+              </svg>
+            </div>
+
             {/* Header — elevates after download to signal readiness for next */}
             <div className="pt-8 mb-8">
               <button
@@ -754,8 +870,26 @@ export default function Home() {
 
             {/* Title + company */}
             <div className="flex items-baseline gap-3 flex-wrap mb-1">
-              <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
-                {appState.job.title}
+              <h1
+                className="text-[2rem] font-semibold leading-tight tracking-tight"
+                aria-label={appState.job.title}
+                style={{
+                  background: 'linear-gradient(160deg, #111110 0%, #3a1e0c 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                {appState.job.title.split('').map((char, i) => (
+                  <motion.span
+                    key={i}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.22, delay: 0.04 + i * 0.011 }}
+                  >
+                    {char === ' ' ? ' ' : char}
+                  </motion.span>
+                ))}
               </h1>
             </div>
             {appState.job.company && (
@@ -921,5 +1055,6 @@ export default function Home() {
 
       </AnimatePresence>
     </div>
+    </>
   )
 }

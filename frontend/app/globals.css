@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+/* ─── CSS Property Registrations ────────────────────────────── */
+@property --border-angle { syntax: '<angle>';      initial-value: 0deg; inherits: false; }
+@property --blob-ax      { syntax: '<percentage>'; initial-value: 12%;  inherits: false; }
+@property --blob-ay      { syntax: '<percentage>'; initial-value: 20%;  inherits: false; }
+@property --blob-bx      { syntax: '<percentage>'; initial-value: 85%;  inherits: false; }
+@property --blob-by      { syntax: '<percentage>'; initial-value: 14%;  inherits: false; }
+@property --blob-cx      { syntax: '<percentage>'; initial-value: 52%;  inherits: false; }
+@property --blob-cy      { syntax: '<percentage>'; initial-value: 88%;  inherits: false; }
+
+/* ─── Global Keyframes ───────────────────────────────────────── */
+@keyframes borderRotate { to { --border-angle: 360deg; } }
+
+@keyframes blobA {
+  0%, 100% { --blob-ax: 12%; --blob-ay: 20%; }
+  50%       { --blob-ax: 28%; --blob-ay: 7%;  }
+}
+@keyframes blobB {
+  0%, 100% { --blob-bx: 85%; --blob-by: 14%; }
+  50%       { --blob-bx: 68%; --blob-by: 35%; }
+}
+@keyframes blobC {
+  0%, 100% { --blob-cx: 52%; --blob-cy: 88%; }
+  50%       { --blob-cx: 36%; --blob-cy: 68%; }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 
@@ -77,20 +107,32 @@ body {
 
 ::selection { background: rgba(0, 0, 0, 0.08); }
 
-/* ─── Atmospheric depth + surface grain ──────────────────────── */
-/* Grain prevents synthetic flatness — imperceptible at a glance, felt as materiality */
+/* ─── Atmospheric depth: mesh blobs + surface grain ─────────── */
+/* Three warm blobs drift slowly — ambient light, not decoration */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background-image:
     url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='.032'/></svg>"),
-    radial-gradient(ellipse 90% 50% at 50% -8%,  rgba(0, 0, 0, 0.018) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 40% at 90% 110%, rgba(0, 0, 0, 0.010) 0%, transparent 60%);
-  background-size: 200px 200px, auto, auto;
-  background-repeat: repeat, no-repeat, no-repeat;
+    radial-gradient(circle at var(--blob-ax) var(--blob-ay), rgba(245, 158, 11, 0.10) 0%, transparent 45%),
+    radial-gradient(circle at var(--blob-bx) var(--blob-by), rgba(205, 127, 50, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at var(--blob-cx) var(--blob-cy), rgba(244, 114, 182, 0.055) 0%, transparent 45%);
+  background-size: 200px 200px, auto, auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  animation: blobA 24s ease-in-out infinite, blobB 30s ease-in-out infinite, blobC 20s ease-in-out infinite;
   pointer-events: none;
   z-index: 0;
+}
+
+/* ─── Gradient border rotation ──────────────────────────────── */
+.jd-border-animated { animation: borderRotate 8s linear infinite; }
+
+/* ─── Skeleton shimmer ───────────────────────────────────────── */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.07) 50%, rgba(0,0,0,0.04) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.2s ease-in-out infinite;
 }
 
 /* ─── Scrollbars ─────────────────────────────────────────────── */
@@ -202,14 +244,20 @@ body::before {
     border-color: transparent !important;
   }
 
-  /* Focused ambient glow — draws eye to content center */
+  /* Dark mesh — cooler blob C (white glow), warmer A/B remain */
   body::before {
     background-image:
       url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='.028'/></svg>"),
-      radial-gradient(ellipse 80% 55% at 50% 38%, rgba(255, 255, 255, 0.022) 0%, transparent 62%),
-      radial-gradient(ellipse 45% 35% at 82% 85%,  rgba(255, 255, 255, 0.008) 0%, transparent 55%);
-    background-size: 200px 200px, auto, auto;
-    background-repeat: repeat, no-repeat, no-repeat;
+      radial-gradient(circle at var(--blob-ax) var(--blob-ay), rgba(245, 158, 11, 0.07) 0%, transparent 45%),
+      radial-gradient(circle at var(--blob-bx) var(--blob-by), rgba(205, 127, 50, 0.055) 0%, transparent 40%),
+      radial-gradient(circle at var(--blob-cx) var(--blob-cy), rgba(255, 255, 255, 0.025) 0%, transparent 45%);
+    background-size: 200px 200px, auto, auto, auto;
+    background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%);
+    background-size: 200% 100%;
   }
 
   /* ── Invert Tailwind neutral scale — warm charcoal, no blue ─── */
