@@ -708,8 +708,10 @@ _INSIGHTS_TOOL = {
                 "type": "string",
                 "description": (
                     "4-8 words. The memorable conclusion about the dominant pattern. "
-                    "Right: 'AWS Exposure Missing Across Applications', 'Distributed Systems Gap Emerging', "
-                    "'Kubernetes Appearing in Every JD'. Wrong: 'Keep applying', 'Good progress'."
+                    "Name the specific technology or skill gap that is ABSENT from the current profile. "
+                    "Do NOT name any technology that appears in the current profile section. "
+                    "Example format: '[Technology] Gap Across Applications', '[Skill] Appearing in Every JD'. "
+                    "Wrong: 'Keep applying', 'Good progress'."
                 ),
             },
             "observed": {
@@ -722,8 +724,10 @@ _INSIGHTS_TOOL = {
             "gap": {
                 "type": "string",
                 "description": (
-                    "1-2 sentences. What specific skill or experience is absent from the profile. "
-                    "Under 25 words. Name exact technologies from the JDs."
+                    "1-2 sentences. What specific skill or experience is absent from the CURRENT PROFILE. "
+                    "Under 25 words. Name exact technologies from the JDs. "
+                    "CRITICAL: If the technology appears anywhere in the 'Current profile' section "
+                    "(experience, projects, or skills), it is NOT a gap — pick a different one."
                 ),
             },
             "action": {

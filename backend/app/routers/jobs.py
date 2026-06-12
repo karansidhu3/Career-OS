@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import logging
 import re
@@ -324,14 +323,15 @@ async def get_candidacy_insights(request: Request, db: AsyncSession = Depends(ge
         for j in jobs
     ]
 
-    skill_categories, experiences, projects = await asyncio.gather(
-        db.execute(select(SkillCategory).order_by(SkillCategory.sort_order)),
-        db.execute(select(Experience).order_by(Experience.sort_order)),
-        db.execute(select(Project).order_by(Project.sort_order)),
-    )
-    skill_categories = skill_categories.scalars().all()
-    experiences = experiences.scalars().all()
-    projects = projects.scalars().all()
+    skill_categories = (await db.execute(
+        select(SkillCategory).order_by(SkillCategory.sort_order)
+    )).scalars().all()
+    experiences = (await db.execute(
+        select(Experience).order_by(Experience.sort_order)
+    )).scalars().all()
+    projects = (await db.execute(
+        select(Project).order_by(Project.sort_order)
+    )).scalars().all()
 
     profile_lines: list[str] = []
     if experiences:
