@@ -542,12 +542,20 @@ function SkillCard({
   skill,
   onSave,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
   startEditing,
   isNew,
 }: {
   skill: SkillCategory
   onSave: (d: Omit<SkillCategory, 'id'>) => Promise<void>
   onDelete: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  canMoveUp: boolean
+  canMoveDown: boolean
   startEditing?: boolean
   isNew?: boolean
 }) {
@@ -606,6 +614,7 @@ function SkillCard({
               </div>
               <div className="shrink-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
+                <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
                 <button onClick={() => setEditing(true)}
                   className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors">
                   Edit
@@ -763,6 +772,22 @@ export default function ProfilePage() {
     updated[idxB] = { ...b, sort_order: a.sort_order }
     updated.sort((x, y) => x.sort_order - y.sort_order)
     setProfile(prev => prev ? { ...prev, projects: updated } : prev)
+  }
+
+  const swapSkillOrder = async (idxA: number, idxB: number) => {
+    const a = profile.skills[idxA]
+    const b = profile.skills[idxB]
+    const { id: _ia, ...restA } = a
+    const { id: _ib, ...restB } = b
+    await Promise.all([
+      api.updateSkillCategory(a.id, { ...restA, sort_order: b.sort_order }),
+      api.updateSkillCategory(b.id, { ...restB, sort_order: a.sort_order }),
+    ])
+    const updated = [...profile.skills]
+    updated[idxA] = { ...a, sort_order: b.sort_order }
+    updated[idxB] = { ...b, sort_order: a.sort_order }
+    updated.sort((x, y) => x.sort_order - y.sort_order)
+    setProfile(prev => prev ? { ...prev, skills: updated } : prev)
   }
 
   const swapExpOrder = async (idxA: number, idxB: number) => {
@@ -1020,7 +1045,7 @@ export default function ProfilePage() {
         <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
         <div className="space-y-3">
           <AnimatePresence>
-            {profile.skills.map(s => (
+            {profile.skills.map((s, i) => (
               <motion.div
                 key={s.id}
                 data-skill={s.id}
@@ -1040,6 +1065,10 @@ export default function ProfilePage() {
                   isNew={s.id === newSkillId}
                   onSave={data => saveSkill(s.id, data)}
                   onDelete={() => deleteSkill(s.id)}
+                  onMoveUp={() => swapSkillOrder(i, i - 1)}
+                  onMoveDown={() => swapSkillOrder(i, i + 1)}
+                  canMoveUp={i > 0}
+                  canMoveDown={i < profile.skills.length - 1}
                 />
               </motion.div>
             ))}
