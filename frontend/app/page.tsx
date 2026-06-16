@@ -466,6 +466,7 @@ export default function Home() {
       const job = await api.generate({ description: jd.trim() })
       sessionStorage.removeItem('careeros-jd')
       setAppState({ mode: 'generating', jobId: job.id })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (e) {
       setAppState({
         mode: 'error',
