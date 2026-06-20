@@ -125,6 +125,22 @@ function ResumeSection({ job }: { job: Job }) {
             }}
           />
         )}
+        {/* Download overlay — reachable without scrolling past the PDF */}
+        <div className="absolute top-3 right-3 z-10">
+          <motion.button
+            onClick={handleDownload}
+            disabled={downloading}
+            whileTap={{ scale: 0.97 }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
+            style={{
+              background: 'rgba(24,24,27,0.72)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+            }}
+          >
+            {downloading ? 'Compiling…' : 'Download PDF'}
+          </motion.button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mb-4">

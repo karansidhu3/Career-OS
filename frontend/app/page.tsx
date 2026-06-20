@@ -198,10 +198,9 @@ function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) =
         style={{
           background: 'var(--c-glass-bg)',
           border: '1px solid var(--c-glass-border)',
-          maxWidth: '520px',
         }}
       />
-      <div className="mt-4 flex items-center gap-4 flex-wrap" style={{ maxWidth: '520px' }}>
+      <div className="mt-4 flex items-center gap-4 flex-wrap">
         <motion.button
           onClick={async () => {
             setDownloading(true)
@@ -314,22 +313,47 @@ function Divider() {
 function GeneratingSkeleton() {
   return (
     <div className="w-full mt-14 pointer-events-none" aria-hidden>
-      <div className="opacity-[0.065]">
-        {/* Title + company placeholders */}
-        <div className="h-9 w-[58%] rounded-lg skeleton-shimmer mb-2.5" />
-        <div className="h-4 w-[26%] rounded skeleton-shimmer mb-10" />
-        {/* Three analysis stubs */}
-        {([[58, 44], [62, 50], [54, 46]] as [number, number][]).map(([w1, w2], i) => (
-          <div key={i} className="mb-7">
-            <div className="h-2 w-12 rounded skeleton-shimmer mb-3" />
-            <div className="space-y-2.5">
-              <div className="h-4 rounded skeleton-shimmer" style={{ width: `${w1}%` }} />
-              <div className="h-4 rounded skeleton-shimmer" style={{ width: `${w2}%` }} />
-            </div>
+      <div className="opacity-[0.07]">
+        {/* Title */}
+        <div className="h-9 w-[52%] rounded-lg skeleton-shimmer mb-2.5" />
+        {/* Company */}
+        <div className="h-4 w-[22%] rounded skeleton-shimmer mb-2.5" />
+        {/* Fit score */}
+        <div className="h-3 w-[10%] rounded skeleton-shimmer mb-8" />
+        {/* Divider */}
+        <div className="h-px w-full skeleton-shimmer mb-8" />
+        {/* Good fit */}
+        <div className="mb-7">
+          <div className="h-2 w-14 rounded skeleton-shimmer mb-3" />
+          <div className="space-y-2">
+            <div className="h-3.5 w-[68%] rounded skeleton-shimmer" />
+            <div className="h-3.5 w-[54%] rounded skeleton-shimmer" />
           </div>
-        ))}
+        </div>
+        {/* Gaps */}
+        <div className="mb-7">
+          <div className="h-2 w-8 rounded skeleton-shimmer mb-3" />
+          <div className="space-y-2">
+            <div className="h-3.5 w-[61%] rounded skeleton-shimmer" />
+          </div>
+        </div>
+        {/* Improvement plan */}
+        <div className="mb-8">
+          <div className="h-2 w-24 rounded skeleton-shimmer mb-3" />
+          <div className="space-y-2">
+            <div className="h-3.5 w-[72%] rounded skeleton-shimmer" />
+            <div className="h-3.5 w-[48%] rounded skeleton-shimmer" />
+          </div>
+        </div>
+        {/* Emphasized pills */}
+        <div className="flex items-center gap-2 mb-6">
+          <div className="h-2 w-16 rounded skeleton-shimmer" />
+          <div className="h-5 w-24 rounded-full skeleton-shimmer" />
+          <div className="h-5 w-20 rounded-full skeleton-shimmer" />
+          <div className="h-5 w-28 rounded-full skeleton-shimmer" />
+        </div>
         {/* PDF ghost */}
-        <div className="h-[340px] rounded-sm skeleton-shimmer mt-8" />
+        <div className="h-[360px] rounded-sm skeleton-shimmer" />
       </div>
     </div>
   )
@@ -409,6 +433,17 @@ export default function Home() {
       } catch { /* storage full — not critical */ }
     } catch { /* offline or no data */ }
   }, [])
+
+  const handleDownloadResume = useCallback(async () => {
+    if (appState.mode !== 'result') return
+    setResumeDownloading(true)
+    try {
+      await api.downloadResumePdf(appState.job.id, appState.job.company)
+      setResumeDownloaded(true)
+    } finally {
+      setResumeDownloading(false)
+    }
+  }, [appState])
 
   useEffect(() => { loadRecent() }, [loadRecent])
   useEffect(() => { loadInsights() }, [loadInsights])
@@ -538,14 +573,14 @@ export default function Home() {
             exit={{ opacity: 0, y: -8 }}
             transition={spring.gentle}
           >
-            <div className="pt-10">
+            <div className="pt-12">
 
               {/* ── Brand mark — glow emanates from the ring stroke itself ── */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.7 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ ...spring.bouncy, delay: 0.05 }}
-                className="flex justify-center mb-5"
+                className="flex justify-center mb-8"
               >
                 <span className="brand-ring-glow text-neutral-600" style={{ opacity: 0.55 }}>
                   <BrandMark size={56} physicalStroke={1.5} />
@@ -565,7 +600,7 @@ export default function Home() {
                 {/* Writing surface */}
                 <div
                   className="px-8 pt-7 pb-16"
-                  style={{ minHeight: '26vh' }}
+                  style={{ minHeight: '28vh' }}
                 >
                   <AutoTextarea
                     ref={textareaRef}
@@ -644,7 +679,7 @@ export default function Home() {
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ ...spring.gentle, delay: 0.2 }}
-                      className="mt-10"
+                      className="mt-12"
                     >
                       {insights.count < 3 ? (
                         /* Not enough data yet */
@@ -695,7 +730,7 @@ export default function Home() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ ...spring.gentle, delay: 0.3 }}
-                  className="mt-10 pt-5"
+                  className="mt-12 pt-6"
                   style={{ borderTop: '1px solid var(--c-border)' }}
                 >
                   <SectionLabel className="mb-3">Recent</SectionLabel>
@@ -874,9 +909,26 @@ export default function Home() {
               <SelectedProjectsBar projects={appState.job.selected_projects} />
             )}
 
-            {/* Resume preview */}
+            {/* Resume preview — overlay download anchored top-right */}
             {appState.job.resume_latex && (
-              <ResumePreview jobId={appState.job.id} />
+              <div className="relative">
+                <ResumePreview jobId={appState.job.id} />
+                <div className="absolute top-3 right-3 z-10">
+                  <motion.button
+                    onClick={handleDownloadResume}
+                    disabled={resumeDownloading}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
+                    style={{
+                      background: 'rgba(24,24,27,0.72)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                    }}
+                  >
+                    {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Saved ✓' : 'Download PDF'}
+                  </motion.button>
+                </div>
+              </div>
             )}
 
             {/* Resume download + status actions */}
@@ -888,15 +940,7 @@ export default function Home() {
             >
               {appState.job.resume_latex && (
                 <motion.button
-                  onClick={async () => {
-                    setResumeDownloading(true)
-                    try {
-                      await api.downloadResumePdf(appState.job.id, appState.job.company)
-                      setResumeDownloaded(true)
-                    } finally {
-                      setResumeDownloading(false)
-                    }
-                  }}
+                  onClick={handleDownloadResume}
                   disabled={resumeDownloading}
                   whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
