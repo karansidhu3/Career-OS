@@ -8,13 +8,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.profile import Education, Experience, PersonalInfo, Project, SkillCategory
+from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
 
-# Raw string so LaTeX backslashes are preserved; no f-string so LaTeX braces aren't misread
-LATEX_TEMPLATE = r"""
-\documentclass[letterpaper,11pt]{article}
+# Static preamble — injected by Python at assembly time; never output by Claude.
+# Contains all deterministic content: packages, custom commands, heading, education.
+LATEX_PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 
 \usepackage{latexsym}
 \usepackage[empty]{fullpage}
@@ -83,7 +83,7 @@ LATEX_TEMPLATE = r"""
 
 \begin{document}
 
-%----------HEADING (never change this)-----------------
+%----------HEADING-----------------
 \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
   \textbf{\href{https://www.linkedin.com/in/karan-sidhu3/}{\Large Karanveer Sidhu}} &
   \iconlink{\faEnvelope} \href{mailto:karansidhu5550@gmail.com}{karansidhu5550@gmail.com}\\
@@ -92,7 +92,7 @@ LATEX_TEMPLATE = r"""
   \iconlink{\faGithub} \href{https://github.com/karansidhu3}{github.com/karansidhu3} & \\
 \end{tabular*}
 
-%-----------EDUCATION (never change this)-----------------
+%-----------EDUCATION-----------------
 \section{Education}
   \resumeSubHeadingListStart
     \resumeSubheading
@@ -100,9 +100,18 @@ LATEX_TEMPLATE = r"""
       {Bachelor of Science in Computer Science, Minor in Data Science}{}
   \resumeSubHeadingListEnd
 
+"""
+
+# Body structure shown to Claude in the system prompt — variable sections only.
+# Includes command usage comments so Claude knows each command's argument signature.
+LATEX_TEMPLATE = r"""
 %-----------EXPERIENCE — tailor bullets but keep both roles-----------------
 \section{Experience}
   \resumeSubHeadingListStart
+    % \resumeSubheading{Company}{Location}{Role}{Dates}
+    %   \resumeItemListStart
+    %     \item \small{bullet text}
+    %   \resumeItemListEnd
     % Full Stack Developer at UBC — always include
     % Research Assistant at SIMLAB — always include
     % Sales Associate at Old Navy — NEVER include
@@ -111,18 +120,19 @@ LATEX_TEMPLATE = r"""
 %-----------PROJECTS — reorder by relevance, include 2-4-----------------
 \section{Projects}
   \resumeSubHeadingListStart
-    % Use \projectSubheading{Name}{Date}{Tech stack}{}{github_url}
+    % \projectSubheading{Name}{Dates}{Tech Stack}{}{github_url}
+    %   \resumeItemListStart
+    %     \item \small{bullet text}
+    %   \resumeItemListEnd
   \resumeSubHeadingListEnd
 
 %-----------SKILLS-----------------
 \section{Skills}
 \vspace{-2pt}
 \begin{itemize}[leftmargin=*, itemsep=-2pt, topsep=2pt]
-  % List skills grouped by category
+  % \item \textbf{Category:} item1, item2
 \end{itemize}
 \vspace{-6pt}
-
-\end{document}
 """
 
 _SYSTEM_PROMPT_BODY = """You are writing for a technical recruiter who spends 30 seconds per \
@@ -463,10 +473,11 @@ COVER LETTER:
 These never change:
 - Never invent skills, projects, or experience not present in the profile
 - Never include the Old Navy / Sales Associate role
-- Heading and education section content stays identical (you control formatting)
-- Output must be a complete, compilable LaTeX document
+- Output only the resume body sections (Experience, Projects, Skills) — preamble, heading, \
+and education are assembled by the system
 
-LATEX TEMPLATE (generate a complete document following this structure):
+RESUME BODY TEMPLATE (output only these variable sections — do not include \\documentclass, \
+preamble, heading, or education):
 """
 
 SYSTEM_PROMPT = _SYSTEM_PROMPT_BODY + LATEX_TEMPLATE
@@ -484,9 +495,7 @@ GENERATE_TOOL = {
             "selected_projects": {
                 "type": "array",
                 "description": (
-                    "FILL THIS FIRST — this is your project selection decision. "
-                    "List the project names you will include in the resume, in the order they will appear "
-                    "(highest JD-relevance first). 2-4 projects. Commit to this before writing the resume. "
+                    "Project names to include, highest JD-relevance first. 2–4 projects. "
                     "Example: [\"MarketMind AI\", \"TA Matching Platform\"]"
                 ),
                 "items": {"type": "string"},
@@ -495,27 +504,24 @@ GENERATE_TOOL = {
             },
             "fit_score": {
                 "type": "integer",
-                "description": "How well this role matches the candidate. 1=poor fit, 10=perfect fit. Score honestly — inflated scores help nobody.",
+                "description": "Role fit score. 1=poor fit, 10=perfect fit.",
                 "minimum": 1,
                 "maximum": 10,
             },
             "resume_latex": {
                 "type": "string",
                 "description": (
-                    "Complete compilable LaTeX resume from \\documentclass to \\end{document}. "
-                    "Must include only the projects in selected_projects, in the order listed. "
-                    "Every bullet must pass the quality test: specific technology + concrete outcome + "
-                    "not generic. All high-weight JD keywords must appear somewhere."
+                    "Resume body sections only: Experience, Projects, Skills. "
+                    "Do not include \\documentclass, preamble, heading, or education — "
+                    "those are assembled automatically. "
+                    "Include only the projects from selected_projects, in the order listed."
                 ),
             },
             "cover_letter": {
                 "type": "string",
                 "description": (
                     "Cover letter, plain text, 3 paragraphs. "
-                    "Para 2 must name the project, the specific technical problem it solved, "
-                    "the architecture decision that made it work, and a result — specific enough "
-                    "that a hiring manager could ask a detailed follow-up about any sentence. "
-                    "Apply voice guidance from the profile if present."
+                    "Follow the COVER LETTER structure in the system prompt."
                 ),
             },
             "job_title": {
@@ -528,7 +534,12 @@ GENERATE_TOOL = {
             },
             "strategic_note": {
                 "type": "string",
-                "description": "Structured analysis in EXACTLY this format:\n\nGOOD FIT\n• [specific reason, under 12 words]\n• [second reason if distinct]\n\nGAPS\n• [specific missing technology or experience from JD]\n• [second gap if different]\n\nIMPROVEMENT PLAN\n• [concrete action naming a specific project or skill]\n• [second action if different gap]\n\nRules: 1-3 bullets per section, each under 12 words, specific technologies and project names only.",
+                "description": (
+                    "Structured analysis in exactly this format:\n\n"
+                    "GOOD FIT\n• [specific match reason]\n• [second if distinct]\n\n"
+                    "GAPS\n• [missing technology from JD]\n• [second if different]\n\n"
+                    "IMPROVEMENT PLAN\n• [concrete action]\n• [second if different gap]"
+                ),
             },
         },
         "required": ["selected_projects", "fit_score", "resume_latex", "cover_letter", "job_title", "job_company", "strategic_note"],
@@ -538,7 +549,6 @@ GENERATE_TOOL = {
 
 def _format_profile(
     personal: PersonalInfo | None,
-    education: list,
     experience: list,
     projects: list,
     skills: list,
@@ -550,28 +560,12 @@ def _format_profile(
         "number. These are your bullet cores.\n",
     ]
 
-    if personal:
+    if personal and getattr(personal, "cover_letter_voice", None):
         lines += [
-            f"Name: {personal.name}",
-            f"Email: {personal.email}",
-            f"Phone: {personal.phone}",
-            f"LinkedIn: {personal.linkedin}",
-            f"GitHub: {personal.github}",
-            f"Location: {personal.location}\n",
+            "COVER LETTER VOICE GUIDANCE",
+            personal.cover_letter_voice[:800],
+            "",
         ]
-        if getattr(personal, "cover_letter_voice", None):
-            lines += [
-                "COVER LETTER VOICE GUIDANCE",
-                personal.cover_letter_voice[:800],
-                "",
-            ]
-
-    if education:
-        lines.append("EDUCATION")
-        for e in education:
-            minor = f", Minor in {e.minor}" if e.minor else ""
-            lines.append(f"- {e.school} | {e.degree}{minor} | {e.start_date} – {e.end_date}")
-        lines.append("")
 
     if experience:
         lines.append("EXPERIENCE")
@@ -614,9 +608,52 @@ def _preprocess_jd(text: str, max_chars: int = 6000) -> str:
     return text
 
 
+def _extract_resume_body(latex: str) -> str:
+    """Extract variable body sections from a LaTeX resume string.
+
+    If Claude correctly outputs body-only content this is a no-op.
+    If Claude outputs a full document despite the instruction, this recovers the body
+    by stripping the preamble and closing tag.
+    """
+    if "\\documentclass" not in latex:
+        # Already body-only — strip any stray \end{document} at the tail
+        body = latex.rstrip()
+        if body.endswith("\\end{document}"):
+            body = body[: -len("\\end{document}")].rstrip()
+        return body
+
+    # Full document: find the start of the Experience section
+    for marker in ("%-----------EXPERIENCE", "\\section{Experience}"):
+        idx = latex.find(marker)
+        if idx != -1:
+            body = latex[idx:]
+            end_idx = body.rfind("\\end{document}")
+            if end_idx != -1:
+                body = body[:end_idx]
+            return body.rstrip()
+
+    # Fallback: strip everything through \begin{document}
+    begin_doc = latex.find("\\begin{document}")
+    if begin_doc != -1:
+        body = latex[begin_doc + len("\\begin{document}"):]
+        end_idx = body.rfind("\\end{document}")
+        if end_idx != -1:
+            body = body[:end_idx]
+        return body.strip()
+
+    return latex
+
+
+def _assemble_resume_latex(body: str) -> str:
+    """Wrap resume body sections with the static preamble and closing tag.
+
+    The stored resume_latex remains a complete, compilable LaTeX document.
+    """
+    return LATEX_PREAMBLE + _extract_resume_body(body) + "\n\n\\end{document}\n"
+
+
 async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
     personal = (await db.execute(select(PersonalInfo).limit(1))).scalar_one_or_none()
-    education = (await db.execute(select(Education))).scalars().all()
     experience = (await db.execute(
         select(Experience).order_by(Experience.sort_order)
     )).scalars().all()
@@ -628,7 +665,7 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
     )).scalars().all()
 
     profile_text = _format_profile(
-        personal, list(education), list(experience), list(projects), list(skills)
+        personal, list(experience), list(projects), list(skills)
     )
 
     jd_text = _preprocess_jd(jd_text)
@@ -674,13 +711,20 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
 
     tool_use = next(b for b in response.content if b.type == "tool_use")
     usage = response.usage
-    return {
+
+    result = {
         **tool_use.input,
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
         "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0) or 0,
         "cache_write_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
     }
+
+    # Assemble the complete compilable document from Claude's body-only output
+    if result.get("resume_latex"):
+        result["resume_latex"] = _assemble_resume_latex(result["resume_latex"])
+
+    return result
 
 
 _INSIGHTS_SYSTEM = (
@@ -768,7 +812,7 @@ async def generate_insights(
         if s.get("strategic_note"):
             lines.append(f"  Analysis: {s['strategic_note']}")
         elif s.get("description_snippet"):
-            lines.append(f"  JD excerpt: {s['description_snippet'][:300]}")
+            lines.append(f"  JD excerpt: {s['description_snippet']}")
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     try:
