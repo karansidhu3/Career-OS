@@ -388,7 +388,7 @@ Para 2 — The proof point (4-5 sentences, this paragraph wins or loses the inte
   Impossible to write if you had different experience.
 
 Para 3 — Close (1-2 sentences):
-  Available June 2026. Open to discussing. Nothing else.
+  Available immediately. Open to discussing. Nothing else.
 
 SENTENCE-LEVEL RULES:
   Vary sentence length — long, then short, then medium. Monotone rhythm is an AI tell.
@@ -755,7 +755,7 @@ _INSIGHTS_SYSTEM = (
     "anywhere in the current profile.\n\n"
     "Produce four fields. Each field is one thing, stated once, under 25 words.\n\n"
     "Hard rules: no em dashes, no adverbs, no filler phrases. "
-    "Name exact technologies. Name specific projects (MarketMind, TA platform). Be precise."
+    "Name exact technologies. Name specific projects from the current profile. Be precise."
 )
 
 _INSIGHTS_TOOL = {
@@ -794,7 +794,7 @@ _INSIGHTS_TOOL = {
                 "type": "string",
                 "description": (
                     "1-2 sentences. One concrete action to close the gap. "
-                    "Under 25 words. Name a specific project (MarketMind, TA platform) or exact deliverable. "
+                    "Under 25 words. Name a specific project from the current profile or exact deliverable. "
                     "No em dashes."
                 ),
             },
