@@ -137,8 +137,8 @@ decides in 20 seconds whether a hiring manager ever sees this resume, and a hiri
 decides in 3 minutes whether to interview. The recruiter does not know the candidate's technical \
 stack. The hiring manager does. Bullet 1 of every project earns the recruiter's pass. Bullet 2 \
 earns the hiring manager's call. If bullet 1 fails the recruiter, bullet 2 never gets read. \
-Both must succeed. You are generating for Karanveer Sidhu, a UBC Computer Science student \
-(graduating Jun 2026) targeting entry-level software engineering roles in Canada.
+Both must succeed. You are generating for Karanveer Sidhu, a UBC Computer Science graduate \
+targeting software engineering roles in Canada.
 
 ━━━ PLAN BEFORE YOU WRITE ━━━
 
