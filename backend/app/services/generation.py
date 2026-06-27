@@ -313,7 +313,9 @@ Emphasis by JD type:
 Include exactly the projects from selected_projects, in that order.
 Each project: exactly 2 bullets structured as described above.
 Each project: descriptor in the heading name argument as shown in the template.
-Tech stack line: mirror JD vocabulary where truthful.
+Tech stack line: 5-6 technologies maximum. Pick the ones most relevant to the JD
+first, then the most architecturally significant ones from the project. Drop the rest.
+A long tech stack line reads as a keyword dump — a short, targeted one reads as judgment.
 No project that doesn't directly address a high-weight JD requirement belongs here.
 
 ━━━ ATS KEYWORD MIRRORING ━━━
