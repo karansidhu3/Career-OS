@@ -36,8 +36,8 @@ LATEX_PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 \addtolength{\oddsidemargin}{-0.5in}
 \addtolength{\evensidemargin}{-0.5in}
 \addtolength{\textwidth}{1in}
-\addtolength{\topmargin}{-.7in}
-\addtolength{\textheight}{1.4in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.2in}
 
 \urlstyle{same}
 \raggedbottom
@@ -57,22 +57,22 @@ LATEX_PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 \newcommand{\resumeSubheading}[4]{
   \vspace{-2pt}\item
     \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-      \textbf{#1} & #2 \\
-      \textit{\small#3} & \textit{\small #4} \\
+      \textbf{#1} & \small{#2} \\
+      \textit{#3} & \small{#4} \\
     \end{tabular*}\vspace{-4pt}
 }
 \newcommand{\resumeSubItem}[2]{\resumeItem{#1}{#2}\vspace{-4pt}}
 \renewcommand{\labelitemii}{$\circ$}
-\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*, topsep=0pt, itemsep=6pt]}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*, topsep=0pt, itemsep=8pt]}
 \newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
-\newcommand{\resumeItemListStart}{\begin{itemize}[itemsep=-2pt, topsep=1pt]}
+\newcommand{\resumeItemListStart}{\begin{itemize}[itemsep=1pt, topsep=1pt]}
 \newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-3pt}}
 \newcommand{\projectSubheading}[5]{
   \vspace{-1pt}\item
     \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-      \textbf{\href{#5}{#1 \hspace{2pt}\faGithub}} & #2 \\
-      \textit{\small#3} & \textit{\small#4} \\
-    \end{tabular*}\vspace{-5pt}
+      \textbf{\href{#5}{#1 \hspace{2pt}\faGithub}} & \small{#2} \\
+      \textit{\small#3} & \small{#4} \\
+    \end{tabular*}\vspace{-4pt}
 }
 \newcommand{\resumeSubheadingNoRole}[2]{
   \vspace{-1pt}\item
@@ -96,7 +96,7 @@ LATEX_PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 \section{Education}
   \resumeSubHeadingListStart
     \resumeSubheading
-      {University of British Columbia}{Sep. 2022 -- Jun. 2026}
+      {University of British Columbia}{Sep 2022 -- Jun 2026}
       {Bachelor of Science in Computer Science, Minor in Data Science}{}
   \resumeSubHeadingListEnd
 
@@ -105,10 +105,13 @@ LATEX_PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 # Body structure shown to Claude in the system prompt — variable sections only.
 # Includes command usage comments so Claude knows each command's argument signature.
 LATEX_TEMPLATE = r"""
+% DATE FORMAT: Mon YYYY -- Mon YYYY  (e.g. May 2025 -- Aug 2025). Ongoing: Mon YYYY -- Present.
+% Double-hyphen (--) renders as an en-dash in LaTeX. Use this format in every date field.
+
 %-----------EXPERIENCE-----------------
 \section{Experience}
   \resumeSubHeadingListStart
-    % \resumeSubheading{Company}{Location}{Role — Product if company name gives no signal}{Dates}
+    % \resumeSubheading{Company}{Date}{Role — Product if company name gives no signal}{Location or empty}
     %   \resumeItemListStart
     %     \item \small{bullet text}
     %   \resumeItemListEnd
