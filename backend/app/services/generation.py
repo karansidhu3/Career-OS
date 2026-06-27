@@ -162,27 +162,66 @@ Then classify each:
     • Lines of code alone, file counts alone, migration counts alone
     • Audit emission point counts, service boundary counts, endpoint counts alone
 
-A Tier 1 metric missing from its bullet is a generation failure.
-A Tier 3 metric forced into a bullet without legible context is a quality failure.
+For every metric before including it, ask: "If this number disappeared, would anyone
+reading the resume lose meaningful understanding?" If no — drop it.
 
-STEP 1 — Identify the 3-4 highest-weight JD requirements.
+A Tier 1 metric missing from its bullet is a generation failure.
+A Tier 3 metric that fails the disappearance test is a quality failure.
+
+STEP 1 — Classify the company and role type. State it explicitly.
+
+  STARTUP (early-stage, growth-stage, Series A-C):
+    Prioritize: end-to-end ownership, shipping velocity, product thinking, breadth
+    Signals to surface: built independently, shipped to real users, product decisions made,
+    owned the full stack, moved fast with limited resources
+
+  BIG TECH (FAANG, Microsoft, Salesforce, large public companies):
+    Prioritize: scale, reliability, distributed systems, engineering rigor
+    Signals to surface: systems operating at scale, cross-team collaboration, structured
+    engineering process, well-tested production systems
+
+  INFRASTRUCTURE / DEV TOOLS (Stripe, Datadog, Cloudflare, Linear, Vercel, etc.):
+    Prioritize: engineering judgment, architecture decisions, reliability, observability
+    Signals to surface: why decisions were made, what was rejected and why, tradeoffs
+    considered, system design rigor, operational reliability
+
+  If the company type is ambiguous, read the JD for cultural signals:
+    "move fast", "wear many hats", "own it end-to-end" → Startup
+    "large-scale systems", "millions of users", "cross-functional" → Big Tech
+    "reliability", "latency", "developer experience", "infrastructure" → Infra/Dev Tools
+
+  Once classified: state the type, then list the top 3 signals to emphasize.
+  This classification governs bullet emphasis for the entire generation.
+
+STEP 2 — Identify the 3-4 highest-weight JD requirements.
 Required over preferred. Repeated mentions. Technologies in the job title.
 These signals determine project selection and bullet emphasis.
 
-STEP 2 — For each role and project, identify three things:
+STEP 3 — For each role and project, build an engineering signal profile:
   (a) RECRUITER FACT: what the system does and who or what it serves —
       a non-engineer must understand this in one sentence
-  (b) ENGINEER FACT: the single most impressive technical decision made —
-      a specific component, architecture choice, or design decision
-  (c) BEST METRIC: the Tier 1 or Tier 2 number that proves scale or impact
+  (b) ENGINEERING JUDGMENT: what was the key decision made, and what was the
+      obvious alternative that was NOT chosen? Format: "Chose X over Y because Z."
+      Examples: "Chose async background tasks over synchronous calls because Railway
+      proxy times out at 30s." "Chose Testcontainers over mocks because prior mock/prod
+      divergence masked a broken migration." If no meaningful decision exists, find the
+      next-best signal.
+  (c) NARRATIVE: map the project to Problem → Decision → Implementation → Outcome.
+      Keep it to one phrase per stage. This is your internal compression framework —
+      do not write it out, use it to ensure the bullets tell a coherent story.
+  (d) INTERVIEWABILITY: would bullet 2 prompt an experienced engineer to ask
+      "why X instead of Y?", "what failed before this?", or "what would you change?"
+      If no — the bullet is describing an outcome, not a decision. Find the decision.
+  (e) BEST METRIC: the Tier 1 or Tier 2 number that proves scale or impact
 
-These three elements are the raw material for your two bullets per project.
+These elements are the raw material for your two bullets per project. Emphasize whichever
+signals the Step 1 company classification identified as highest priority.
 
-STEP 3 — Select 2-4 projects covering the most high-weight JD requirements.
+STEP 4 — Select 2-4 projects covering the most high-weight JD requirements.
 A project covering 3 requirements beats two projects each covering 1.
 Commit to selected_projects before writing. List highest-relevance first.
 
-STEP 4 — Generate a descriptor for every selected project.
+STEP 5 — Generate a descriptor for every selected project.
 Format: Name | Descriptor (5 words or fewer, describing what the project is)
 Examples:
   "MarketMind AI | Investment Intelligence Platform"
@@ -447,6 +486,9 @@ NEVER write "Strong match", "Great fit", "Consider improving" — too vague to b
 Run recruiter checks first. Then engineering checks. Fix every failure before outputting.
 
 RECRUITER CHECKS:
+□ ENGINEERING IDENTITY: Read only the company names, project descriptors, first bullet
+  of each project, and skills section. Answer: "What kind of engineer is this candidate?"
+  If the answer is vague or contradictory — the resume needs work before anything else.
 □ DESCRIPTOR: Does every project heading include a descriptor a recruiter can read cold
   without knowing the project name?
 □ BULLET 1 TEST: Can a recruiter who has never heard of this project understand what it is
@@ -456,8 +498,9 @@ RECRUITER CHECKS:
 □ SPECIFICITY FLOOR: Does bullet 1 still name what the system does specifically?
   "Built scheduling platform" fails. "Built mobile-first scheduling platform replacing
   spreadsheet workflows for 15-30 employees" passes.
-□ MEMORABILITY: Is there one clear takeaway per project a recruiter could repeat to a
-  hiring manager in one sentence?
+□ MEMORABILITY: If the recruiter remembers only 5 facts after reading this resume, what
+  are they? List them. Are they the 5 most JD-relevant signals in the profile?
+  If any of the 5 are not JD-relevant, identify which bullet produced them and rewrite.
 
 ENGINEERING CHECKS:
 □ OPENING NOUN: Does bullet 2 of every project lead with a specific technical component,
@@ -466,9 +509,13 @@ ENGINEERING CHECKS:
   Cut it. The statement before it must stand alone. If it doesn't, rewrite the statement.
 □ OUTCOME CLAUSES: Did any cut remove an outcome clause that added new information?
   If yes, restore it — outcome clauses that add new facts are not subordinate clauses.
+□ ENGINEERING JUDGMENT: Does bullet 2 of every project expose a decision and its
+  alternative? Would an experienced engineer ask "why X instead of Y?" after reading it?
+  If not — the bullet is describing output, not judgment. Find the decision and rewrite.
 □ TIER 1 METRICS: List all Tier 1 metrics from Step 0. Verify each appears in the
   corresponding bullet. Missing Tier 1 metric = generation failure.
-□ TIER 3 CULLS: Does any bullet include a Tier 3 metric without legible context? Remove it.
+□ TIER 3 CULLS: For any metric included, apply the disappearance test: "If this number
+  disappeared, would anyone lose meaningful understanding?" If no — remove it.
 □ OWNERSHIP: Does every experience bullet communicate scope of ownership accurately?
 □ WORD DENSITY: Is every word carrying specific technical meaning?
   Any bullet over 20 words must be compressed.
