@@ -111,9 +111,9 @@ export function CommandPalette({ open, onOpen, onClose }: CommandPaletteProps) {
           {/* Panel */}
           <motion.div
             key="palette-panel"
-            initial={{ opacity: 0, scale: 0.97, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: -10 }}
+            initial={{ opacity: 0, scale: 0.97, y: -10, filter: 'blur(3px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.97, y: -10, filter: 'blur(3px)' }}
             transition={spring.snappy}
             className="fixed z-[71] left-1/2 -translate-x-1/2 w-[calc(100%-32px)]"
             style={{ top: '18vh', maxWidth: 480 }}
@@ -122,8 +122,15 @@ export function CommandPalette({ open, onOpen, onClose }: CommandPaletteProps) {
               className="rounded-2xl overflow-hidden"
               style={{
                 background: 'var(--c-surface-overlay)',
-                border: '1px solid var(--c-border)',
-                boxShadow: '0 24px 80px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)',
+                backdropFilter: 'blur(32px) saturate(1.40) brightness(1.01)',
+                WebkitBackdropFilter: 'blur(32px) saturate(1.40) brightness(1.01)',
+                boxShadow: [
+                  'inset 0 1px 0 rgba(255,255,255,0.75)',
+                  '0 0 0 0.5px rgba(0,0,0,0.08)',
+                  '0 4px 16px rgba(0,0,0,0.07)',
+                  '0 20px 56px rgba(0,0,0,0.10)',
+                  '0 40px 80px rgba(0,0,0,0.05)',
+                ].join(', '),
               }}
             >
               {/* Search row */}

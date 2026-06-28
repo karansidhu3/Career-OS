@@ -37,10 +37,9 @@ export function Navbar() {
       >
         <div
           style={{
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
+            backdropFilter: 'blur(28px) saturate(1.35)',
+            WebkitBackdropFilter: 'blur(28px) saturate(1.35)',
             background: 'var(--c-navbar)',
-            border: '1px solid var(--c-border)',
             boxShadow: 'var(--c-navbar-shadow)',
           }}
           className="rounded-2xl px-4 py-2.5 flex items-center justify-between"

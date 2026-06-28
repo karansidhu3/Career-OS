@@ -658,13 +658,9 @@ export default function Home() {
 
               {/* ── Workspace zone ── */}
               <div
-                className="rounded-2xl relative cursor-text"
+                className="jd-workspace rounded-2xl relative cursor-text"
                 onClick={() => textareaRef.current?.focus()}
-                style={{
-                  background: 'var(--c-glass-bg)',
-                  border: '1px solid var(--c-glass-border)',
-                  boxShadow: 'var(--c-glass-shadow)',
-                }}
+                style={{ background: 'var(--c-glass-bg)' }}
               >
                 {/* Writing surface */}
                 <div
@@ -921,7 +917,7 @@ export default function Home() {
             {/* Title + ScoreRing row */}
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
+                <h1 className="heading-lit text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
                   {appState.job.title}
                 </h1>
                 {appState.job.company && (

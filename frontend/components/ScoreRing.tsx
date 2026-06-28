@@ -28,6 +28,13 @@ function scoreTokens(score: number) {
   }
 }
 
+// Raw RGBA for drop-shadow filter (can't do opacity on CSS vars)
+function scoreGlowColor(score: number): string {
+  if (score >= 8) return 'rgba(16, 185, 129, 0.40)'
+  if (score >= 6) return 'rgba(245, 158, 11, 0.38)'
+  return 'rgba(239, 68, 68, 0.34)'
+}
+
 // ─── Component ───────────────────────────────────────────────────
 type ScoreRingProps = {
   score: number
@@ -41,6 +48,7 @@ export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
   const center = size / 2
   const circumference = 2 * Math.PI * r
   const tokens = scoreTokens(score)
+  const glowColor = scoreGlowColor(score)
   const displayScore = useCountUp(score, 700)
   const targetOffset = circumference * (1 - score / 10)
 
@@ -90,6 +98,7 @@ export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: targetOffset }}
           transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
+          style={{ filter: `drop-shadow(0 0 5px ${glowColor})` }}
         />
       </svg>
 
@@ -101,6 +110,7 @@ export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          filter: `drop-shadow(0 0 7px ${glowColor})`,
         }}
       >
         <span
