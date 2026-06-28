@@ -51,6 +51,7 @@ def _apply_result(job: Job, result: dict) -> None:
     job.output_tokens = result.get("output_tokens")
     job.cache_read_tokens = result.get("cache_read_tokens")
     job.cache_write_tokens = result.get("cache_write_tokens")
+    job.compression_attempts = result.get("compression_attempts", 0)
 
 
 async def _run_generation(job_id: int, jd_text: str) -> None:

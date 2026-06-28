@@ -30,3 +30,6 @@ class Job(Base):
     output_tokens = Column(Integer, nullable=True)
     cache_read_tokens = Column(Integer, nullable=True)
     cache_write_tokens = Column(Integer, nullable=True)
+
+    # Number of times the resume was recompressed to fit one page (0 = no compression needed)
+    compression_attempts = Column(Integer, nullable=True)

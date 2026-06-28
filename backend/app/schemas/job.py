@@ -38,6 +38,8 @@ class JobRead(BaseModel):
     cache_read_tokens: Optional[int] = None
     cache_write_tokens: Optional[int] = None
 
+    compression_attempts: Optional[int] = None
+
     @computed_field
     @property
     def cost_usd(self) -> Optional[float]:

@@ -88,6 +88,13 @@ function ResumeSection({ job }: { job: Job }) {
 
   return (
     <div>
+      {/* Compression notice */}
+      {(job.compression_attempts ?? 0) > 0 && (
+        <p className="text-xs text-neutral-400 font-mono mb-3">
+          compressed to 1 page · {job.compression_attempts} {job.compression_attempts === 1 ? 'pass' : 'passes'}
+        </p>
+      )}
+
       {/* Preview — the actual document */}
       <div
         className="relative mb-5 rounded-sm overflow-hidden"

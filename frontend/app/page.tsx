@@ -909,6 +909,13 @@ export default function Home() {
               <SelectedProjectsBar projects={appState.job.selected_projects} />
             )}
 
+            {/* Compression notice — shown only when overflow was detected and corrected */}
+            {(appState.job.compression_attempts ?? 0) > 0 && (
+              <p className="text-xs text-neutral-400 font-mono -mt-1 mb-3">
+                compressed to 1 page · {appState.job.compression_attempts} {appState.job.compression_attempts === 1 ? 'pass' : 'passes'}
+              </p>
+            )}
+
             {/* Resume preview — overlay download anchored top-right */}
             {appState.job.resume_latex && (
               <div className="relative">

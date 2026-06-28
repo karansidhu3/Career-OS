@@ -1,7 +1,9 @@
 import asyncio
+import io
 import logging
 import re
 import anthropic
+from pypdf import PdfReader
 
 logger = logging.getLogger(__name__)
 from sqlalchemy import select
@@ -9,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
+from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
 
@@ -718,6 +721,88 @@ def _assemble_resume_latex(body: str) -> str:
     return LATEX_PREAMBLE + _extract_resume_body(body) + "\n\n\\end{document}\n"
 
 
+# ── Page-overflow compression ─────────────────────────────────────────────────
+
+_COMPRESS_SYSTEM = (
+    "You are compressing a LaTeX resume body to fit exactly one page. "
+    "You will receive the current Experience, Projects, and Skills sections. "
+    "Apply compression in this order until the content fits:\n"
+    "1. Trim any bullet over 16 words — remove the weakest phrase, never touch technical nouns or numbers\n"
+    "2. Reduce any experience entry with 3 bullets to 2 — cut the weakest one\n"
+    "3. Remove the lowest-relevance project from the projects section\n\n"
+    "Never invent content. Never alter technical specifics, numbers, or proper nouns. "
+    "Output only the corrected Experience, Projects, and Skills LaTeX sections. "
+    "No preamble, no \\documentclass, no heading, no education, no \\end{document}."
+)
+
+_COMPRESS_TOOL = {
+    "name": "compressed_resume",
+    "description": "The compressed resume body sections (Experience, Projects, Skills only).",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "resume_latex": {
+                "type": "string",
+                "description": "Experience, Projects, and Skills LaTeX sections only. No preamble.",
+            }
+        },
+        "required": ["resume_latex"],
+    },
+}
+
+
+async def _call_compression(body_latex: str) -> str:
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    response = await asyncio.wait_for(
+        client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=3000,
+            system=_COMPRESS_SYSTEM,
+            messages=[{"role": "user", "content": body_latex}],
+            tools=[_COMPRESS_TOOL],
+            tool_choice={"type": "tool", "name": "compressed_resume"},
+        ),
+        timeout=60.0,
+    )
+    tool_use = next(b for b in response.content if b.type == "tool_use")
+    return tool_use.input["resume_latex"]
+
+
+async def _compress_if_needed(assembled_latex: str, max_attempts: int = 2) -> tuple[str, int]:
+    """Compile the resume and compress via Claude if it exceeds one page.
+
+    Errors in compilation or the compression call are caught so a failure here
+    never blocks generation — the original LaTeX is returned with 0 attempts.
+    Returns (final_latex, compression_attempts).
+    """
+    attempts = 0
+    current = assembled_latex
+
+    for _ in range(max_attempts):
+        try:
+            pdf_bytes = await compile_latex_to_pdf(current)
+        except Exception:
+            logger.warning("Compression check: compilation failed, keeping current LaTeX")
+            break
+
+        page_count = len(PdfReader(io.BytesIO(pdf_bytes)).pages)
+        if page_count <= 1:
+            break
+
+        logger.info("Resume compiled to %d pages — compressing (attempt %d)", page_count, attempts + 1)
+        attempts += 1
+
+        try:
+            compressed_body = await _call_compression(_extract_resume_body(current))
+        except Exception:
+            logger.exception("Compression call failed — keeping current LaTeX")
+            break
+
+        current = _assemble_resume_latex(compressed_body)
+
+    return current, attempts
+
+
 async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
     personal = (await db.execute(select(PersonalInfo).limit(1))).scalar_one_or_none()
     experience = (await db.execute(
@@ -786,9 +871,12 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
         "cache_write_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
     }
 
-    # Assemble the complete compilable document from Claude's body-only output
+    # Assemble full document, then compress if it spills past one page
     if result.get("resume_latex"):
-        result["resume_latex"] = _assemble_resume_latex(result["resume_latex"])
+        assembled = _assemble_resume_latex(result["resume_latex"])
+        final_latex, compression_attempts = await _compress_if_needed(assembled)
+        result["resume_latex"] = final_latex
+        result["compression_attempts"] = compression_attempts
 
     return result
 
