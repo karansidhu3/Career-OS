@@ -5,14 +5,38 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
+import { SectionLabel } from '@/components/SectionLabel'
+import { ScoreRing } from '@/components/ScoreRing'
 import { spring } from '@/lib/motion'
 import { parseStrategicNote } from '@/lib/utils'
 
-function AnalysisSection({ title, bullets }: { title: string; bullets: string[] }) {
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function getGenMessage(elapsed: number): string {
+  if (elapsed < 14) return 'Generating your application…'
+  if (elapsed < 32) return 'Matching your background to this role…'
+  return 'This is taking a moment…'
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function Divider({ delay = 0 }: { delay?: number }) {
+  return (
+    <motion.div
+      className="my-8"
+      initial={{ scaleX: 0, opacity: 0 }}
+      animate={{ scaleX: 1, opacity: 1 }}
+      transition={{ ...spring.snappy, delay }}
+      style={{ height: '1px', background: 'var(--c-border)', transformOrigin: 'left' }}
+    />
+  )
+}
+
+function AnalysisSection({ title, bullets, color }: { title: string; bullets: string[]; color?: string }) {
   if (!bullets.length) return null
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-2">{title}</p>
+      <SectionLabel className="mb-2" style={color ? { color } : undefined}>{title}</SectionLabel>
       <ul className="space-y-1.5">
         {bullets.map((b, i) => (
           <li key={i} className="flex gap-2.5 text-[15px] text-neutral-700 leading-snug">
@@ -25,171 +49,79 @@ function AnalysisSection({ title, bullets }: { title: string; bullets: string[] 
   )
 }
 
-function FitCard({ job }: { job: Job }) {
-  const analysis = parseStrategicNote(job.strategic_note)
-  const hasContent = analysis || job.strategic_note || (job.fit_rationale && job.fit_rationale.length > 0)
-  if (!hasContent) return null
-
+function SelectedProjectsBar({ projects }: { projects: string[] }) {
+  if (!projects.length) return null
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={spring.standard}
-      className="py-2"
-    >
-      {analysis ? (
-        /* Structured analysis — new format */
-        <div className="space-y-6">
-          <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
-          <AnalysisSection title="Gaps" bullets={analysis.gaps} />
-          <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
-        </div>
-      ) : (
-        /* Fallback: old-format prose */
-        <>
-          {job.strategic_note && (
-            <p className="text-[17px] text-neutral-700 leading-[1.8] max-w-2xl mb-4">
-              {job.strategic_note}
-            </p>
-          )}
-        </>
-      )}
-    </motion.div>
+    <div className="flex items-center gap-2 flex-wrap mb-6">
+      <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-400 shrink-0">Emphasized</span>
+      {projects.map(p => (
+        <span
+          key={p}
+          className="text-xs text-neutral-700 px-2 py-0.5 rounded-full"
+          style={{ background: 'var(--c-tag-bg)', border: '1px solid var(--c-tag-border)' }}
+        >
+          {p}
+        </span>
+      ))}
+    </div>
   )
 }
 
-function ResumeSection({ job }: { job: Job }) {
-  const [expanded, setExpanded] = useState(false)
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const [previewLoaded, setPreviewLoaded] = useState(false)
-  const [previewFailed, setPreviewFailed] = useState(false)
-  const [downloading, setDownloading] = useState(false)
-
-  // Hooks must come before any conditional return
-  useEffect(() => {
-    if (!job.resume_latex) return
-    let objectUrl: string | null = null
-    api.fetchResumePdfPreview(job.id)
-      .then(url => { objectUrl = url; setBlobUrl(url) })
-      .catch(() => setPreviewFailed(true))
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [job.id, job.resume_latex])
-
-  if (!job.resume_latex) return null
-
-  const handleDownload = async () => {
-    setDownloading(true)
-    try {
-      await api.downloadResumePdf(job.id, job.company)
-    } finally {
-      setDownloading(false)
-    }
-  }
-
+function ResumePdfViewer({
+  blobUrl, loaded, failed, onLoad, onError, onDownload, downloading,
+}: {
+  blobUrl: string | null
+  loaded: boolean
+  failed: boolean
+  onLoad: () => void
+  onError: () => void
+  onDownload: () => void
+  downloading: boolean
+}) {
   return (
-    <div>
-      {/* Compression notice */}
-      {(job.compression_attempts ?? 0) > 0 && (
-        <p className="text-xs text-neutral-400 font-mono mb-3">
-          compressed to 1 page · {job.compression_attempts} {job.compression_attempts === 1 ? 'pass' : 'passes'}
-        </p>
+    <div
+      className="relative mb-5 rounded-sm overflow-hidden"
+      style={{
+        height: 880,
+        boxShadow: '0 4px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
+        border: '1px solid var(--c-border)',
+        background: '#fff',
+      }}
+    >
+      {failed ? (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
+          <p className="text-xs text-neutral-400">PDF preview unavailable — download to view</p>
+        </div>
+      ) : !loaded && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+            <p className="text-xs text-neutral-400">Compiling PDF…</p>
+          </div>
+        </div>
       )}
-
-      {/* Preview — the actual document */}
-      <div
-        className="relative mb-5 rounded-sm overflow-hidden"
-        style={{
-          height: 880,
-          boxShadow: '0 4px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
-          border: '1px solid var(--c-border)',
-          background: '#fff',
-        }}
-      >
-        {previewFailed ? (
-          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
-            <p className="text-xs text-neutral-400">PDF preview unavailable — download to view</p>
-          </div>
-        ) : !previewLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
-              <p className="text-xs text-neutral-400">Compiling PDF…</p>
-            </div>
-          </div>
-        )}
-        {blobUrl && (
-          <iframe
-            src={blobUrl}
-            onLoad={() => setPreviewLoaded(true)}
-            title="Resume"
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              display: 'block',
-              opacity: previewLoaded ? 1 : 0,
-              transition: 'opacity 0.4s ease',
-            }}
-          />
-        )}
-        {/* Download overlay — reachable without scrolling past the PDF */}
-        <div className="absolute top-3 right-3 z-10">
-          <motion.button
-            onClick={handleDownload}
-            disabled={downloading}
-            whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
-            style={{
-              background: 'rgba(24,24,27,0.72)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-            }}
-          >
-            {downloading ? 'Compiling…' : 'Download PDF'}
-          </motion.button>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Resume</span>
-        <div className="flex items-center gap-2">
-          <motion.button
-            onClick={handleDownload}
-            disabled={downloading}
-            whileTap={{ scale: 0.97 }}
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-            style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-          >
-            {downloading ? 'Compiling…' : 'Download PDF'}
-          </motion.button>
-          <CopyButton text={job.resume_latex} label="Copy .tex" />
-        </div>
-      </div>
-
-      <div>
-        <button
-          onClick={() => setExpanded(v => !v)}
-          className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+      {blobUrl && (
+        <iframe
+          src={blobUrl}
+          onLoad={onLoad}
+          onError={onError}
+          title="Resume"
+          style={{
+            width: '100%', height: '100%', border: 'none', display: 'block',
+            opacity: loaded ? 1 : 0, transition: 'opacity 0.4s ease',
+          }}
+        />
+      )}
+      <div className="absolute top-3 right-3 z-10">
+        <motion.button
+          onClick={onDownload}
+          disabled={downloading}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
+          style={{ background: 'rgba(24,24,27,0.72)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
         >
-          {expanded ? 'Hide source ↑' : 'LaTeX source ↓'}
-        </button>
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="overflow-hidden"
-            >
-              <div className="mt-3 max-h-[500px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
-                <pre className="text-xs font-mono text-neutral-500 leading-relaxed whitespace-pre-wrap break-all">
-                  {job.resume_latex}
-                </pre>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          {downloading ? 'Compiling…' : 'Download PDF'}
+        </motion.button>
       </div>
     </div>
   )
@@ -208,12 +140,10 @@ function CoverLetterSection({ job }: { job: Job }) {
 
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 mb-4">Cover letter</p>
+      <SectionLabel className="mb-4">Cover letter</SectionLabel>
       <div style={{ maxWidth: '520px' }}>
         {paragraphs.map((para, i) => (
-          <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">
-            {para}
-          </p>
+          <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">{para}</p>
         ))}
       </div>
       <div className="mt-5 flex items-center gap-4 flex-wrap">
@@ -235,9 +165,42 @@ function CoverLetterSection({ job }: { job: Job }) {
   )
 }
 
+function LatexSection({ latex }: { latex: string }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+        >
+          {expanded ? 'Hide LaTeX source ↑' : 'LaTeX source ↓'}
+        </button>
+        <CopyButton text={latex} label="Copy .tex" />
+      </div>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={spring.snappy}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
+              <pre className="text-xs font-mono text-neutral-500 leading-relaxed whitespace-pre-wrap break-all">
+                {latex}
+              </pre>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 function JdSection({ description }: { description: string }) {
   const [expanded, setExpanded] = useState(false)
-
   return (
     <div
       className="rounded-2xl overflow-hidden"
@@ -249,8 +212,8 @@ function JdSection({ description }: { description: string }) {
       >
         <span>View original job description</span>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            {expanded ? <path d="M18 15l-6-6-6 6" /> : <path d="M6 9l6 6 6-6" />}
-          </svg>
+          {expanded ? <path d="M18 15l-6-6-6 6" /> : <path d="M6 9l6 6 6-6" />}
+        </svg>
       </button>
       <AnimatePresence>
         {expanded && (
@@ -273,15 +236,7 @@ function JdSection({ description }: { description: string }) {
   )
 }
 
-function Divider() {
-  return <div className="my-8" style={{ borderTop: '1px solid var(--c-border)' }} />
-}
-
-function getGenMessage(elapsed: number): string {
-  if (elapsed < 14) return 'Generating your application…'
-  if (elapsed < 32) return 'Matching your background to this role…'
-  return 'This is taking a moment…'
-}
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function JobPage() {
   const params = useParams()
@@ -292,9 +247,14 @@ export default function JobPage() {
   const [updating, setUpdating] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [genElapsed, setGenElapsed] = useState(0)
-  // Undo state — 5-second window after any status transition
   const [undoPrev, setUndoPrev] = useState<string | null>(null)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // PDF state — lifted so both mobile and desktop columns share one fetch
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [pdfLoaded, setPdfLoaded] = useState(false)
+  const [pdfFailed, setPdfFailed] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     api.getJob(id)
@@ -303,14 +263,26 @@ export default function JobPage() {
       .finally(() => setLoading(false))
   }, [id, router])
 
+  // Fetch PDF once job is loaded with resume
+  useEffect(() => {
+    if (!job?.resume_latex) return
+    let objectUrl: string | null = null
+    let cancelled = false
+    api.fetchResumePdfPreview(job.id)
+      .then(url => {
+        if (cancelled) { URL.revokeObjectURL(url); return }
+        objectUrl = url
+        setPdfBlobUrl(url)
+      })
+      .catch(() => { if (!cancelled) setPdfFailed(true) })
+    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [job?.id, job?.resume_latex])
+
   // Poll while processing
   useEffect(() => {
     if (!job || job.status !== 'processing') return
     const poll = setInterval(async () => {
-      try {
-        const updated = await api.getJob(id)
-        setJob(updated)
-      } catch { /* keep polling */ }
+      try { setJob(await api.getJob(id)) } catch { /* keep polling */ }
     }, 2500)
     return () => clearInterval(poll)
   }, [job?.status, id])
@@ -329,7 +301,6 @@ export default function JobPage() {
     setUpdating(true)
     try {
       setJob(await api.updateStatus(job.id, status))
-      // Open 5-second undo window
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
       setUndoPrev(previous)
       undoTimerRef.current = setTimeout(() => setUndoPrev(null), 5000)
@@ -338,15 +309,18 @@ export default function JobPage() {
     }
   }
 
+  const handleDownload = async () => {
+    if (!job) return
+    setDownloading(true)
+    try { await api.downloadResumePdf(job.id, job.company) }
+    finally { setDownloading(false) }
+  }
+
   const handleRegenerate = async () => {
     if (!job) return
     setRegenerating(true)
-    try {
-      const updated = await api.regenerate(job.id)
-      setJob(updated) // status will be "processing", polling takes over
-    } finally {
-      setRegenerating(false)
-    }
+    try { setJob(await api.regenerate(job.id)) }
+    finally { setRegenerating(false) }
   }
 
   if (loading) {
@@ -359,14 +333,14 @@ export default function JobPage() {
 
   if (!job) return null
 
-  // --- Processing state ---
+  // ── Processing state ──
   if (job.status === 'processing') {
     return (
       <div className="px-6 pb-24 max-w-3xl mx-auto">
         <div className="pt-8 mb-10">
           <button
             onClick={() => router.push('/')}
-            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1.5"
+            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -374,10 +348,7 @@ export default function JobPage() {
             Applications
           </button>
         </div>
-        <div
-          className="flex flex-col items-center justify-center gap-6"
-          style={{ minHeight: 'calc(100vh - 200px)' }}
-        >
+        <div className="flex flex-col items-center justify-center gap-6" style={{ minHeight: 'calc(100vh - 200px)' }}>
           <div className="w-10 h-10 relative">
             <div className="absolute inset-0 rounded-full" style={{ border: '2px solid var(--c-accent-dim)' }} />
             <div className="absolute inset-0 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent)', borderTopColor: 'transparent' }} />
@@ -385,9 +356,7 @@ export default function JobPage() {
           <AnimatePresence mode="wait">
             <motion.p
               key={getGenMessage(genElapsed)}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
               transition={spring.gentle}
               className="text-[15px] text-neutral-600 font-medium text-center"
             >
@@ -399,14 +368,14 @@ export default function JobPage() {
     )
   }
 
-  // --- Failed state ---
+  // ── Failed state ──
   if (job.status === 'failed') {
     return (
       <div className="px-6 pb-24 max-w-3xl mx-auto">
         <div className="pt-8 mb-10">
           <button
             onClick={() => router.push('/')}
-            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1.5"
+            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -414,18 +383,10 @@ export default function JobPage() {
             Applications
           </button>
         </div>
-        <div
-          className="flex flex-col items-center justify-center gap-5"
-          style={{ minHeight: 'calc(100vh - 200px)' }}
-        >
-          <div
-            className="w-14 h-14 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(239,68,68,0.08)' }}
-          >
+        <div className="flex flex-col items-center justify-center gap-5" style={{ minHeight: 'calc(100vh - 200px)' }}>
+          <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.08)' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="15" y1="9" x2="9" y2="15" />
-              <line x1="9" y1="9" x2="15" y2="15" />
+              <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
             </svg>
           </div>
           <div className="text-center">
@@ -433,9 +394,7 @@ export default function JobPage() {
             <p className="text-sm text-neutral-500 mt-1">Claude didn't respond in time. Try again.</p>
           </div>
           <motion.button
-            onClick={handleRegenerate}
-            disabled={regenerating}
-            whileTap={{ scale: 0.97 }}
+            onClick={handleRegenerate} disabled={regenerating} whileTap={{ scale: 0.97 }}
             className="px-5 py-2.5 rounded-2xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
             style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
           >
@@ -446,11 +405,25 @@ export default function JobPage() {
     )
   }
 
-  // --- Normal view ---
-  return (
-    <div className="px-6 pb-24 max-w-3xl mx-auto">
+  // ── Normal view ──
+  const analysis = parseStrategicNote(job.strategic_note)
 
-      {/* Header */}
+  return (
+    <div className="max-w-3xl xl:max-w-6xl mx-auto px-6 pb-24">
+
+      {/* Watermark ring */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed hidden xl:block"
+        style={{ right: -140, top: '50%', transform: 'translateY(-50%)', opacity: 0.038, zIndex: 0, color: 'var(--c-accent)' }}
+      >
+        <svg width={520} height={520} viewBox="0 0 520 520" fill="none" stroke="currentColor">
+          <circle cx={260} cy={260} r={238} strokeWidth={1} />
+          <circle cx={260} cy={260} r={188} strokeWidth={0.5} />
+        </svg>
+      </div>
+
+      {/* Back button */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -459,137 +432,257 @@ export default function JobPage() {
       >
         <button
           onClick={() => router.back()}
-          className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors mb-4 flex items-center gap-1.5"
+          className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           Applications
         </button>
+      </motion.div>
 
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-neutral-900 tracking-tight">{job.title}</h1>
-            {job.company && <p className="text-[15px] text-neutral-600 mt-1">{job.company}</p>}
-          </div>
-
-          <div className="flex items-center gap-4 shrink-0">
-            {/* Status transitions — forward and reverse */}
-            {job.status === 'generated' && (
-              <>
-                <button onClick={() => handleStatus('applied')} disabled={updating}
-                  className="text-xs font-medium disabled:opacity-40 transition-colors"
-                  style={{ color: 'var(--c-success)' }}>
-                  Mark applied
-                </button>
-                <button onClick={() => handleStatus('skipped')} disabled={updating}
-                  className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors">
-                  Skip
-                </button>
-              </>
-            )}
-            {job.status === 'applied' && (
-              <>
-                <button onClick={() => handleStatus('interview')} disabled={updating}
-                  className="text-xs font-medium disabled:opacity-40 transition-colors"
-                  style={{ color: 'var(--c-warn)' }}>
-                  Got interview
-                </button>
-                <button onClick={() => handleStatus('generated')} disabled={updating}
-                  className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
-                  ← Unmark
-                </button>
-              </>
-            )}
-            {job.status === 'interview' && (
-              <>
-                <button onClick={() => handleStatus('offer')} disabled={updating}
-                  className="text-xs font-medium disabled:opacity-40 transition-colors"
-                  style={{ color: 'var(--c-warn)' }}>
-                  Got offer
-                </button>
-                <button onClick={() => handleStatus('applied')} disabled={updating}
-                  className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
-                  ← Applied
-                </button>
-              </>
-            )}
-            {job.status === 'offer' && (
-              <button onClick={() => handleStatus('interview')} disabled={updating}
-                className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
-                ← Interview
-              </button>
-            )}
-            {job.status === 'skipped' && (
-              <button onClick={() => handleStatus('generated')} disabled={updating}
-                className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
-                ← Reopen
-              </button>
-            )}
-            {/* Undo — 5-second window after any status change */}
-            <AnimatePresence>
-              {undoPrev && (
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  onClick={() => {
-                    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-                    setUndoPrev(null)
-                    handleStatus(undoPrev)
-                  }}
-                  className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors underline decoration-neutral-300"
-                >
-                  Undo
-                </motion.button>
-              )}
-            </AnimatePresence>
-            {/* Regenerate — always available */}
-            <button onClick={handleRegenerate} disabled={regenerating || updating}
-              className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
-              {regenerating && <span className="w-3 h-3 rounded-full animate-spin" style={{ border: '1.5px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />}
-              {regenerating ? 'Starting…' : 'Regenerate'}
-            </button>
-          </div>
+      {/* Title + ScoreRing row */}
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h1 className="heading-lit text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
+            {job.title}
+          </h1>
+          {job.company && <p className="text-[15px] text-neutral-600 mt-0.5">{job.company}</p>}
         </div>
-      </motion.div>
+        {job.fit_score != null && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ ...spring.bouncy, delay: 0.15 }}
+            className="shrink-0 mt-1"
+          >
+            <ScoreRing score={job.fit_score} size={64} />
+          </motion.div>
+        )}
+      </div>
 
-      {/* Analysis at top — archive view is revisit context, not first-time reveal */}
-      {job.fit_score != null && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...spring.gentle, delay: 0.08 }}
-          className="mb-2"
-        >
-          <FitCard job={job} />
-        </motion.div>
-      )}
-
-      {/* Single-scroll content */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.12 }}
-      >
-        <Divider />
-        <ResumeSection job={job} />
-
-        {job.cover_letter && (
+      {/* Status actions row */}
+      <div className="flex items-center gap-4 mb-8 flex-wrap">
+        {job.status === 'generated' && (
           <>
-            <Divider />
-            <CoverLetterSection job={job} />
+            <button onClick={() => handleStatus('applied')} disabled={updating}
+              className="text-xs font-medium disabled:opacity-40 transition-colors"
+              style={{ color: 'var(--c-success)' }}>
+              Mark applied
+            </button>
+            <button onClick={() => handleStatus('skipped')} disabled={updating}
+              className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors">
+              Skip
+            </button>
           </>
         )}
-
-        {job.description && (
+        {job.status === 'applied' && (
           <>
-            <Divider />
-            <JdSection description={job.description} />
+            <button onClick={() => handleStatus('interview')} disabled={updating}
+              className="text-xs font-medium disabled:opacity-40 transition-colors"
+              style={{ color: 'var(--c-warn)' }}>
+              Got interview
+            </button>
+            <button onClick={() => handleStatus('generated')} disabled={updating}
+              className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+              ← Unmark
+            </button>
           </>
         )}
-      </motion.div>
+        {job.status === 'interview' && (
+          <>
+            <button onClick={() => handleStatus('offer')} disabled={updating}
+              className="text-xs font-medium disabled:opacity-40 transition-colors"
+              style={{ color: 'var(--c-warn)' }}>
+              Got offer
+            </button>
+            <button onClick={() => handleStatus('applied')} disabled={updating}
+              className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+              ← Applied
+            </button>
+          </>
+        )}
+        {job.status === 'offer' && (
+          <button onClick={() => handleStatus('interview')} disabled={updating}
+            className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+            ← Interview
+          </button>
+        )}
+        {job.status === 'skipped' && (
+          <button onClick={() => handleStatus('generated')} disabled={updating}
+            className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+            ← Reopen
+          </button>
+        )}
+        <AnimatePresence>
+          {undoPrev && (
+            <motion.button
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => {
+                if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+                setUndoPrev(null)
+                handleStatus(undoPrev)
+              }}
+              className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors underline decoration-neutral-300"
+            >
+              Undo
+            </motion.button>
+          )}
+        </AnimatePresence>
+        <button onClick={handleRegenerate} disabled={regenerating || updating}
+          className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+          {regenerating && (
+            <span className="w-3 h-3 rounded-full animate-spin" style={{ border: '1.5px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+          )}
+          {regenerating ? 'Starting…' : 'Regenerate'}
+        </button>
+      </div>
+
+      {/* Two-column grid at xl */}
+      <div className="xl:grid xl:grid-cols-[1fr_440px] xl:gap-16 xl:items-start">
+
+        {/* ── LEFT COLUMN ── */}
+        <div>
+          {/* Strategic analysis */}
+          {(analysis || job.strategic_note) && (
+            <>
+              <Divider delay={0} />
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...spring.gentle, delay: 0.05 }}
+                className="mb-2"
+              >
+                {analysis ? (
+                  <div className="space-y-6">
+                    <AnalysisSection title="Good fit" bullets={analysis.goodFit} color="var(--c-success)" />
+                    <AnalysisSection title="Gaps" bullets={analysis.gaps} color="var(--c-danger)" />
+                    <AnalysisSection title="Improvement plan" bullets={analysis.plan} color="var(--c-warn)" />
+                  </div>
+                ) : (
+                  <p className="text-[15px] text-neutral-700 leading-[1.8] max-w-[520px]">
+                    {job.strategic_note}
+                  </p>
+                )}
+              </motion.div>
+            </>
+          )}
+
+          <Divider delay={0.05} />
+
+          {/* Selected projects + compression notice */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ ...spring.gentle, delay: 0.08 }}
+          >
+            {job.selected_projects && job.selected_projects.length > 0 && (
+              <SelectedProjectsBar projects={job.selected_projects} />
+            )}
+            {(job.compression_attempts ?? 0) > 0 && (
+              <p className="text-xs text-neutral-400 font-mono -mt-1 mb-3">
+                compressed to 1 page · {job.compression_attempts} {job.compression_attempts === 1 ? 'pass' : 'passes'}
+              </p>
+            )}
+          </motion.div>
+
+          {/* Mobile-only PDF */}
+          {job.resume_latex && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring.gentle, delay: 0.1 }}
+              className="xl:hidden"
+            >
+              <ResumePdfViewer
+                blobUrl={pdfBlobUrl}
+                loaded={pdfLoaded}
+                failed={pdfFailed}
+                onLoad={() => setPdfLoaded(true)}
+                onError={() => setPdfFailed(true)}
+                onDownload={handleDownload}
+                downloading={downloading}
+              />
+              <motion.button
+                onClick={handleDownload}
+                disabled={downloading}
+                whileTap={{ scale: 0.97 }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60 mb-8"
+                style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
+              >
+                {downloading ? 'Compiling…' : 'Download Resume'}
+              </motion.button>
+            </motion.div>
+          )}
+
+          {/* Cover letter */}
+          {job.cover_letter && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring.gentle, delay: 0.12 }}
+            >
+              <Divider delay={0.1} />
+              <CoverLetterSection job={job} />
+            </motion.div>
+          )}
+
+          {/* LaTeX source */}
+          {job.resume_latex && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ ...spring.gentle, delay: 0.16 }}
+            >
+              <Divider delay={0.14} />
+              <LatexSection latex={job.resume_latex} />
+            </motion.div>
+          )}
+
+          {/* Original JD */}
+          {job.description && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ ...spring.gentle, delay: 0.2 }}
+            >
+              <Divider delay={0.18} />
+              <JdSection description={job.description} />
+            </motion.div>
+          )}
+        </div>
+
+        {/* ── RIGHT COLUMN — sticky PDF ── */}
+        {job.resume_latex && (
+          <motion.div
+            className="hidden xl:block"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring.heavy, delay: 0.18 }}
+            style={{ position: 'sticky', top: 96 }}
+          >
+            <ResumePdfViewer
+              blobUrl={pdfBlobUrl}
+              loaded={pdfLoaded}
+              failed={pdfFailed}
+              onLoad={() => setPdfLoaded(true)}
+              onError={() => setPdfFailed(true)}
+              onDownload={handleDownload}
+              downloading={downloading}
+            />
+            <motion.button
+              onClick={handleDownload}
+              disabled={downloading}
+              whileTap={{ scale: 0.97 }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+              style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
+            >
+              {downloading ? 'Compiling…' : 'Download Resume'}
+            </motion.button>
+          </motion.div>
+        )}
+      </div>
     </div>
   )
 }

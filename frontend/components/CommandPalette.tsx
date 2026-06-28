@@ -116,7 +116,7 @@ export function CommandPalette({ open, onOpen, onClose }: CommandPaletteProps) {
             exit={{ opacity: 0, scale: 0.97, y: -10, filter: 'blur(3px)' }}
             transition={spring.snappy}
             className="fixed z-[71] left-1/2 -translate-x-1/2 w-[calc(100%-32px)]"
-            style={{ top: '18vh', maxWidth: 480 }}
+            style={{ top: '18vh', maxWidth: 680 }}
           >
             <div
               className="rounded-2xl overflow-hidden"

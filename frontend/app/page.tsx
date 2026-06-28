@@ -28,6 +28,13 @@ function getGenMessage(elapsed: number): string {
   return 'Finishing your resume…'
 }
 
+function scoreColor(score: number | null): string {
+  if (score == null) return 'var(--c-border)'
+  if (score >= 8) return 'var(--c-success)'
+  if (score >= 6) return 'var(--c-warn)'
+  return 'var(--c-danger)'
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function AnalysisSection({ title, bullets }: { title: string; bullets: string[] }) {
@@ -749,35 +756,35 @@ export default function Home() {
                       {insights.count < 3 ? (
                         /* Not enough data yet */
                         <>
-                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-tight mb-2">
+                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-tight mb-2 text-center">
                             {insights.count} application{insights.count === 1 ? '' : 's'}
                           </p>
-                          <p className="text-sm text-neutral-500 leading-relaxed">
+                          <p className="text-sm text-neutral-500 leading-relaxed text-center">
                             Apply to {3 - insights.count} more for a candidacy read.
                           </p>
                         </>
                       ) : (
                         /* Structured insight — scannable in seconds */
                         <>
-                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-snug mb-5">
+                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-snug mb-5 text-center">
                             {insights.headline ?? `${insights.count} applications`}
                           </p>
-                          <div className="space-y-4 max-w-lg">
+                          <div className="space-y-4 max-w-lg mx-auto">
                             {insights.observed && (
                               <div>
-                                <SectionLabel className="mb-1">Observed</SectionLabel>
+                                <SectionLabel className="mb-1" style={{ color: 'var(--c-warn)' }}>Observed</SectionLabel>
                                 <p className="text-sm text-neutral-600 leading-relaxed">{insights.observed}</p>
                               </div>
                             )}
                             {insights.gap && (
                               <div>
-                                <SectionLabel className="mb-1">Gap</SectionLabel>
+                                <SectionLabel className="mb-1" style={{ color: 'var(--c-danger)' }}>Gap</SectionLabel>
                                 <p className="text-sm text-neutral-600 leading-relaxed">{insights.gap}</p>
                               </div>
                             )}
                             {insights.action && (
                               <div>
-                                <SectionLabel className="mb-1">Action</SectionLabel>
+                                <SectionLabel className="mb-1" style={{ color: 'var(--c-success)' }}>Action</SectionLabel>
                                 <p className="text-sm text-neutral-600 leading-relaxed">{insights.action}</p>
                               </div>
                             )}
@@ -805,7 +812,7 @@ export default function Home() {
                       href={`/jobs/${job.id}`}
                       className="flex items-center justify-between py-2.5 group"
                     >
-                      <span className="flex items-center gap-1.5 min-w-0 mr-6">
+                      <span className="flex items-center gap-1.5 min-w-0 mr-4">
                         <span className="text-sm text-neutral-600 group-hover:text-neutral-800 transition-colors truncate">
                           {job.title || 'Untitled'}
                           {job.company ? ` — ${job.company}` : ''}
@@ -814,8 +821,18 @@ export default function Home() {
                           <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--c-warn)' }} />
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-neutral-500 font-mono tabular-nums">
-                        {job.created_at ? relativeDate(job.created_at) : ''}
+                      <span className="flex items-center gap-3 shrink-0">
+                        {job.fit_score != null && (
+                          <span
+                            className="text-xs font-mono font-semibold tabular-nums"
+                            style={{ color: scoreColor(job.fit_score) }}
+                          >
+                            {job.fit_score}/10
+                          </span>
+                        )}
+                        <span className="text-xs text-neutral-500 font-mono tabular-nums">
+                          {job.created_at ? relativeDate(job.created_at) : ''}
+                        </span>
                       </span>
                     </Link>
                   ))}

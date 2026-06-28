@@ -934,7 +934,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="px-6 pb-24 max-w-3xl mx-auto">
+    <div className="px-6 pb-24 max-w-3xl xl:max-w-5xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
