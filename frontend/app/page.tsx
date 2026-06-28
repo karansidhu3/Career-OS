@@ -756,20 +756,20 @@ export default function Home() {
                       {insights.count < 3 ? (
                         /* Not enough data yet */
                         <>
-                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-tight mb-2 text-center">
+                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-tight mb-2">
                             {insights.count} application{insights.count === 1 ? '' : 's'}
                           </p>
-                          <p className="text-sm text-neutral-500 leading-relaxed text-center">
+                          <p className="text-sm text-neutral-500 leading-relaxed">
                             Apply to {3 - insights.count} more for a candidacy read.
                           </p>
                         </>
                       ) : (
                         /* Structured insight — scannable in seconds */
                         <>
-                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-snug mb-5 text-center">
+                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-snug mb-5">
                             {insights.headline ?? `${insights.count} applications`}
                           </p>
-                          <div className="space-y-4 max-w-lg mx-auto">
+                          <div className="space-y-4 max-w-lg">
                             {insights.observed && (
                               <div>
                                 <SectionLabel className="mb-1" style={{ color: 'var(--c-warn)' }}>Observed</SectionLabel>
