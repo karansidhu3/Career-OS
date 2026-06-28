@@ -103,11 +103,12 @@ html, body { height: 100%; }
 
 /* ─── Base ───────────────────────────────────────────────────── */
 body {
-  /* Directional ambient light from upper-left; warm shadow at lower-right */
+  /* fixed keeps the gradient relative to the viewport while scrolling */
   background:
     radial-gradient(ellipse at 25% 20%, rgba(255,254,248,0.70) 0%, transparent 52%),
     radial-gradient(ellipse at 80% 84%, rgba(236,230,218,0.55) 0%, transparent 42%),
     #F0EDE7;
+  background-attachment: fixed;
   color: #1C1C1E;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -281,6 +282,7 @@ body::before {
     background:
       radial-gradient(ellipse at 25% 18%, rgba(255,248,230,0.035) 0%, transparent 48%),
       #111110;
+    background-attachment: fixed;
     color: #EDEDE8;
   }
 

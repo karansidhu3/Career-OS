@@ -17,6 +17,14 @@ function ProfileIcon() {
   )
 }
 
+function ApplicationsIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+    </svg>
+  )
+}
+
 export function Navbar() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [hasActive, setHasActive] = useState(false)
@@ -44,11 +52,11 @@ export function Navbar() {
           }}
           className="rounded-2xl px-4 py-2.5 flex items-center justify-between"
         >
-          {/* Wordmark — click to open command palette */}
-          <button
-            onClick={() => setPaletteOpen(true)}
+          {/* Wordmark — home link */}
+          <Link
+            href="/"
             className="flex items-center gap-[7px] group"
-            title="Open command palette (⌘K)"
+            title="Home"
           >
             <span
               className="text-neutral-800 transition-opacity duration-150"
@@ -69,18 +77,32 @@ export function Navbar() {
                 style={{ background: 'var(--c-warn)' }}
               />
             )}
-          </button>
-
-          {/* Profile icon */}
-          <Link
-            href="/profile"
-            title="Profile"
-            className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >
-            <ProfileIcon />
           </Link>
+
+          {/* Right icons */}
+          <div className="flex items-center gap-1">
+            {/* Applications search — opens command palette */}
+            <button
+              onClick={() => setPaletteOpen(true)}
+              title="Search applications (⌘K)"
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <ApplicationsIcon />
+            </button>
+
+            {/* Profile */}
+            <Link
+              href="/profile"
+              title="Profile"
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <ProfileIcon />
+            </Link>
+          </div>
         </div>
       </motion.div>
 
