@@ -6,20 +6,7 @@ import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
 import { spring } from '@/lib/motion'
 import { BrandMark } from './BrandMark'
-import { HistoryDrawer } from './HistoryDrawer'
-
-function ArchiveIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="9" y1="6" x2="20" y2="6" />
-      <line x1="9" y1="12" x2="20" y2="12" />
-      <line x1="9" y1="18" x2="20" y2="18" />
-      <circle cx="4" cy="6" r="1.1" fill="currentColor" stroke="none" />
-      <circle cx="4" cy="12" r="1.1" fill="currentColor" stroke="none" />
-      <circle cx="4" cy="18" r="1.1" fill="currentColor" stroke="none" />
-    </svg>
-  )
-}
+import { CommandPalette } from './CommandPalette'
 
 function ProfileIcon() {
   return (
@@ -31,10 +18,9 @@ function ProfileIcon() {
 }
 
 export function Navbar() {
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [hasActive, setHasActive] = useState(false)
 
-  // Fetch once on mount to light the dot if interview/offer jobs exist
   useEffect(() => {
     api.listJobs()
       .then(jobs => setHasActive(jobs.some(j => j.status === 'interview' || j.status === 'offer')))
@@ -59,8 +45,12 @@ export function Navbar() {
           }}
           className="rounded-2xl px-4 py-2.5 flex items-center justify-between"
         >
-          {/* Mark + Wordmark — treated as one identity unit */}
-          <Link href="/" className="flex items-center gap-[7px] group">
+          {/* Wordmark — click to open command palette */}
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="flex items-center gap-[7px] group"
+            title="Open command palette (⌘K)"
+          >
             <span
               className="text-neutral-800 transition-opacity duration-150"
               style={{ opacity: 0.88 }}
@@ -70,42 +60,36 @@ export function Navbar() {
             <span className="text-[13px] font-medium text-neutral-800 tracking-[0.02em]">
               CareerOS
             </span>
-          </Link>
+            {/* Amber dot — interview/offer signal, lives next to wordmark */}
+            {hasActive && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 14 }}
+                className="w-1.5 h-1.5 rounded-full pointer-events-none"
+                style={{ background: 'var(--c-warn)' }}
+              />
+            )}
+          </button>
 
-          {/* Icon actions */}
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => setDrawerOpen(true)}
-              title="History"
-              className="relative w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <ArchiveIcon />
-              {hasActive && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 420, damping: 14 }}
-                  className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full pointer-events-none"
-                  style={{ background: 'var(--c-warn)' }}
-                />
-              )}
-            </button>
-            <Link
-              href="/profile"
-              title="Profile"
-              className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <ProfileIcon />
-            </Link>
-          </div>
+          {/* Profile icon */}
+          <Link
+            href="/profile"
+            title="Profile"
+            className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 transition-all duration-150"
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <ProfileIcon />
+          </Link>
         </div>
       </motion.div>
 
-      <HistoryDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpen={() => setPaletteOpen(true)}
+        onClose={() => setPaletteOpen(false)}
+      />
     </>
   )
 }

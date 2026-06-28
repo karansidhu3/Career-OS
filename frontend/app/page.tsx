@@ -8,6 +8,7 @@ import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
+import { ScoreRing } from '@/components/ScoreRing'
 import { spring } from '@/lib/motion'
 import { relativeDate, parseStrategicNote } from '@/lib/utils'
 
@@ -20,12 +21,6 @@ type AppState =
   | { mode: 'error'; jobId?: number; message: string }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function fitScoreColor(score: number): string {
-  if (score >= 8) return '#10b981'
-  if (score >= 6) return '#f59e0b'
-  return '#ef4444'
-}
 
 function getGenMessage(elapsed: number): string {
   if (elapsed < 14) return 'Generating your application…'
@@ -243,24 +238,58 @@ function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) =
 }
 
 // ─── Resume preview — inline PDF, the actual artifact ────────────────────────
+// Accepts either external blob state (passed from parent, shared across instances)
+// or manages its own internal fetch (used by archive page).
 
-function ResumePreview({ jobId }: { jobId: number }) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const [loaded, setLoaded] = useState(false)
-  const [failed, setFailed] = useState(false)
+function ResumePreview({
+  jobId,
+  blobUrl: externalBlobUrl,
+  loaded: externalLoaded,
+  failed: externalFailed,
+  onLoad,
+  onError,
+}: {
+  jobId: number
+  blobUrl?: string | null
+  loaded?: boolean
+  failed?: boolean
+  onLoad?: () => void
+  onError?: () => void
+}) {
+  const [internalBlobUrl, setInternalBlobUrl] = useState<string | null>(null)
+  const [internalLoaded, setInternalLoaded] = useState(false)
+  const [internalFailed, setInternalFailed] = useState(false)
+
+  const isManaged = externalBlobUrl !== undefined
 
   useEffect(() => {
+    if (isManaged) return
     let objectUrl: string | null = null
+    let cancelled = false
     api.fetchResumePdfPreview(jobId)
-      .then(url => { objectUrl = url; setBlobUrl(url) })
-      .catch(() => setFailed(true))
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [jobId])
+      .then(url => {
+        if (cancelled) { URL.revokeObjectURL(url); return }
+        objectUrl = url
+        setInternalBlobUrl(url)
+      })
+      .catch(() => { if (!cancelled) setInternalFailed(true) })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [jobId, isManaged])
+
+  const blobUrl = isManaged ? (externalBlobUrl ?? null) : internalBlobUrl
+  const loaded = isManaged ? (externalLoaded ?? false) : internalLoaded
+  const failed = isManaged ? (externalFailed ?? false) : internalFailed
+
+  const handleLoad = () => { if (!isManaged) setInternalLoaded(true); onLoad?.() }
+  const handleError = () => { if (!isManaged) setInternalFailed(true); onError?.() }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: loaded ? 1 : 0.3, y: 0 }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: loaded ? 1 : 0.35, y: 0 }}
       transition={{ ...spring.gentle, delay: 0.1 }}
       className="relative mb-6 rounded-sm overflow-hidden"
       style={{
@@ -285,8 +314,8 @@ function ResumePreview({ jobId }: { jobId: number }) {
       {blobUrl && (
         <iframe
           src={blobUrl}
-          onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
+          onLoad={handleLoad}
+          onError={handleError}
           title="Resume"
           style={{
             width: '100%',
@@ -302,10 +331,18 @@ function ResumePreview({ jobId }: { jobId: number }) {
   )
 }
 
-// ─── Divider ─────────────────────────────────────────────────────────────────
+// ─── Divider — draws from left on mount ──────────────────────────────────────
 
-function Divider() {
-  return <div className="my-8" style={{ borderTop: '1px solid var(--c-border)' }} />
+function Divider({ delay = 0 }: { delay?: number }) {
+  return (
+    <motion.div
+      className="my-8"
+      initial={{ scaleX: 0, opacity: 0 }}
+      animate={{ scaleX: 1, opacity: 1 }}
+      transition={{ ...spring.snappy, delay }}
+      style={{ height: '1px', background: 'var(--c-border)', transformOrigin: 'left' }}
+    />
+  )
 }
 
 // ─── Generating skeleton — ghost of what's being built ──────────────────────
@@ -313,7 +350,7 @@ function Divider() {
 function GeneratingSkeleton() {
   return (
     <div className="w-full mt-14 pointer-events-none" aria-hidden>
-      <div className="opacity-[0.07]">
+      <div className="opacity-[0.12]">
         {/* Title */}
         <div className="h-9 w-[52%] rounded-lg skeleton-shimmer mb-2.5" />
         {/* Company */}
@@ -385,6 +422,11 @@ export default function Home() {
     return null
   })
 
+  // PDF preview state — fetched once, shared between mobile and desktop renders
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [pdfLoaded, setPdfLoaded] = useState(false)
+  const [pdfFailed, setPdfFailed] = useState(false)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // ── Restore JD from sessionStorage on mount ──
@@ -447,6 +489,33 @@ export default function Home() {
 
   useEffect(() => { loadRecent() }, [loadRecent])
   useEffect(() => { loadInsights() }, [loadInsights])
+
+  // Fetch PDF once per result job — shared between mobile and desktop ResumePreview renders
+  const resultJobId = appState.mode === 'result' ? appState.job.id : null
+  useEffect(() => {
+    if (!resultJobId) {
+      setPdfBlobUrl(null)
+      setPdfLoaded(false)
+      setPdfFailed(false)
+      return
+    }
+    let objectUrl: string | null = null
+    let cancelled = false
+    setPdfBlobUrl(null)
+    setPdfLoaded(false)
+    setPdfFailed(false)
+    api.fetchResumePdfPreview(resultJobId)
+      .then(url => {
+        if (cancelled) { URL.revokeObjectURL(url); return }
+        objectUrl = url
+        setPdfBlobUrl(url)
+      })
+      .catch(() => { if (!cancelled) setPdfFailed(true) })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [resultJobId])
 
   // ── Profile completeness — show setup note if profile is empty ──
   useEffect(() => {
@@ -561,7 +630,7 @@ export default function Home() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-3xl mx-auto px-6 pb-24">
+    <div className="max-w-3xl xl:max-w-6xl mx-auto px-6 pb-24">
       <AnimatePresence mode="wait">
 
         {/* ── IDLE STATE ── */}
@@ -822,7 +891,7 @@ export default function Home() {
             {/* Watermark ring — atmospheric depth, barely there */}
             <div
               aria-hidden
-              className="pointer-events-none fixed"
+              className="pointer-events-none fixed hidden xl:block"
               style={{ right: -140, top: '50%', transform: 'translateY(-50%)', opacity: 0.038, zIndex: 0, color: 'var(--c-accent)' }}
             >
               <svg width={520} height={520} viewBox="0 0 520 520" fill="none" stroke="currentColor">
@@ -831,7 +900,7 @@ export default function Home() {
               </svg>
             </div>
 
-            {/* Header — elevates after download to signal readiness for next */}
+            {/* Back button */}
             <div className="pt-8 mb-8">
               <button
                 onClick={resetToIdle}
@@ -849,146 +918,203 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Title + company */}
-            <div className="flex items-baseline gap-3 flex-wrap mb-1">
-              <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
-                {appState.job.title}
-              </h1>
+            {/* Title + ScoreRing row */}
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
+                  {appState.job.title}
+                </h1>
+                {appState.job.company && (
+                  <p className="text-[15px] text-neutral-600 mt-0.5">{appState.job.company}</p>
+                )}
+              </div>
+              {appState.job.fit_score != null && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ ...spring.bouncy, delay: 0.15 }}
+                  className="shrink-0 mt-1"
+                >
+                  <ScoreRing score={appState.job.fit_score} size={64} celebrate />
+                </motion.div>
+              )}
             </div>
-            {appState.job.company && (
-              <p className="text-[15px] text-neutral-600 mb-0">{appState.job.company}</p>
-            )}
-            {appState.job.fit_score != null && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ ...spring.bouncy, delay: 0.1 }}
-                className="flex items-center gap-1.5 mt-2"
-              >
-                <span style={{ color: fitScoreColor(appState.job.fit_score), filter: `drop-shadow(0 0 4px ${fitScoreColor(appState.job.fit_score)})` }}>
-                  <BrandMark size={14} physicalStroke={1.8} />
-                </span>
-                <span className="text-xs font-mono tabular-nums" style={{ color: fitScoreColor(appState.job.fit_score) }}>
-                  {appState.job.fit_score}/10
-                </span>
-              </motion.div>
-            )}
 
-            {/* Analysis first — decide whether to apply before you download */}
-            {appState.job.strategic_note && (() => {
-              const analysis = parseStrategicNote(appState.job.strategic_note)
-              return (
-                <>
-                  <Divider />
+            {/* Two-column grid at xl+ — left: content, right: sticky PDF */}
+            <div className="xl:grid xl:grid-cols-[1fr_440px] xl:gap-16 xl:items-start">
+
+              {/* ── LEFT COLUMN ── */}
+              <div>
+                {/* Strategic analysis */}
+                {appState.job.strategic_note && (() => {
+                  const analysis = parseStrategicNote(appState.job.strategic_note)
+                  return (
+                    <>
+                      <Divider delay={0} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...spring.gentle, delay: 0.05 }}
+                        className="mb-2"
+                      >
+                        {analysis ? (
+                          <div className="space-y-6">
+                            <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
+                            <AnalysisSection title="Gaps" bullets={analysis.gaps} />
+                            <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
+                          </div>
+                        ) : (
+                          <p className="text-[15px] text-neutral-700 leading-[1.8] max-w-[520px]">
+                            {appState.job.strategic_note}
+                          </p>
+                        )}
+                      </motion.div>
+                    </>
+                  )
+                })()}
+
+                <Divider delay={0.05} />
+
+                {/* Projects bar + compression notice */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ ...spring.gentle, delay: 0.08 }}
+                >
+                  {appState.job.selected_projects && appState.job.selected_projects.length > 0 && (
+                    <SelectedProjectsBar projects={appState.job.selected_projects} />
+                  )}
+                  {(appState.job.compression_attempts ?? 0) > 0 && (
+                    <p className="text-xs text-neutral-400 font-mono -mt-1 mb-3">
+                      compressed to 1 page · {appState.job.compression_attempts} {appState.job.compression_attempts === 1 ? 'pass' : 'passes'}
+                    </p>
+                  )}
+                </motion.div>
+
+                {/* Resume preview — mobile/tablet only (xl shows it in right column) */}
+                {appState.job.resume_latex && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...spring.gentle, delay: 0.1 }}
+                    className="relative xl:hidden"
+                  >
+                    <ResumePreview
+                      jobId={appState.job.id}
+                      blobUrl={pdfBlobUrl}
+                      loaded={pdfLoaded}
+                      failed={pdfFailed}
+                      onLoad={() => setPdfLoaded(true)}
+                      onError={() => setPdfFailed(true)}
+                    />
+                    <div className="absolute top-3 right-3 z-10">
+                      <motion.button
+                        onClick={handleDownloadResume}
+                        disabled={resumeDownloading}
+                        whileTap={{ scale: 0.97 }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
+                        style={{ background: 'rgba(24,24,27,0.72)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                      >
+                        {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Saved ✓' : 'Download PDF'}
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Download + status actions */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ ...spring.gentle, delay: 0.12 }}
+                  className="flex items-center gap-4 flex-wrap mb-2"
+                >
+                  {appState.job.resume_latex && (
+                    <motion.button
+                      onClick={handleDownloadResume}
+                      disabled={resumeDownloading}
+                      whileTap={{ scale: 0.97 }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+                      style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
+                    >
+                      {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Resume saved' : 'Download Resume'}
+                      {resumeDownloaded ? (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      )}
+                    </motion.button>
+                  )}
+                  <StatusActions
+                    job={appState.job}
+                    onUpdate={job => setAppState({ mode: 'result', job })}
+                  />
+                </motion.div>
+
+                {/* Cover letter */}
+                {appState.job.cover_letter && (
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ ...spring.gentle, delay: 0.05 }}
-                    className="mb-2"
+                    transition={{ ...spring.gentle, delay: 0.16 }}
                   >
-                    {analysis ? (
-                      <div className="space-y-6">
-                        <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
-                        <AnalysisSection title="Gaps" bullets={analysis.gaps} />
-                        <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
-                      </div>
-                    ) : (
-                      <p className="text-[15px] text-neutral-700 leading-[1.8] max-w-[520px]">
-                        {appState.job.strategic_note}
-                      </p>
-                    )}
+                    <Divider delay={0.14} />
+                    <CoverLetterEditor
+                      job={appState.job}
+                      onSave={job => setAppState({ mode: 'result', job })}
+                    />
                   </motion.div>
-                </>
-              )
-            })()}
+                )}
 
-            <Divider />
-
-            {/* Which projects the AI chose — verify before downloading */}
-            {appState.job.selected_projects && appState.job.selected_projects.length > 0 && (
-              <SelectedProjectsBar projects={appState.job.selected_projects} />
-            )}
-
-            {/* Compression notice — shown only when overflow was detected and corrected */}
-            {(appState.job.compression_attempts ?? 0) > 0 && (
-              <p className="text-xs text-neutral-400 font-mono -mt-1 mb-3">
-                compressed to 1 page · {appState.job.compression_attempts} {appState.job.compression_attempts === 1 ? 'pass' : 'passes'}
-              </p>
-            )}
-
-            {/* Resume preview — overlay download anchored top-right */}
-            {appState.job.resume_latex && (
-              <div className="relative">
-                <ResumePreview jobId={appState.job.id} />
-                <div className="absolute top-3 right-3 z-10">
-                  <motion.button
-                    onClick={handleDownloadResume}
-                    disabled={resumeDownloading}
-                    whileTap={{ scale: 0.97 }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
-                    style={{
-                      background: 'rgba(24,24,27,0.72)',
-                      backdropFilter: 'blur(8px)',
-                      WebkitBackdropFilter: 'blur(8px)',
-                    }}
+                {/* LaTeX source */}
+                {appState.job.resume_latex && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ ...spring.gentle, delay: 0.2 }}
                   >
-                    {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Saved ✓' : 'Download PDF'}
-                  </motion.button>
-                </div>
+                    <Divider delay={0.18} />
+                    <LatexSection latex={appState.job.resume_latex} />
+                  </motion.div>
+                )}
               </div>
-            )}
 
-            {/* Resume download + status actions */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ ...spring.gentle, delay: 0.1 }}
-              className="flex items-center gap-4 flex-wrap mb-2"
-            >
+              {/* ── RIGHT COLUMN — sticky PDF (xl+ only) ── */}
               {appState.job.resume_latex && (
-                <motion.button
-                  onClick={handleDownloadResume}
-                  disabled={resumeDownloading}
-                  whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-                  style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-                >
-                  {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Resume saved' : 'Download Resume'}
-                  {resumeDownloaded ? (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  ) : (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                  )}
-                </motion.button>
+                <div className="hidden xl:block">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...spring.heavy, delay: 0.18 }}
+                    className="relative sticky"
+                    style={{ top: 96 }}
+                  >
+                    <ResumePreview
+                      jobId={appState.job.id}
+                      blobUrl={pdfBlobUrl}
+                      loaded={pdfLoaded}
+                      failed={pdfFailed}
+                      onLoad={() => setPdfLoaded(true)}
+                      onError={() => setPdfFailed(true)}
+                    />
+                    <div className="absolute top-3 right-3 z-10">
+                      <motion.button
+                        onClick={handleDownloadResume}
+                        disabled={resumeDownloading}
+                        whileTap={{ scale: 0.97 }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
+                        style={{ background: 'rgba(24,24,27,0.72)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                      >
+                        {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Saved ✓' : 'Download PDF'}
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                </div>
               )}
-              <StatusActions
-                job={appState.job}
-                onUpdate={job => setAppState({ mode: 'result', job })}
-              />
-            </motion.div>
-
-            {/* Cover letter — editable before download */}
-            {appState.job.cover_letter && (
-              <>
-                <Divider />
-                <CoverLetterEditor
-                  job={appState.job}
-                  onSave={job => setAppState({ mode: 'result', job })}
-                />
-              </>
-            )}
-
-            {/* LaTeX source */}
-            {appState.job.resume_latex && (
-              <>
-                <Divider />
-                <LatexSection latex={appState.job.resume_latex} />
-              </>
-            )}
+            </div>
           </motion.div>
         )}
 
