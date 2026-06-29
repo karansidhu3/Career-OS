@@ -39,6 +39,8 @@ function scoreColor(score: number | null): string {
 const FILTERS = ['all', 'generated', 'applied', 'interview', 'offer', 'skipped'] as const
 type Filter = typeof FILTERS[number]
 
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000
+
 function groupJobs(jobs: Job[]) {
   const now = Date.now()
   const sevenDays = 7 * 24 * 60 * 60 * 1000
@@ -46,6 +48,7 @@ function groupJobs(jobs: Job[]) {
   const active: Job[] = []
   const recent: Job[] = []
   const older: Job[] = []
+  const stale: Job[] = []
 
   for (const job of jobs) {
     if (job.status === 'interview' || job.status === 'offer') {
@@ -53,11 +56,16 @@ function groupJobs(jobs: Job[]) {
       continue
     }
     const age = job.created_at ? now - new Date(job.created_at).getTime() : Infinity
-    if (age < sevenDays) recent.push(job)
-    else older.push(job)
+    if (age < sevenDays) {
+      recent.push(job)
+    } else if (job.status === 'applied' && age > THIRTY_DAYS) {
+      stale.push(job)
+    } else {
+      older.push(job)
+    }
   }
 
-  return { active, recent, older }
+  return { active, recent, older, stale }
 }
 
 // ─── Row ─────────────────────────────────────────────────────────
@@ -147,6 +155,7 @@ function Rows({ jobs, startIndex = 0 }: { jobs: Job[]; startIndex?: number }) {
 export default function ApplicationsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [filter, setFilter] = useState<Filter>('all')
+  const [showStale, setShowStale] = useState(false)
 
   const load = useCallback(async () => {
     try { setJobs(await api.listJobs()) } catch { /* offline */ }
@@ -155,7 +164,7 @@ export default function ApplicationsPage() {
   useEffect(() => { load() }, [load])
 
   const filtered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter)
-  const { active, recent, older } = groupJobs(jobs)
+  const { active, recent, older, stale } = groupJobs(jobs)
 
   return (
     <div className="px-6 pb-24 max-w-4xl mx-auto">
@@ -244,6 +253,38 @@ export default function ApplicationsPage() {
             >
               <SectionLabel className="mb-3">Earlier</SectionLabel>
               <Rows jobs={older} startIndex={active.length + recent.length} />
+            </div>
+          )}
+
+          {stale.length > 0 && (
+            <div
+              style={{
+                borderTop: '1px solid var(--c-border)',
+                paddingTop: '0.75rem',
+                marginTop: older.length > 0 ? '0.5rem' : active.length + recent.length > 0 ? '1.5rem' : undefined,
+              }}
+            >
+              {showStale ? (
+                <div style={{ opacity: 0.45 }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <SectionLabel>Older applied</SectionLabel>
+                    <button
+                      onClick={() => setShowStale(false)}
+                      className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                    >
+                      hide
+                    </button>
+                  </div>
+                  <Rows jobs={stale} startIndex={active.length + recent.length + older.length} />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowStale(true)}
+                  className="w-full text-left py-2 text-xs text-neutral-400 hover:text-neutral-500 transition-colors"
+                >
+                  {stale.length} older applied {stale.length === 1 ? 'application' : 'applications'} — likely no response
+                </button>
+              )}
             </div>
           )}
         </>
