@@ -90,7 +90,7 @@ export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
-        style={{ transform: 'rotate(-90deg)', display: 'block' }}
+        style={{ transform: 'rotate(-90deg)', display: 'block', overflow: 'visible' }}
       >
         {/* Track */}
         <circle
