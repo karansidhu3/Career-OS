@@ -1,6 +1,9 @@
 import datetime
+import io
 import logging
 import re
+
+from pypdf import PdfReader, PdfWriter
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
@@ -220,7 +223,7 @@ async def regenerate_job(
 
 
 @router.get("/{id}/resume.pdf")
-async def download_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
+async def download_resume_pdf(id: int, first_page: bool = False, db: AsyncSession = Depends(get_db)):
     job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
     if not job or not job.resume_latex:
         raise HTTPException(status_code=404, detail="Resume not found")
@@ -232,6 +235,14 @@ async def download_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
     except RuntimeError:
         logger.exception("Resume PDF compilation failed for job %d", id)
         raise HTTPException(status_code=500, detail="PDF generation failed")
+
+    if first_page:
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        writer.add_page(reader.pages[0])
+        buf = io.BytesIO()
+        writer.write(buf)
+        pdf_bytes = buf.getvalue()
 
     filename = f"resume-{_safe_filename(job.company or 'company')}.pdf"
     return Response(

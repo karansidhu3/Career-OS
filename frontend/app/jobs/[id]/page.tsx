@@ -587,15 +587,26 @@ export default function JobPage() {
                 onDownload={handleDownload}
                 downloading={downloading}
               />
-              <motion.button
-                onClick={handleDownload}
-                disabled={downloading}
-                whileTap={{ scale: 0.97 }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60 mb-8"
-                style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-              >
-                {downloading ? 'Compiling…' : 'Download Resume'}
-              </motion.button>
+              <div className="mb-8 flex items-center gap-4 flex-wrap">
+                <motion.button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  whileTap={{ scale: 0.97 }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+                  style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
+                >
+                  {downloading ? 'Compiling…' : 'Download Resume'}
+                </motion.button>
+                {(job.compression_attempts ?? 0) >= 2 && (
+                  <button
+                    onClick={() => api.downloadResumePdfPage1(job.id, job.company)}
+                    className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+                    title="Resume may exceed 1 page — download only the first page with links intact"
+                  >
+                    Page 1 only ↓
+                  </button>
+                )}
+              </div>
             </motion.div>
           )}
 

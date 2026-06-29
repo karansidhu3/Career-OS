@@ -20,7 +20,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <p className="text-[13px] font-semibold text-neutral-500 tracking-tight">{title}</p>
+      <p className="text-sm font-semibold text-neutral-800">{title}</p>
       {onAdd && (
         <button
           onClick={onAdd}
@@ -657,7 +657,7 @@ function VoiceEditor({ personal, onSave }: { personal: import('@/lib/api').Perso
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <SectionLabel>Cover letter voice</SectionLabel>
+        <p className="text-sm font-semibold text-neutral-800">Cover letter voice</p>
         <AnimatePresence>
           {savedFlash && <SavedFlash />}
         </AnimatePresence>
@@ -669,7 +669,7 @@ function VoiceEditor({ personal, onSave }: { personal: import('@/lib/api').Perso
       <TextArea
         value={voice}
         onChange={setVoice}
-        rows={4}
+        rows={7}
         maxLength={2000}
         placeholder={'e.g. "I write directly and don\'t over-explain. Short sentences. I open with the problem, not with myself. Technical but not dense."'}
       />
@@ -1000,7 +1000,7 @@ export default function ProfilePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.1 }}
         className="mb-10 pt-10"
-        style={{ borderTop: '1px solid var(--c-border)' }}
+        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
       >
         <SectionHeader title="Experience" onAdd={addExperience} adding={addingExp} />
         <div className="space-y-3">
@@ -1042,7 +1042,7 @@ export default function ProfilePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.14 }}
         className="mb-10 pt-10"
-        style={{ borderTop: '1px solid var(--c-border)' }}
+        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
       >
         <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
         <div className="space-y-3">
@@ -1084,7 +1084,7 @@ export default function ProfilePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.18 }}
         className="mb-10 pt-10"
-        style={{ borderTop: '1px solid var(--c-border)' }}
+        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
       >
         <SectionHeader title="Education" />
         <div className="space-y-3">
@@ -1105,7 +1105,7 @@ export default function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring.gentle, delay: 0.22 }}
           className="mb-10 pt-10"
-          style={{ borderTop: '1px solid var(--c-border)' }}
+          style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
         >
           <VoiceEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
         </motion.section>

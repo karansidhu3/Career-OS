@@ -1033,7 +1033,7 @@ export default function Home() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ ...spring.gentle, delay: 0.12 }}
-                  className="mb-8"
+                  className="mb-8 flex items-center gap-4 flex-wrap"
                 >
                   <motion.button
                     onClick={handleDownloadResume}
@@ -1053,6 +1053,15 @@ export default function Home() {
                       </svg>
                     )}
                   </motion.button>
+                  {(appState.job.compression_attempts ?? 0) >= 2 && (
+                    <button
+                      onClick={() => api.downloadResumePdfPage1(appState.job.id, appState.job.company)}
+                      className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+                      title="Resume may exceed 1 page — download only the first page with links intact"
+                    >
+                      Page 1 only ↓
+                    </button>
+                  )}
                 </motion.div>
               )}
 
