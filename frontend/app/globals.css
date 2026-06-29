@@ -86,11 +86,13 @@ html, body { height: 100%; }
   /* Surface overlay — command palette, modals (warm, not pure white) */
   --c-surface-overlay: rgba(253, 251, 248, 0.98);
 
-  /* Focus illumination — amber bloom matching brand ring temperature */
+  /* Focus illumination — white luminous bloom */
   --c-focus-glow:
-    inset 0 0 0 1.5px rgba(251,191,36,0.32),
-    0 0 0 3px rgba(251,191,36,0.09),
-    0 1px 0 rgba(255,255,255,0.85);
+    inset 0 2px 6px rgba(0,0,0,0.03),
+    inset 0 0 0 1.5px rgba(255,255,255,0.88),
+    0 0 0 4px rgba(255,255,255,0.22),
+    0 0 18px rgba(255,255,255,0.45),
+    0 0 36px rgba(255,255,255,0.18);
 
   /* Tag / pill */
   --c-tag-bg:     rgba(0, 0, 0, 0.065);
@@ -265,9 +267,11 @@ body::before {
 
     /* Focus illumination */
     --c-focus-glow:
-      inset 0 0 0 1.5px rgba(251,191,36,0.28),
-      0 0 0 3px rgba(251,191,36,0.07),
-      0 1px 0 rgba(255,255,255,0.05);
+      inset 0 2px 6px rgba(0,0,0,0.25),
+      inset 0 0 0 1.5px rgba(255,255,255,0.45),
+      0 0 0 3px rgba(255,255,255,0.08),
+      0 0 16px rgba(255,255,255,0.14),
+      0 0 32px rgba(255,255,255,0.06);
 
     /* Tag / pill */
     --c-tag-bg:     rgba(255, 255, 255, 0.09);

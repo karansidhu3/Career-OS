@@ -409,19 +409,7 @@ export default function JobPage() {
   const analysis = parseStrategicNote(job.strategic_note)
 
   return (
-    <div className="max-w-3xl xl:max-w-6xl mx-auto px-6 pb-24">
-
-      {/* Watermark ring */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed hidden xl:block"
-        style={{ right: -140, top: '50%', transform: 'translateY(-50%)', opacity: 0.038, zIndex: 0, color: 'var(--c-accent)' }}
-      >
-        <svg width={520} height={520} viewBox="0 0 520 520" fill="none" stroke="currentColor">
-          <circle cx={260} cy={260} r={238} strokeWidth={1} />
-          <circle cx={260} cy={260} r={188} strokeWidth={0.5} />
-        </svg>
-      </div>
+    <div className="max-w-3xl mx-auto px-6 pb-24">
 
       {/* Back button */}
       <motion.div
@@ -539,11 +527,7 @@ export default function JobPage() {
         </button>
       </div>
 
-      {/* Two-column grid at xl */}
-      <div className="xl:grid xl:grid-cols-[1fr_440px] xl:gap-16 xl:items-start">
-
-        {/* ── LEFT COLUMN ── */}
-        <div>
+      <div>
           {/* Strategic analysis */}
           {(analysis || job.strategic_note) && (
             <>
@@ -587,13 +571,12 @@ export default function JobPage() {
             )}
           </motion.div>
 
-          {/* Mobile-only PDF */}
+          {/* Resume PDF */}
           {job.resume_latex && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring.gentle, delay: 0.1 }}
-              className="xl:hidden"
             >
               <ResumePdfViewer
                 blobUrl={pdfBlobUrl}
@@ -651,37 +634,6 @@ export default function JobPage() {
               <JdSection description={job.description} />
             </motion.div>
           )}
-        </div>
-
-        {/* ── RIGHT COLUMN — sticky PDF ── */}
-        {job.resume_latex && (
-          <motion.div
-            className="hidden xl:block"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...spring.heavy, delay: 0.18 }}
-            style={{ position: 'sticky', top: 96 }}
-          >
-            <ResumePdfViewer
-              blobUrl={pdfBlobUrl}
-              loaded={pdfLoaded}
-              failed={pdfFailed}
-              onLoad={() => setPdfLoaded(true)}
-              onError={() => setPdfFailed(true)}
-              onDownload={handleDownload}
-              downloading={downloading}
-            />
-            <motion.button
-              onClick={handleDownload}
-              disabled={downloading}
-              whileTap={{ scale: 0.97 }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-              style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-            >
-              {downloading ? 'Compiling…' : 'Download Resume'}
-            </motion.button>
-          </motion.div>
-        )}
       </div>
     </div>
   )

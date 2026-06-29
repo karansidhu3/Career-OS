@@ -37,11 +37,11 @@ function scoreColor(score: number | null): string {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function AnalysisSection({ title, bullets }: { title: string; bullets: string[] }) {
+function AnalysisSection({ title, bullets, color }: { title: string; bullets: string[]; color?: string }) {
   if (!bullets.length) return null
   return (
     <div>
-      <SectionLabel className="mb-2">{title}</SectionLabel>
+      <SectionLabel className="mb-2" style={color ? { color } : undefined}>{title}</SectionLabel>
       <ul className="space-y-1.5">
         {bullets.map((b, i) => (
           <li key={i} className="flex gap-2.5 text-[15px] text-neutral-700 leading-snug">
@@ -637,7 +637,7 @@ export default function Home() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-3xl xl:max-w-6xl mx-auto px-6 pb-24">
+    <div className="max-w-3xl mx-auto px-6 pb-24">
       <AnimatePresence mode="wait">
 
         {/* ── IDLE STATE ── */}
@@ -901,18 +901,6 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={spring.standard}
           >
-            {/* Watermark ring — atmospheric depth, barely there */}
-            <div
-              aria-hidden
-              className="pointer-events-none fixed hidden xl:block"
-              style={{ right: -140, top: '50%', transform: 'translateY(-50%)', opacity: 0.038, zIndex: 0, color: 'var(--c-accent)' }}
-            >
-              <svg width={520} height={520} viewBox="0 0 520 520" fill="none" stroke="currentColor">
-                <circle cx={260} cy={260} r={238} strokeWidth={1} />
-                <circle cx={260} cy={260} r={188} strokeWidth={0.5} />
-              </svg>
-            </div>
-
             {/* Back button */}
             <div className="pt-8 mb-8">
               <button
@@ -932,7 +920,7 @@ export default function Home() {
             </div>
 
             {/* Title + ScoreRing row */}
-            <div className="flex items-start justify-between gap-4 mb-6">
+            <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <h1 className="heading-lit text-[2rem] font-semibold text-neutral-900 leading-tight tracking-tight">
                   {appState.job.title}
@@ -953,179 +941,146 @@ export default function Home() {
               )}
             </div>
 
-            {/* Two-column grid at xl+ — left: content, right: sticky PDF */}
-            <div className="xl:grid xl:grid-cols-[1fr_440px] xl:gap-16 xl:items-start">
+            {/* Status actions — same position as archive page */}
+            <div className="flex items-center gap-4 mb-8 flex-wrap">
+              <StatusActions
+                job={appState.job}
+                onUpdate={job => setAppState({ mode: 'result', job })}
+              />
+            </div>
 
-              {/* ── LEFT COLUMN ── */}
-              <div>
-                {/* Strategic analysis */}
-                {appState.job.strategic_note && (() => {
-                  const analysis = parseStrategicNote(appState.job.strategic_note)
-                  return (
-                    <>
-                      <Divider delay={0} />
-                      <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ ...spring.gentle, delay: 0.05 }}
-                        className="mb-2"
-                      >
-                        {analysis ? (
-                          <div className="space-y-6">
-                            <AnalysisSection title="Good fit" bullets={analysis.goodFit} />
-                            <AnalysisSection title="Gaps" bullets={analysis.gaps} />
-                            <AnalysisSection title="Improvement plan" bullets={analysis.plan} />
-                          </div>
-                        ) : (
-                          <p className="text-[15px] text-neutral-700 leading-[1.8] max-w-[520px]">
-                            {appState.job.strategic_note}
-                          </p>
-                        )}
-                      </motion.div>
-                    </>
-                  )
-                })()}
+            {/* Single-column content */}
+            <div>
+              {/* Strategic analysis */}
+              {appState.job.strategic_note && (() => {
+                const analysis = parseStrategicNote(appState.job.strategic_note)
+                return (
+                  <>
+                    <Divider delay={0} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ ...spring.gentle, delay: 0.05 }}
+                      className="mb-2"
+                    >
+                      {analysis ? (
+                        <div className="space-y-6">
+                          <AnalysisSection title="Good fit" bullets={analysis.goodFit} color="var(--c-success)" />
+                          <AnalysisSection title="Gaps" bullets={analysis.gaps} color="var(--c-danger)" />
+                          <AnalysisSection title="Improvement plan" bullets={analysis.plan} color="var(--c-warn)" />
+                        </div>
+                      ) : (
+                        <p className="text-[15px] text-neutral-700 leading-[1.8] max-w-[520px]">
+                          {appState.job.strategic_note}
+                        </p>
+                      )}
+                    </motion.div>
+                  </>
+                )
+              })()}
 
-                <Divider delay={0.05} />
+              <Divider delay={0.05} />
 
-                {/* Projects bar + compression notice */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ ...spring.gentle, delay: 0.08 }}
-                >
-                  {appState.job.selected_projects && appState.job.selected_projects.length > 0 && (
-                    <SelectedProjectsBar projects={appState.job.selected_projects} />
-                  )}
-                  {(appState.job.compression_attempts ?? 0) > 0 && (
-                    <p className="text-xs text-neutral-400 font-mono -mt-1 mb-3">
-                      compressed to 1 page · {appState.job.compression_attempts} {appState.job.compression_attempts === 1 ? 'pass' : 'passes'}
-                    </p>
-                  )}
-                </motion.div>
-
-                {/* Resume preview — mobile/tablet only (xl shows it in right column) */}
-                {appState.job.resume_latex && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ ...spring.gentle, delay: 0.1 }}
-                    className="relative xl:hidden"
-                  >
-                    <ResumePreview
-                      jobId={appState.job.id}
-                      blobUrl={pdfBlobUrl}
-                      loaded={pdfLoaded}
-                      failed={pdfFailed}
-                      onLoad={() => setPdfLoaded(true)}
-                      onError={() => setPdfFailed(true)}
-                    />
-                    <div className="absolute top-3 right-3 z-10">
-                      <motion.button
-                        onClick={handleDownloadResume}
-                        disabled={resumeDownloading}
-                        whileTap={{ scale: 0.97 }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
-                        style={{ background: 'rgba(24,24,27,0.72)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-                      >
-                        {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Saved ✓' : 'Download PDF'}
-                      </motion.button>
-                    </div>
-                  </motion.div>
+              {/* Projects bar + compression notice */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ ...spring.gentle, delay: 0.08 }}
+              >
+                {appState.job.selected_projects && appState.job.selected_projects.length > 0 && (
+                  <SelectedProjectsBar projects={appState.job.selected_projects} />
                 )}
+                {(appState.job.compression_attempts ?? 0) > 0 && (
+                  <p className="text-xs text-neutral-400 font-mono -mt-1 mb-3">
+                    compressed to 1 page · {appState.job.compression_attempts} {appState.job.compression_attempts === 1 ? 'pass' : 'passes'}
+                  </p>
+                )}
+              </motion.div>
 
-                {/* Download + status actions */}
+              {/* Resume PDF — inline for all viewports */}
+              {appState.job.resume_latex && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ ...spring.gentle, delay: 0.12 }}
-                  className="flex items-center gap-4 flex-wrap mb-2"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...spring.gentle, delay: 0.1 }}
+                  className="relative"
                 >
-                  {appState.job.resume_latex && (
+                  <ResumePreview
+                    jobId={appState.job.id}
+                    blobUrl={pdfBlobUrl}
+                    loaded={pdfLoaded}
+                    failed={pdfFailed}
+                    onLoad={() => setPdfLoaded(true)}
+                    onError={() => setPdfFailed(true)}
+                  />
+                  <div className="absolute top-3 right-3 z-10">
                     <motion.button
                       onClick={handleDownloadResume}
                       disabled={resumeDownloading}
                       whileTap={{ scale: 0.97 }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-                      style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
+                      style={{ background: 'rgba(24,24,27,0.72)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
                     >
-                      {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Resume saved' : 'Download Resume'}
-                      {resumeDownloaded ? (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      ) : (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                      )}
+                      {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Saved ✓' : 'Download PDF'}
                     </motion.button>
-                  )}
-                  <StatusActions
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Download Resume button */}
+              {appState.job.resume_latex && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ ...spring.gentle, delay: 0.12 }}
+                  className="mb-8"
+                >
+                  <motion.button
+                    onClick={handleDownloadResume}
+                    disabled={resumeDownloading}
+                    whileTap={{ scale: 0.97 }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+                    style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
+                  >
+                    {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Resume saved' : 'Download Resume'}
+                    {resumeDownloaded ? (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    )}
+                  </motion.button>
+                </motion.div>
+              )}
+
+              {/* Cover letter */}
+              {appState.job.cover_letter && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...spring.gentle, delay: 0.16 }}
+                >
+                  <Divider delay={0.14} />
+                  <CoverLetterEditor
                     job={appState.job}
-                    onUpdate={job => setAppState({ mode: 'result', job })}
+                    onSave={job => setAppState({ mode: 'result', job })}
                   />
                 </motion.div>
+              )}
 
-                {/* Cover letter */}
-                {appState.job.cover_letter && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ ...spring.gentle, delay: 0.16 }}
-                  >
-                    <Divider delay={0.14} />
-                    <CoverLetterEditor
-                      job={appState.job}
-                      onSave={job => setAppState({ mode: 'result', job })}
-                    />
-                  </motion.div>
-                )}
-
-                {/* LaTeX source */}
-                {appState.job.resume_latex && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ ...spring.gentle, delay: 0.2 }}
-                  >
-                    <Divider delay={0.18} />
-                    <LatexSection latex={appState.job.resume_latex} />
-                  </motion.div>
-                )}
-              </div>
-
-              {/* ── RIGHT COLUMN — sticky PDF (xl+ only) ── */}
+              {/* LaTeX source */}
               {appState.job.resume_latex && (
-                <div className="hidden xl:block">
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ ...spring.heavy, delay: 0.18 }}
-                    className="relative sticky"
-                    style={{ top: 96 }}
-                  >
-                    <ResumePreview
-                      jobId={appState.job.id}
-                      blobUrl={pdfBlobUrl}
-                      loaded={pdfLoaded}
-                      failed={pdfFailed}
-                      onLoad={() => setPdfLoaded(true)}
-                      onError={() => setPdfFailed(true)}
-                    />
-                    <div className="absolute top-3 right-3 z-10">
-                      <motion.button
-                        onClick={handleDownloadResume}
-                        disabled={resumeDownloading}
-                        whileTap={{ scale: 0.97 }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
-                        style={{ background: 'rgba(24,24,27,0.72)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-                      >
-                        {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Saved ✓' : 'Download PDF'}
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                </div>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ ...spring.gentle, delay: 0.2 }}
+                >
+                  <Divider delay={0.18} />
+                  <LatexSection latex={appState.job.resume_latex} />
+                </motion.div>
               )}
             </div>
           </motion.div>

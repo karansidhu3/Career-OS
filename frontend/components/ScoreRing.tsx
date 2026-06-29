@@ -28,11 +28,27 @@ function scoreTokens(score: number) {
   }
 }
 
-// Raw RGBA for drop-shadow filter (can't do opacity on CSS vars)
-function scoreGlowColor(score: number): string {
-  if (score >= 8) return 'rgba(16, 185, 129, 0.40)'
-  if (score >= 6) return 'rgba(245, 158, 11, 0.38)'
-  return 'rgba(239, 68, 68, 0.34)'
+// Raw RGB channels for drop-shadow layers (can't use opacity on CSS vars)
+function scoreGlowRgb(score: number): string {
+  if (score >= 8) return '16, 185, 129'
+  if (score >= 6) return '245, 158, 11'
+  return '239, 68, 68'
+}
+
+function buildFilters(rgb: string) {
+  return {
+    arc: [
+      `drop-shadow(0 0 2px rgba(${rgb},0.95))`,
+      `drop-shadow(0 0 8px rgba(${rgb},0.55))`,
+      `drop-shadow(0 0 22px rgba(${rgb},0.28))`,
+    ].join(' '),
+    number: [
+      `drop-shadow(0 0 3px rgba(${rgb},1.00))`,
+      `drop-shadow(0 0 12px rgba(${rgb},0.60))`,
+      `drop-shadow(0 0 28px rgba(${rgb},0.25))`,
+    ].join(' '),
+    ambient: `radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 68%)`,
+  }
 }
 
 // ─── Component ───────────────────────────────────────────────────
@@ -48,12 +64,12 @@ export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
   const center = size / 2
   const circumference = 2 * Math.PI * r
   const tokens = scoreTokens(score)
-  const glowColor = scoreGlowColor(score)
+  const filters = buildFilters(scoreGlowRgb(score))
   const displayScore = useCountUp(score, 700)
   const targetOffset = circumference * (1 - score / 10)
 
   return (
-    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0, background: filters.ambient, borderRadius: '50%' }}>
       {/* Celebration ping — one outward pulse for strong matches */}
       {celebrate && score >= 8 && (
         <motion.div
@@ -98,7 +114,7 @@ export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: targetOffset }}
           transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
-          style={{ filter: `drop-shadow(0 0 5px ${glowColor})` }}
+          style={{ filter: filters.arc }}
         />
       </svg>
 
@@ -110,7 +126,7 @@ export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          filter: `drop-shadow(0 0 7px ${glowColor})`,
+          filter: filters.number,
         }}
       >
         <span

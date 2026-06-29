@@ -22,11 +22,18 @@ const STATUS_LABEL: Record<string, string> = {
 
 // Status text — CSS tokens where semantic color exists
 const STATUS_TEXT: Record<string, string> = {
-  generated: '#6366F1',
+  generated: 'var(--c-accent)',
   applied:   'var(--c-success)',
   skipped:   '#9ca3af',
   interview: 'var(--c-warn)',
   offer:     'var(--c-warn)',
+}
+
+function scoreColor(score: number | null): string {
+  if (score == null) return 'var(--c-border)'
+  if (score >= 8) return 'var(--c-success)'
+  if (score >= 6) return 'var(--c-warn)'
+  return 'var(--c-danger)'
 }
 
 const FILTERS = ['all', 'generated', 'applied', 'interview', 'offer', 'skipped'] as const
@@ -96,6 +103,16 @@ function AppRow({ job, i }: { job: Job; i: number }) {
           </p>
         )}
       </div>
+
+      {/* Score */}
+      {job.fit_score != null && (
+        <span
+          className="text-xs font-mono font-semibold tabular-nums shrink-0"
+          style={{ color: scoreColor(job.fit_score) }}
+        >
+          {job.fit_score}/10
+        </span>
+      )}
 
       {/* Status */}
       <span className="text-xs font-medium shrink-0" style={{ color: statusColor }}>
@@ -210,7 +227,10 @@ export default function ApplicationsPage() {
           )}
 
           {recent.length > 0 && (
-            <div className="mb-8">
+            <div
+              className="mb-8"
+              style={active.length > 0 ? { borderTop: '1px solid var(--c-border)', paddingTop: '1.5rem' } : undefined}
+            >
               {(active.length > 0 || older.length > 0) && (
                 <SectionLabel className="mb-3">This week</SectionLabel>
               )}
@@ -219,7 +239,9 @@ export default function ApplicationsPage() {
           )}
 
           {older.length > 0 && (
-            <div>
+            <div
+              style={active.length + recent.length > 0 ? { borderTop: '1px solid var(--c-border)', paddingTop: '1.5rem' } : undefined}
+            >
               <SectionLabel className="mb-3">Earlier</SectionLabel>
               <Rows jobs={older} startIndex={active.length + recent.length} />
             </div>

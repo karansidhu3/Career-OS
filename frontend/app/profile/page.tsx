@@ -20,7 +20,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <SectionLabel>{title}</SectionLabel>
+      <p className="text-[13px] font-semibold text-neutral-500 tracking-tight">{title}</p>
       {onAdd && (
         <button
           onClick={onAdd}
@@ -999,7 +999,8 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.1 }}
-        className="mb-10"
+        className="mb-10 pt-10"
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
         <SectionHeader title="Experience" onAdd={addExperience} adding={addingExp} />
         <div className="space-y-3">
@@ -1040,7 +1041,8 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.14 }}
-        className="mb-10"
+        className="mb-10 pt-10"
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
         <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
         <div className="space-y-3">
@@ -1081,7 +1083,8 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.18 }}
-        className="mb-10"
+        className="mb-10 pt-10"
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
         <SectionHeader title="Education" />
         <div className="space-y-3">
@@ -1101,7 +1104,8 @@ export default function ProfilePage() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring.gentle, delay: 0.22 }}
-          className="mb-10"
+          className="mb-10 pt-10"
+          style={{ borderTop: '1px solid var(--c-border)' }}
         >
           <VoiceEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
         </motion.section>
