@@ -1,0 +1,28 @@
+Senior Software Engineer — Backend Platform
+
+About the role:
+We are building the infrastructure layer that powers our product analytics platform.
+You will design, build, and operate services that handle high-throughput event ingestion,
+real-time aggregation pipelines, and the data APIs consumed by our frontend.
+
+Responsibilities:
+- Design and implement async Python services using FastAPI and asyncpg
+- Own the PostgreSQL schema and query performance for our core data models
+- Build and maintain Redis-backed caching and rate limiting layers
+- Collaborate with the ML team to integrate model inference into the request path
+- Write clear technical documentation and participate in architecture reviews
+
+Requirements:
+- 2+ years of professional experience with Python
+- Strong familiarity with FastAPI or similar async frameworks
+- Experience with PostgreSQL, query optimization, and schema design
+- Understanding of distributed systems concepts (queues, caching, eventual consistency)
+- Comfortable working with Docker and container-based deployments
+
+Nice to have:
+- Experience with vector databases (Qdrant, Pinecone, Weaviate)
+- Familiarity with LLM APIs and prompt engineering
+- Prior experience at a startup or small engineering team
+
+We are a remote-first team with optional in-person hubs in Vancouver and Toronto.
+Compensation: $110,000 — $145,000 CAD depending on experience.
