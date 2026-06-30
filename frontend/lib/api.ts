@@ -23,6 +23,7 @@ export interface Job {
   cache_read_tokens: number | null
   cache_write_tokens: number | null
   compression_attempts: number | null
+  cost_usd: number | null
 }
 
 export interface CandidacyInsights {
