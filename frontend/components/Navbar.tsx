@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { UserButton } from '@clerk/nextjs'
 import { api } from '@/lib/api'
 import { spring } from '@/lib/motion'
 import { BrandMark } from './BrandMark'
@@ -102,6 +103,10 @@ export function Navbar() {
             >
               <ProfileIcon />
             </Link>
+
+            <div className="w-8 h-8 flex items-center justify-center">
+              <UserButton />
+            </div>
           </div>
         </div>
       </motion.div>

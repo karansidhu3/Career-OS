@@ -18,7 +18,6 @@ else:
     os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://localhost/careeros_test_placeholder")
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test-key")
-os.environ.setdefault("API_KEY", "")  # auth disabled by default in tests
 
 
 import pytest

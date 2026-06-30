@@ -9,3 +9,5 @@ anthropic>=0.40.0
 fpdf2>=2.7.0
 slowapi>=0.1.9
 pypdf>=4.0.0
+pyjwt[crypto]>=2.10.0
+httpx>=0.28.0

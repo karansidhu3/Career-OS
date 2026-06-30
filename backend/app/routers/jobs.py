@@ -9,12 +9,14 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clerk_auth import get_current_user
 from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
-from app.models.profile import Experience, Project, SkillCategory
+from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
+from app.models.user import User
 from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobListRead, JobRead, StatusUpdate
 from app.services.generation import generate_insights, generate_materials
 from app.services.pdf import compile_latex_to_pdf
@@ -23,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 def _limiter_key(request: Request) -> str:
-    """Rate-limit by API key when present; fall back to IP for unauthenticated paths."""
-    key = request.headers.get("x-api-key")
-    return key if key else get_remote_address(request)
+    """Rate-limit by the bearer token when present; fall back to IP for unauthenticated paths."""
+    auth_header = request.headers.get("authorization", "")
+    return auth_header or get_remote_address(request)
 
 
 limiter = Limiter(key_func=_limiter_key)
@@ -65,9 +67,18 @@ def _apply_result(job: Job, result: dict) -> None:
     job.compression_attempts = result.get("compression_attempts", 0)
 
 
-async def _run_generation(job_id: int, jd_text: str) -> None:
-    """Background task: call Claude, write results to DB. No HTTP proxy timeout concern here."""
+async def _run_generation(job_id: int, jd_text: str, user_id) -> None:
+    """Background task: call Claude, write results to DB. No HTTP proxy timeout concern here.
+
+    Opens its own session outside the request/dependency cycle, so the RLS GUC
+    that app.clerk_auth.get_current_user normally sets is never applied here —
+    set it explicitly using the caller-supplied user_id (known at the time the
+    route enqueued this task) before touching the job row at all. Looking the job
+    up first and deriving user_id from it would deadlock against RLS: an unset
+    GUC means the SELECT itself returns nothing.
+    """
     async with AsyncSessionLocal() as db:
+        await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
         job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
         if not job:
             return
@@ -112,14 +123,14 @@ def _escape_latex(text: str) -> str:
         .replace("“", "``")   # left double quote
         .replace("”", "''")   # right double quote
         .replace("…", "...")   # ellipsis
-        .replace(" ", " ")    # non-breaking space
+        .replace(" ", " ")    # non-breaking space
     )
     return _LATEX_SPECIAL_RE.sub(lambda m: _LATEX_CHAR_MAP[m.group()], text)
 
 
 # LaTeX cover letter template.
 # Uses charter font, eso-pic gray header band, fontawesome contact icons.
-# Placeholders: <<DATE>>, <<RELINE>>, <<BODY>>
+# Placeholders: <<NAME>>, <<CONTACT>>, <<DATE>>, <<RELINE>>, <<BODY>>
 _COVER_LETTER_LATEX = r"""\documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
@@ -143,12 +154,9 @@ _COVER_LETTER_LATEX = r"""\documentclass[11pt]{article}
 
 \vspace*{0.04in}
 \begin{center}
-{\fontsize{26}{30}\selectfont\scshape Karanveer Sidhu}\\\vspace{5pt}
+{\fontsize{26}{30}\selectfont\scshape <<NAME>>}\\\vspace{5pt}
 {\small\color[RGB]{80,80,80}
-  \href{mailto:karansidhu5550@gmail.com}{\faEnvelope\enspace karansidhu5550@gmail.com}\hspace{10pt}%
-  \href{tel:+12505092500}{\faPhone\enspace +1 (250) 509-2500}\hspace{10pt}%
-  \href{https://linkedin.com/in/karan-sidhu3}{\faLinkedin\enspace linkedin.com/in/karan-sidhu3}\hspace{10pt}%
-  \href{https://github.com/karansidhu3}{\faGithub\enspace github.com/karansidhu3}%
+  <<CONTACT>>%
 }
 \end{center}
 \vspace*{0.18in}
@@ -163,15 +171,42 @@ Dear Hiring Manager,
 
 \vspace{4pt}Sincerely,
 
-\vspace{18pt}\textbf{Karanveer Sidhu}
+\vspace{18pt}\textbf{<<NAME>>}
 
 \end{document}
 """
 
 
-def _build_cover_letter_latex(job: Job) -> str:
-    """Build a LaTeX cover letter document for compilation by Tectonic."""
+def _build_cover_letter_latex(job: Job, personal: PersonalInfo | None) -> str:
+    """Build a LaTeX cover letter document for compilation by Tectonic.
+    Header identity (name, email, phone, links) comes from the requesting user's
+    own profile — never hardcoded, since every user's cover letter carries their own.
+    """
     date_str = datetime.date.today().strftime("%B %d, %Y")
+
+    name = _escape_latex(personal.name) if personal and personal.name else "Applicant"
+
+    contact_parts: list[str] = []
+    if personal and personal.email:
+        contact_parts.append(
+            rf"\href{{mailto:{personal.email}}}{{\faEnvelope\enspace {_escape_latex(personal.email)}}}"
+        )
+    if personal and personal.phone:
+        phone_digits = re.sub(r'[^\d+]', '', personal.phone)
+        contact_parts.append(
+            rf"\href{{tel:{phone_digits}}}{{\faPhone\enspace {_escape_latex(personal.phone)}}}"
+        )
+    if personal and personal.linkedin:
+        linkedin_url = personal.linkedin if personal.linkedin.startswith("http") else f"https://{personal.linkedin}"
+        contact_parts.append(
+            rf"\href{{{linkedin_url}}}{{\faLinkedin\enspace {_escape_latex(personal.linkedin)}}}"
+        )
+    if personal and personal.github:
+        github_url = personal.github if personal.github.startswith("http") else f"https://{personal.github}"
+        contact_parts.append(
+            rf"\href{{{github_url}}}{{\faGithub\enspace {_escape_latex(personal.github)}}}"
+        )
+    contact_line = r"\hspace{10pt}".join(contact_parts)
 
     re_parts: list[str] = []
     if job.title:
@@ -189,6 +224,8 @@ def _build_cover_letter_latex(job: Job) -> str:
 
     return (
         _COVER_LETTER_LATEX
+        .replace("<<NAME>>", name)
+        .replace("<<CONTACT>>", contact_line)
         .replace("<<DATE>>", date_str)
         .replace("<<RELINE>>", re_line)
         .replace("<<BODY>>", body)
@@ -203,10 +240,12 @@ async def generate_job(
     request: Request,
     body: JobGenerateRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create the job record immediately (status=processing), kick off generation in the background."""
     job = Job(
+        user_id=current_user.id,
         description=body.description,
         url=body.url or None,
         title="Generating…",
@@ -216,7 +255,7 @@ async def generate_job(
     await db.commit()
     await db.refresh(job)
 
-    background_tasks.add_task(_run_generation, job.id, body.description)
+    background_tasks.add_task(_run_generation, job.id, body.description, current_user.id)
     return job
 
 
@@ -226,9 +265,12 @@ async def regenerate_job(
     request: Request,
     id: int,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
     if not job.description:
@@ -238,13 +280,20 @@ async def regenerate_job(
     await db.commit()
     await db.refresh(job)
 
-    background_tasks.add_task(_run_generation, job.id, job.description)
+    background_tasks.add_task(_run_generation, job.id, job.description, current_user.id)
     return job
 
 
 @router.get("/{id}/resume.pdf")
-async def download_resume_pdf(id: int, first_page: bool = False, db: AsyncSession = Depends(get_db)):
-    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+async def download_resume_pdf(
+    id: int,
+    first_page: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
     if not job or not job.resume_latex:
         raise HTTPException(status_code=404, detail="Resume not found")
 
@@ -273,9 +322,15 @@ async def download_resume_pdf(id: int, first_page: bool = False, db: AsyncSessio
 
 
 @router.get("/{id}/resume-preview.pdf")
-async def preview_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
+async def preview_resume_pdf(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Serve resume PDF inline — for browser embedding, not forced download."""
-    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
     if not job or not job.resume_latex:
         raise HTTPException(status_code=404, detail="Resume not found")
 
@@ -295,9 +350,16 @@ async def preview_resume_pdf(id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/{id}/cover-letter", response_model=JobRead)
-async def update_cover_letter(id: int, body: CoverLetterUpdate, db: AsyncSession = Depends(get_db)):
+async def update_cover_letter(
+    id: int,
+    body: CoverLetterUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Persist an edited cover letter. The existing PDF endpoint compiles from the updated text."""
-    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
     job.cover_letter = body.cover_letter
@@ -307,13 +369,23 @@ async def update_cover_letter(id: int, body: CoverLetterUpdate, db: AsyncSession
 
 
 @router.get("/{id}/cover-letter.pdf")
-async def download_cover_letter(id: int, db: AsyncSession = Depends(get_db)):
-    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+async def download_cover_letter(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
     if not job or not job.cover_letter:
         raise HTTPException(status_code=404, detail="Cover letter not found")
 
+    personal = (
+        await db.execute(select(PersonalInfo).where(PersonalInfo.user_id == current_user.id).limit(1))
+    ).scalar_one_or_none()
+
     try:
-        latex = _build_cover_letter_latex(job)
+        latex = _build_cover_letter_latex(job, personal)
         pdf_bytes = await compile_latex_to_pdf(latex)
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="PDF compilation not available")
@@ -331,12 +403,16 @@ async def download_cover_letter(id: int, db: AsyncSession = Depends(get_db)):
 
 @router.get("/insights", response_model=CandidacyInsightsRead)
 @limiter.limit("20/hour")
-async def get_candidacy_insights(request: Request, db: AsyncSession = Depends(get_db)):
+async def get_candidacy_insights(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Return a synthesized candidacy observation derived from all past applications."""
     completed_statuses = ("generated", "applied", "interview", "offer", "skipped")
     jobs = (await db.execute(
         select(Job)
-        .where(Job.status.in_(completed_statuses))
+        .where(Job.user_id == current_user.id, Job.status.in_(completed_statuses))
         .order_by(Job.created_at.desc())
         .limit(20)
     )).scalars().all()
@@ -356,13 +432,13 @@ async def get_candidacy_insights(request: Request, db: AsyncSession = Depends(ge
     ]
 
     skill_categories = (await db.execute(
-        select(SkillCategory).order_by(SkillCategory.sort_order)
+        select(SkillCategory).where(SkillCategory.user_id == current_user.id).order_by(SkillCategory.sort_order)
     )).scalars().all()
     experiences = (await db.execute(
-        select(Experience).order_by(Experience.sort_order)
+        select(Experience).where(Experience.user_id == current_user.id).order_by(Experience.sort_order)
     )).scalars().all()
     projects = (await db.execute(
-        select(Project).order_by(Project.sort_order)
+        select(Project).where(Project.user_id == current_user.id).order_by(Project.sort_order)
     )).scalars().all()
 
     profile_lines: list[str] = []
@@ -398,9 +474,15 @@ async def get_candidacy_insights(request: Request, db: AsyncSession = Depends(ge
 
 
 @router.delete("/{id}", status_code=204)
-async def delete_job(id: int, db: AsyncSession = Depends(get_db)):
+async def delete_job(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Delete a single job record and all its generated content."""
-    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
     await db.delete(job)
@@ -408,25 +490,42 @@ async def delete_job(id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("", response_model=list[JobListRead])
-async def list_jobs(status: str | None = None, db: AsyncSession = Depends(get_db)):
-    q = select(Job).order_by(Job.created_at.desc())
+async def list_jobs(
+    status: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(Job).where(Job.user_id == current_user.id).order_by(Job.created_at.desc())
     if status:
         q = q.where(Job.status == status)
     return (await db.execute(q)).scalars().all()
 
 
 @router.get("/{id}", response_model=JobRead)
-async def get_job(id: int, db: AsyncSession = Depends(get_db)):
-    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+async def get_job(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
     return job
 
 
 @router.patch("/{id}/status", response_model=JobRead)
-async def update_status(id: int, body: StatusUpdate, db: AsyncSession = Depends(get_db)):
+async def update_status(
+    id: int,
+    body: StatusUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Update job status. Status is validated by Pydantic pattern, not a query string."""
-    job = (await db.execute(select(Job).where(Job.id == id))).scalar_one_or_none()
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
     job.status = body.status

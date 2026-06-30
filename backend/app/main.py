@@ -3,7 +3,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -11,19 +11,17 @@ from slowapi.util import get_remote_address
 from sqlalchemy import text
 
 import app.models  # noqa: F401 — registers all models with Base before create_all
-from app.auth import verify_api_key
 from app.config import settings
 from app.database import Base, engine
 from app.routers import jobs, profile
-from app.seed import seed
 
 _log = logging.getLogger(__name__)
 
 
 def _limiter_key(request: Request) -> str:
-    """Rate-limit by API key when present; fall back to IP for unauthenticated paths."""
-    key = request.headers.get("x-api-key")
-    return key if key else get_remote_address(request)
+    """Rate-limit by the bearer token when present; fall back to IP for unauthenticated paths."""
+    auth_header = request.headers.get("authorization", "")
+    return auth_header or get_remote_address(request)
 
 
 # Rate limiter — shared across all routers
@@ -88,25 +86,30 @@ CareerOS warmup.
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Refuse to start in production without an API key.
+    # Refuse to start in production without Clerk configured — every /admin/* route
+    # depends on app.clerk_auth.get_current_user, which needs both of these.
     # Set DEV_MODE=true in backend/.env to bypass this check locally.
-    if not settings.api_key:
+    if not settings.clerk_secret_key or not settings.clerk_frontend_api_domain:
         if settings.dev_mode:
             _log.warning(
-                "API_KEY is not set — running in DEV_MODE with authentication disabled. "
+                "CLERK_SECRET_KEY / CLERK_FRONTEND_API_DOMAIN not fully set — running in DEV_MODE. "
                 "Never set DEV_MODE=true in production."
             )
         else:
             _log.critical(
-                "API_KEY is not set and DEV_MODE is false. "
-                "Set API_KEY in environment variables, or set DEV_MODE=true for local development."
+                "CLERK_SECRET_KEY and CLERK_FRONTEND_API_DOMAIN must both be set. "
+                "Set them in environment variables, or set DEV_MODE=true for local development."
             )
             sys.exit(1)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _run_migrations()
-    await seed()
+    # Note: app.seed.seed() previously ran here to bootstrap single-user demo
+    # profile data. It inserts ownerless rows (no user_id), which RLS now
+    # rejects, and the single-profile model it assumes no longer holds in a
+    # multi-tenant app. Left in the repo but not run — needs a per-user
+    # redesign (e.g. seeding a demo Clerk account) before it's useful again.
     # Warm up Tectonic package cache in the background — doesn't block startup
     import asyncio
     asyncio.create_task(_warmup_tectonic())
@@ -130,13 +133,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins(),  # reads ALLOWED_ORIGINS env var
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-API-Key"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
-# All /admin routes require API key authentication
-_auth = [Depends(verify_api_key)]
-app.include_router(profile.router, prefix="/admin", dependencies=_auth)
-app.include_router(jobs.router, prefix="/admin", dependencies=_auth)
+# /admin routes are authenticated per-route via app.clerk_auth.get_current_user,
+# not a router-level dependency — each handler needs the resolved User to scope its queries.
+app.include_router(profile.router, prefix="/admin")
+app.include_router(jobs.router, prefix="/admin")
 
 
 @app.get("/health")

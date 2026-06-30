@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.database import Base
 
@@ -8,6 +8,8 @@ class PersonalInfo(Base):
     __tablename__ = "personal_info"
 
     id = Column(Integer, primary_key=True)
+    # No longer a global singleton — one row per user.
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     email = Column(String, nullable=False)
     phone = Column(String)
@@ -23,6 +25,7 @@ class Education(Base):
     __tablename__ = "education"
 
     id = Column(Integer, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     school = Column(String, nullable=False)
     degree = Column(String, nullable=False)
     field = Column(String)
@@ -35,6 +38,7 @@ class Experience(Base):
     __tablename__ = "experience"
 
     id = Column(Integer, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     company = Column(String, nullable=False)
     role = Column(String, nullable=False)
     start_date = Column(String)
@@ -48,6 +52,7 @@ class Project(Base):
     __tablename__ = "project"
 
     id = Column(Integer, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     start_date = Column(String)
     end_date = Column(String)
@@ -60,6 +65,7 @@ class SkillCategory(Base):
     __tablename__ = "skill_category"
 
     id = Column(Integer, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     category = Column(String, nullable=False)
     items = Column(JSONB, default=list)
     sort_order = Column(Integer, default=0)

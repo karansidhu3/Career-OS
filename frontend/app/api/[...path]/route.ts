@@ -1,20 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:8000'
-const API_KEY = process.env.API_KEY ?? ''
 
 // Hop-by-hop headers must not be forwarded across a proxy boundary.
 // content-encoding is excluded because Node's fetch decompresses automatically —
 // forwarding it would claim the response is still compressed when it isn't.
+// authorization is excluded too — the browser's own Authorization header (if any)
+// is replaced below with the Clerk session token, never passed through verbatim.
 const HOP_BY_HOP = new Set([
   'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
-  'te', 'trailer', 'transfer-encoding', 'upgrade', 'content-encoding',
+  'te', 'trailer', 'transfer-encoding', 'upgrade', 'content-encoding', 'authorization',
 ])
 
 async function proxy(request: NextRequest, pathSegments: string[]): Promise<NextResponse> {
   const backendPath = '/' + pathSegments.join('/')
   const search = request.nextUrl.search
   const url = `${BACKEND_URL}${backendPath}${search}`
+
+  const { getToken } = await auth()
+  const token = await getToken()
+  if (!token) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 })
+  }
 
   const forwardHeaders = new Headers()
   request.headers.forEach((value, key) => {
@@ -23,7 +31,7 @@ async function proxy(request: NextRequest, pathSegments: string[]): Promise<Next
       forwardHeaders.set(key, value)
     }
   })
-  if (API_KEY) forwardHeaders.set('x-api-key', API_KEY)
+  forwardHeaders.set('authorization', `Bearer ${token}`)
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
   const body = hasBody ? await request.arrayBuffer() : undefined

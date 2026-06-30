@@ -1,18 +1,24 @@
 """
-Integration tests for API key authentication.
+Integration tests for Clerk-based authentication.
 
-When API_KEY is set in the environment, /admin/* routes require a matching
-X-API-Key header and return 401 otherwise. When not set, all routes are open.
+/admin/* routes require a valid `Authorization: Bearer <clerk-session-jwt>` header,
+verified against Clerk's JWKS in app.clerk_auth._decode_clerk_token. These tests
+exercise the boundary (missing/invalid token) by temporarily removing the
+get_current_user override that every other integration test relies on
+(see conftest.py's current_test_user autouse fixture).
 
-These tests patch settings.api_key directly to avoid environment pollution.
+Happy-path identity resolution (JIT provisioning, legacy data claim) is covered
+by tests/unit/test_clerk_auth.py, which mocks JWKS verification directly.
 """
 import pytest
 from unittest.mock import patch
 
-pytestmark = pytest.mark.integration
+import jwt as pyjwt
 
-# A predictable test key — not a real secret
-TEST_KEY = "test-secret-key-abc123"
+from app.clerk_auth import get_current_user
+from tests.integration.conftest import _test_app
+
+pytestmark = pytest.mark.integration
 
 
 async def test_health_endpoint_is_unauthenticated(client):
@@ -21,37 +27,22 @@ async def test_health_endpoint_is_unauthenticated(client):
     assert resp.status_code == 200
 
 
-async def test_admin_route_accessible_when_api_key_not_configured(client):
-    """/admin/* is open when API_KEY env var is empty (local dev default)."""
-    # Client fixture has API_KEY="" so auth is disabled
+async def test_admin_route_requires_bearer_token(client):
+    """Without the test override, a request with no Authorization header is rejected."""
+    _test_app.dependency_overrides.pop(get_current_user, None)
+    resp = await client.get("/admin/jobs")
+    assert resp.status_code == 401
+
+
+async def test_admin_route_rejects_invalid_token(client):
+    """A syntactically present but invalid/expired token is rejected, not silently ignored."""
+    _test_app.dependency_overrides.pop(get_current_user, None)
+    with patch("app.clerk_auth._decode_clerk_token", side_effect=pyjwt.InvalidTokenError("bad token")):
+        resp = await client.get("/admin/jobs", headers={"Authorization": "Bearer not-a-real-token"})
+    assert resp.status_code == 401
+
+
+async def test_admin_route_accessible_with_valid_identity(client):
+    """Sanity check: the autouse current_test_user override represents a verified identity."""
     resp = await client.get("/admin/jobs")
     assert resp.status_code == 200
-
-
-async def test_admin_route_requires_key_when_configured(client):
-    with patch("app.auth.settings") as mock_settings:
-        mock_settings.api_key = TEST_KEY
-        # Request with no key
-        resp = await client.get("/admin/jobs")
-    assert resp.status_code == 401
-
-
-async def test_admin_route_accepts_correct_key(client):
-    with patch("app.auth.settings") as mock_settings:
-        mock_settings.api_key = TEST_KEY
-        resp = await client.get("/admin/jobs", headers={"X-API-Key": TEST_KEY})
-    assert resp.status_code == 200
-
-
-async def test_admin_route_rejects_wrong_key(client):
-    with patch("app.auth.settings") as mock_settings:
-        mock_settings.api_key = TEST_KEY
-        resp = await client.get("/admin/jobs", headers={"X-API-Key": "wrong-key"})
-    assert resp.status_code == 401
-
-
-async def test_admin_route_rejects_empty_key_when_auth_enabled(client):
-    with patch("app.auth.settings") as mock_settings:
-        mock_settings.api_key = TEST_KEY
-        resp = await client.get("/admin/jobs", headers={"X-API-Key": ""})
-    assert resp.status_code == 401
