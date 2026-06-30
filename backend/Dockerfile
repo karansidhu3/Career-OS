@@ -13,7 +13,7 @@ RUN apt-get update \
     && curl -sSL \
        "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.14.1/tectonic-0.14.1-x86_64-unknown-linux-musl.tar.gz" \
        -o /tmp/tectonic.tar.gz \
-    && echo "4a83e1c88f7f685bfe67a43e5e5c95fd0e3ee9c7e5bab07c8c3e8f9b7b1d3e2f  /tmp/tectonic.tar.gz" | sha256sum -c - \
+    && echo "d669160999adbb3fea19055cac1124df20882194745052ae31d6eebc1309a845  /tmp/tectonic.tar.gz" | sha256sum -c - \
     && tar xz -C /usr/local/bin/ < /tmp/tectonic.tar.gz \
     && rm /tmp/tectonic.tar.gz \
     && rm -rf /var/lib/apt/lists/*
