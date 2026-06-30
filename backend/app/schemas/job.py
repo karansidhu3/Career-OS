@@ -17,6 +17,22 @@ class StatusUpdate(BaseModel):
     status: str = Field(..., pattern=r"^(generated|applied|skipped|interview|offer)$")
 
 
+class JobListRead(BaseModel):
+    """Lightweight projection for list endpoints — omits large fields."""
+    id: int
+    title: str
+    company: Optional[str] = None
+    url: Optional[str] = None
+    created_at: Optional[datetime] = None
+    status: str
+    fit_score: Optional[int] = None
+    strategic_note: Optional[str] = None
+    selected_projects: Optional[list[str]] = None
+    compression_attempts: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
 class JobRead(BaseModel):
     id: int
     title: str

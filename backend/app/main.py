@@ -1,7 +1,9 @@
+import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -15,8 +17,17 @@ from app.database import Base, engine
 from app.routers import jobs, profile
 from app.seed import seed
 
+_log = logging.getLogger(__name__)
+
+
+def _limiter_key(request: Request) -> str:
+    """Rate-limit by API key when present; fall back to IP for unauthenticated paths."""
+    key = request.headers.get("x-api-key")
+    return key if key else get_remote_address(request)
+
+
 # Rate limiter — shared across all routers
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=_limiter_key)
 
 
 async def _run_migrations() -> None:
@@ -77,6 +88,21 @@ CareerOS warmup.
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Refuse to start in production without an API key.
+    # Set DEV_MODE=true in backend/.env to bypass this check locally.
+    if not settings.api_key:
+        if settings.dev_mode:
+            _log.warning(
+                "API_KEY is not set — running in DEV_MODE with authentication disabled. "
+                "Never set DEV_MODE=true in production."
+            )
+        else:
+            _log.critical(
+                "API_KEY is not set and DEV_MODE is false. "
+                "Set API_KEY in environment variables, or set DEV_MODE=true for local development."
+            )
+            sys.exit(1)
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _run_migrations()

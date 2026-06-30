@@ -36,19 +36,23 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
         with open(tex_path, "w", encoding="utf-8") as f:
             f.write(latex_content)
 
-        # In the Docker container, appuser has no real home dir, so we override
-        # HOME and XDG_CACHE_HOME to keep all writes in /tmp.
-        # Locally (dev), $HOME exists and Tectonic works without overrides —
-        # forcing HOME=/tmp causes SIGABRT on macOS. Only apply in container.
-        in_container = not os.path.expanduser("~").startswith("/Users")
-        env = {**os.environ}
+        # Build a minimal environment for Tectonic — never inherit application
+        # secrets (ANTHROPIC_API_KEY, DATABASE_URL, API_KEY, etc.).
+        # CONTAINER=1 is set in the Dockerfile; locally it's unset.
+        in_container = os.environ.get("CONTAINER") == "1"
+        _safe_keys = {"PATH", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP"}
+        env = {k: v for k, v in os.environ.items() if k in _safe_keys}
+        env["TECTONIC_CACHE_DIR"] = _CACHE_DIR
+        env["TEXMFHOME"] = tmpdir
         if in_container:
             env.update({
                 "HOME": "/tmp",
                 "XDG_CACHE_HOME": "/tmp/.cache",
-                "TECTONIC_CACHE_DIR": _CACHE_DIR,
-                "TEXMFHOME": tmpdir,
             })
+        else:
+            home = os.path.expanduser("~")
+            if home:
+                env["HOME"] = home
 
         proc = await asyncio.create_subprocess_exec(
             "tectonic",

@@ -645,6 +645,21 @@ export default function JobPage() {
               <JdSection description={job.description} />
             </motion.div>
           )}
+
+          {/* Generation metadata */}
+          {job.cost_usd != null && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ ...spring.gentle, delay: 0.24 }}
+              className="text-xs font-mono tabular-nums mt-10 mb-2"
+              style={{ color: 'var(--c-text-muted, #9ca3af)' }}
+            >
+              {job.created_at && new Date(job.created_at).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })}
+              {' · '}
+              ${job.cost_usd.toFixed(4)} generation cost
+            </motion.p>
+          )}
       </div>
     </div>
   )

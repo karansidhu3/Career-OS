@@ -15,12 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
 from app.models.profile import Experience, Project, SkillCategory
-from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobRead, StatusUpdate
+from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobListRead, JobRead, StatusUpdate
 from app.services.generation import generate_insights, generate_materials
 from app.services.pdf import compile_latex_to_pdf
 
 logger = logging.getLogger(__name__)
-limiter = Limiter(key_func=get_remote_address)
+
+
+def _limiter_key(request: Request) -> str:
+    """Rate-limit by API key when present; fall back to IP for unauthenticated paths."""
+    key = request.headers.get("x-api-key")
+    return key if key else get_remote_address(request)
+
+
+limiter = Limiter(key_func=_limiter_key)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -77,24 +85,36 @@ async def _run_generation(job_id: int, jd_text: str) -> None:
 
 # ── Cover letter LaTeX builder ────────────────────────────────────────────────
 
+# Single-pass regex substitution prevents double-escaping (e.g. \ → \textbackslash{}
+# must not have its {} further escaped). Unicode typography is normalised first via
+# chained .replace() because none of those replacements produce LaTeX special chars.
+_LATEX_SPECIAL_RE = re.compile(r'[\\{}&$%#_]')
+_LATEX_CHAR_MAP: dict[str, str] = {
+    '\\': r'\textbackslash{}',
+    '{':  r'\{',
+    '}':  r'\}',
+    '&':  r'\&',
+    '$':  r'\$',
+    '%':  r'\%',
+    '#':  r'\#',
+    '_':  r'\_',
+}
+
+
 def _escape_latex(text: str) -> str:
     """Escape plain text content for use inside a LaTeX document body."""
-    return (
+    text = (
         text
-        .replace("—", "---")      # em dash
-        .replace("–", "--")       # en dash
-        .replace("‘", "'")        # left single quote
-        .replace("’", "'")        # right single quote
-        .replace("“", "``")       # left double quote
-        .replace("”", "''")       # right double quote
-        .replace("…", "...")      # ellipsis
-        .replace(" ", " ")        # non-breaking space
-        .replace("%",  r"\%")
-        .replace("&",  r"\&")
-        .replace("$",  r"\$")
-        .replace("#",  r"\#")
-        .replace("_",  r"\_")
+        .replace("—", "---")  # em dash
+        .replace("–", "--")   # en dash
+        .replace("‘", "'")    # left single quote
+        .replace("’", "'")    # right single quote
+        .replace("“", "``")   # left double quote
+        .replace("”", "''")   # right double quote
+        .replace("…", "...")   # ellipsis
+        .replace(" ", " ")    # non-breaking space
     )
+    return _LATEX_SPECIAL_RE.sub(lambda m: _LATEX_CHAR_MAP[m.group()], text)
 
 
 # LaTeX cover letter template.
@@ -387,7 +407,7 @@ async def delete_job(id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
-@router.get("", response_model=list[JobRead])
+@router.get("", response_model=list[JobListRead])
 async def list_jobs(status: str | None = None, db: AsyncSession = Depends(get_db)):
     q = select(Job).order_by(Job.created_at.desc())
     if status:

@@ -1,5 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-const API_KEY  = process.env.NEXT_PUBLIC_API_KEY  || ''
+// All requests go to /api/* which Next.js proxies server-side to the backend.
+// API_KEY is held server-side in the proxy route — never in the browser bundle.
+const API_BASE = '/api'
 
 // ---- Job types ----
 
@@ -101,11 +102,9 @@ export interface FullProfile {
 // ---- Shared ----
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  // Merge in the API key header on every request
   const headers: Record<string, string> = {
     ...(init?.headers as Record<string, string> | undefined),
   }
-  if (API_KEY) headers['X-API-Key'] = API_KEY
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers })
   if (!res.ok) {
@@ -117,12 +116,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
-// Fetch a binary endpoint (PDF) with auth and return an object URL.
+// Fetch a binary endpoint (PDF) and return an object URL.
 // Caller is responsible for revoking with URL.revokeObjectURL when done.
 async function requestBlob(path: string): Promise<string> {
-  const headers: Record<string, string> = {}
-  if (API_KEY) headers['X-API-Key'] = API_KEY
-  const res = await fetch(`${API_BASE}${path}`, { headers })
+  const res = await fetch(`${API_BASE}${path}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const blob = await res.blob()
   return URL.createObjectURL(blob)
