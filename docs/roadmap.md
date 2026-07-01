@@ -393,9 +393,10 @@ R2 was already external to Railway and needed no changes.
   the 256mb OOM (a genuinely useful real-world catch, not just synthetic testing) and succeeded
   cleanly once the worker was bumped to 512mb — resume LaTeX (6.8KB) and cover letter (1.6KB) both
   generated, job status `generated`.
-- Railway is intentionally left running, untouched, as a rollback safety net until confidence
-  builds over real usage; decommission (pause, then cancel) is a deliberate later step, not done
-  as part of this migration.
+- Railway is paused (all 5 services' active deployments removed) as of 2026-07-01, after Karan
+  verified real sign-in and a real generation on the new stack. Config, env vars, GitHub
+  connections, and volumes (`postgres-volume`, `redis-volume`) are untouched — any service can be
+  brought back with a single "Redeploy" if ever needed. Full cancellation is a separate later step.
 
 ### Phase 6 — Account lifecycle — not started
 
