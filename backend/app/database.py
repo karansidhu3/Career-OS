@@ -62,16 +62,31 @@ ElevatedSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def get_db() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            # The RLS GUC (app.current_user_id) is session-scoped, not transaction-scoped
-            # (see app.clerk_auth.get_current_user), so it survives this request's commits.
-            # Clear it before the connection returns to the pool — otherwise the next
-            # request to reuse this connection could inherit a stale user's identity.
+    # Explicitly hold ONE connection for this request's entire lifetime, rather than
+    # letting AsyncSession's default "connectionless" behavior release it back to the
+    # pool after every commit(). That default behavior broke RLS: the current_user_id
+    # GUC is set session-scoped (survives commits — see app.clerk_auth._set_rls_user),
+    # but if a *different* concurrent request grabbed the released connection between
+    # this request's commit() and its next query (e.g. a create-then-refresh pattern),
+    # that other request's own cleanup could reset the GUC before this request's next
+    # statement ran — producing `invalid input syntax for type uuid: ""` on requests
+    # that were otherwise completely correct. Binding the session to an explicitly-held
+    # Connection for the whole request eliminates the window entirely.
+    async with app_engine.connect() as conn:
+        async with AsyncSessionLocal(bind=conn) as session:
             try:
-                await session.rollback()
-                await session.execute(text("SELECT set_config('app.current_user_id', '', false)"))
-            except Exception:
-                pass  # best-effort cleanup — a broken connection will be discarded by the pool anyway
+                yield session
+            finally:
+                # Clear the GUC before the connection returns to the pool — otherwise
+                # the next *request* to reuse this connection could inherit a stale identity.
+                # The explicit commit() here is load-bearing, not decorative: Postgres
+                # reverts a session-scoped `SET`/`set_config(..., false)` issued inside a
+                # transaction if that transaction is later rolled back (a documented but
+                # easy-to-miss Postgres behavior) — closing the session without committing
+                # would silently undo this reset and defeat the whole point of it.
+                try:
+                    await session.rollback()
+                    await session.execute(text("SELECT set_config('app.current_user_id', '', false)"))
+                    await session.commit()
+                except Exception:
+                    pass  # best-effort cleanup — a broken connection will be discarded by the pool anyway
