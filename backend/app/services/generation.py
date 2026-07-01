@@ -2,15 +2,14 @@ import asyncio
 import io
 import logging
 import re
-import anthropic
 from pypdf import PdfReader
 
 logger = logging.getLogger(__name__)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
+from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
@@ -752,20 +751,16 @@ _COMPRESS_TOOL = {
 
 
 async def _call_compression(body_latex: str) -> str:
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    response = await asyncio.wait_for(
-        client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=3000,
-            system=_COMPRESS_SYSTEM,
-            messages=[{"role": "user", "content": body_latex}],
-            tools=[_COMPRESS_TOOL],
-            tool_choice={"type": "tool", "name": "compressed_resume"},
-        ),
+    llm = get_llm_client()
+    result = await llm.call_tool(
+        model=CLAUDE_MODEL,
+        max_tokens=3000,
+        system=_COMPRESS_SYSTEM,
+        messages=[{"role": "user", "content": body_latex}],
+        tool=_COMPRESS_TOOL,
         timeout=60.0,
     )
-    tool_use = next(b for b in response.content if b.type == "tool_use")
-    return tool_use.input["resume_latex"]
+    return result.tool_input["resume_latex"]
 
 
 async def _compress_if_needed(assembled_latex: str, max_attempts: int = 2) -> tuple[str, int]:
@@ -821,54 +816,48 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
 
     jd_text = _preprocess_jd(jd_text)
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    llm = get_llm_client()
 
     try:
-        response = await asyncio.wait_for(
-            client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=6000,
-                system=[
-                    {
-                        "type": "text",
-                        "text": SYSTEM_PROMPT,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": profile_text,
-                                "cache_control": {"type": "ephemeral"},
-                            },
-                            {
-                                "type": "text",
-                                # Explicit XML boundary prevents prompt injection via JD content
-                                "text": f"\n\n<job_description>\n{jd_text}\n</job_description>",
-                            },
-                        ],
-                    }
-                ],
-                tools=[GENERATE_TOOL],
-                tool_choice={"type": "tool", "name": "generate_application_materials"},
-            ),
+        call_result = await llm.call_tool(
+            model=CLAUDE_MODEL,
+            max_tokens=6000,
+            system=[
+                {
+                    "type": "text",
+                    "text": SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": profile_text,
+                            "cache_control": {"type": "ephemeral"},
+                        },
+                        {
+                            "type": "text",
+                            # Explicit XML boundary prevents prompt injection via JD content
+                            "text": f"\n\n<job_description>\n{jd_text}\n</job_description>",
+                        },
+                    ],
+                }
+            ],
+            tool=GENERATE_TOOL,
             timeout=120.0,
         )
     except asyncio.TimeoutError:
         raise ValueError("Generation timed out after 120s.")
 
-    tool_use = next(b for b in response.content if b.type == "tool_use")
-    usage = response.usage
-
     result = {
-        **tool_use.input,
-        "input_tokens": usage.input_tokens,
-        "output_tokens": usage.output_tokens,
-        "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0) or 0,
-        "cache_write_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+        **call_result.tool_input,
+        "input_tokens": call_result.input_tokens,
+        "output_tokens": call_result.output_tokens,
+        "cache_read_tokens": call_result.cache_read_tokens,
+        "cache_write_tokens": call_result.cache_write_tokens,
     }
 
     # Assemble full document, then compress if it spills past one page
@@ -968,30 +957,21 @@ async def generate_insights(
         elif s.get("description_snippet"):
             lines.append(f"  JD excerpt: {s['description_snippet']}")
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    llm = get_llm_client()
     try:
-        response = await asyncio.wait_for(
-            client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=400,
-                system=_INSIGHTS_SYSTEM,
-                messages=[{"role": "user", "content": "\n".join(lines)}],
-                tools=[_INSIGHTS_TOOL],
-                tool_choice={"type": "tool", "name": "candidacy_signal"},
-            ),
+        call_result = await llm.call_tool(
+            model=CLAUDE_MODEL,
+            max_tokens=400,
+            system=_INSIGHTS_SYSTEM,
+            messages=[{"role": "user", "content": "\n".join(lines)}],
+            tool=_INSIGHTS_TOOL,
             timeout=30.0,
         )
-        tool_use = next(
-            (b for b in response.content if hasattr(b, "type") and b.type == "tool_use"),
-            None,
-        )
-        if not tool_use:
-            return {"headline": None, "observed": None, "gap": None, "action": None}
         return {
-            "headline": tool_use.input.get("headline") or None,
-            "observed":  tool_use.input.get("observed")  or None,
-            "gap":       tool_use.input.get("gap")       or None,
-            "action":    tool_use.input.get("action")    or None,
+            "headline": call_result.tool_input.get("headline") or None,
+            "observed":  call_result.tool_input.get("observed")  or None,
+            "gap":       call_result.tool_input.get("gap")       or None,
+            "action":    call_result.tool_input.get("action")    or None,
         }
     except Exception:
         return {"headline": None, "observed": None, "gap": None, "action": None}

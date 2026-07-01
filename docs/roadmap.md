@@ -174,13 +174,21 @@ migrations that touch data integrity, the auth boundary, or connection-scoped da
   to the pool between transactions by default, which silently breaks this pattern under
   concurrent load. Any new code opening its own session outside `get_db` needs the same care.
 
-### Phase 2 — AI provider abstraction — not started
+### Phase 2 — AI provider abstraction — ✅ DONE (2026-06-30)
 
-Pure refactor, zero new behavior, zero token cost. Introduce an `LLMClient` interface with an
-`AnthropicAdapter` wrapping the current SDK calls. `generate_materials`/`generate_insights` call
-the interface, not the Anthropic SDK directly. Still uses Karan's system key globally at this
-point — this phase just builds the seam Phase 3 plugs into. Sets up for provider flexibility in
-2+ years without another rewrite.
+Pure refactor, zero new behavior, zero token cost. `backend/app/services/llm_client.py` defines
+`LLMClient` (abstract `call_tool()` — system + messages + a single forced tool, returns parsed
+tool input + token usage) and `AnthropicAdapter`, the only implementation, wrapping
+`anthropic.AsyncAnthropic` exactly as before. `get_llm_client()` is the construction seam Phase 3
+will change to build the adapter from the requesting user's decrypted key instead of
+`settings.anthropic_api_key`.
+
+All three call sites in `generation.py` (`_call_compression`, `generate_materials`,
+`generate_insights`) now go through `get_llm_client().call_tool(...)` instead of constructing
+`anthropic.AsyncAnthropic` directly. Still uses Karan's system key globally — no behavior change.
+Verified: full backend test suite (159/160 passing — the 1 failure is a pre-existing, unrelated
+LaTeX non-breaking-space test on `main`) plus a live smoke-test call through the new adapter
+confirming real tool-call + token-usage parsing still works.
 
 ### Phase 3 — Encrypted BYO API key — not started
 
