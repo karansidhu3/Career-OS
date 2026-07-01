@@ -28,6 +28,42 @@ def _limiter_key(request: Request) -> str:
 limiter = Limiter(key_func=_limiter_key)
 
 
+def _split_sql_statements(raw: str) -> list[str]:
+    """Split a SQL file into individual statements on `;`.
+
+    Comment lines (starting with --) are stripped first. `$$...$$` dollar-quoted
+    regions (used by DO blocks) are tracked so semicolons inside them — e.g. the
+    ALTER TABLE inside a conditional DO $$ ... END $$; block — aren't mistaken
+    for statement separators.
+    """
+    cleaned = "\n".join(
+        line for line in raw.splitlines() if not line.strip().startswith("--")
+    )
+    statements: list[str] = []
+    current: list[str] = []
+    in_dollar_quote = False
+    i = 0
+    while i < len(cleaned):
+        if cleaned[i:i + 2] == "$$":
+            in_dollar_quote = not in_dollar_quote
+            current.append("$$")
+            i += 2
+            continue
+        ch = cleaned[i]
+        if ch == ";" and not in_dollar_quote:
+            stmt = "".join(current).strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+        else:
+            current.append(ch)
+        i += 1
+    tail = "".join(current).strip()
+    if tail:
+        statements.append(tail)
+    return statements
+
+
 async def _run_migrations() -> None:
     """Run raw SQL migration files from the migrations/ directory in alphabetical order.
     All statements are idempotent (IF NOT EXISTS / IF EXISTS guards), safe to run on every startup.
@@ -38,14 +74,8 @@ async def _run_migrations() -> None:
         return
     async with engine.begin() as conn:
         for path in sql_files:
-            raw = path.read_text()
-            # Strip comment lines, split on semicolons, execute each statement
-            for stmt in raw.split(";"):
-                stmt = "\n".join(
-                    line for line in stmt.splitlines() if not line.strip().startswith("--")
-                ).strip()
-                if stmt:
-                    await conn.execute(text(stmt))
+            for stmt in _split_sql_statements(path.read_text()):
+                await conn.execute(text(stmt))
 
 
 async def _warmup_tectonic() -> None:
