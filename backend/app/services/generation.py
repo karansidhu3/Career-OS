@@ -750,8 +750,8 @@ _COMPRESS_TOOL = {
 }
 
 
-async def _call_compression(body_latex: str) -> str:
-    llm = get_llm_client()
+async def _call_compression(body_latex: str, api_key: str) -> str:
+    llm = get_llm_client(api_key)
     result = await llm.call_tool(
         model=CLAUDE_MODEL,
         max_tokens=3000,
@@ -763,7 +763,7 @@ async def _call_compression(body_latex: str) -> str:
     return result.tool_input["resume_latex"]
 
 
-async def _compress_if_needed(assembled_latex: str, max_attempts: int = 2) -> tuple[str, int]:
+async def _compress_if_needed(assembled_latex: str, api_key: str, max_attempts: int = 2) -> tuple[str, int]:
     """Compile the resume and compress via Claude if it exceeds one page.
 
     Errors in compilation or the compression call are caught so a failure here
@@ -788,7 +788,7 @@ async def _compress_if_needed(assembled_latex: str, max_attempts: int = 2) -> tu
         attempts += 1
 
         try:
-            compressed_body = await _call_compression(_extract_resume_body(current))
+            compressed_body = await _call_compression(_extract_resume_body(current), api_key)
         except Exception:
             logger.exception("Compression call failed — keeping current LaTeX")
             break
@@ -798,7 +798,7 @@ async def _compress_if_needed(assembled_latex: str, max_attempts: int = 2) -> tu
     return current, attempts
 
 
-async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
+async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> dict:
     personal = (await db.execute(select(PersonalInfo).limit(1))).scalar_one_or_none()
     experience = (await db.execute(
         select(Experience).order_by(Experience.sort_order)
@@ -816,7 +816,7 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
 
     jd_text = _preprocess_jd(jd_text)
 
-    llm = get_llm_client()
+    llm = get_llm_client(api_key)
 
     try:
         call_result = await llm.call_tool(
@@ -863,7 +863,7 @@ async def generate_materials(db: AsyncSession, jd_text: str) -> dict:
     # Assemble full document, then compress if it spills past one page
     if result.get("resume_latex"):
         assembled = _assemble_resume_latex(result["resume_latex"])
-        final_latex, compression_attempts = await _compress_if_needed(assembled)
+        final_latex, compression_attempts = await _compress_if_needed(assembled, api_key)
         result["resume_latex"] = final_latex
         result["compression_attempts"] = compression_attempts
 
@@ -933,6 +933,7 @@ _INSIGHTS_TOOL = {
 
 async def generate_insights(
     job_summaries: list[dict],
+    api_key: str,
     profile_context: str | None = None,
 ) -> dict[str, str | None]:
     """Synthesize a candidacy observation from a list of job application summaries.
@@ -957,7 +958,7 @@ async def generate_insights(
         elif s.get("description_snippet"):
             lines.append(f"  JD excerpt: {s['description_snippet']}")
 
-    llm = get_llm_client()
+    llm = get_llm_client(api_key)
     try:
         call_result = await llm.call_tool(
             model=CLAUDE_MODEL,

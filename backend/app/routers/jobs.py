@@ -18,6 +18,7 @@ from app.models.job import Job
 from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
 from app.models.user import User
 from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobListRead, JobRead, StatusUpdate
+from app.services.credentials import get_decrypted_key
 from app.services.generation import generate_insights, generate_materials
 from app.services.pdf import compile_latex_to_pdf
 
@@ -83,7 +84,10 @@ async def _run_generation(job_id: int, jd_text: str, user_id) -> None:
         if not job:
             return
         try:
-            result = await generate_materials(db, jd_text)
+            api_key = await get_decrypted_key(db, user_id)
+            if not api_key:
+                raise ValueError("No Anthropic API key on file")
+            result = await generate_materials(db, jd_text, api_key)
             _apply_result(job, result)
             job.status = "generated"
         except Exception as e:
@@ -244,6 +248,9 @@ async def generate_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Create the job record immediately (status=processing), kick off generation in the background."""
+    if not await get_decrypted_key(db, current_user.id):
+        raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
+
     job = Job(
         user_id=current_user.id,
         description=body.description,
@@ -275,6 +282,8 @@ async def regenerate_job(
         raise HTTPException(status_code=404, detail="Not found")
     if not job.description:
         raise HTTPException(status_code=400, detail="No JD stored for this job")
+    if not await get_decrypted_key(db, current_user.id):
+        raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
 
     job.status = "processing"
     await db.commit()
@@ -421,6 +430,13 @@ async def get_candidacy_insights(
     if count < 3:
         return CandidacyInsightsRead(observation=None, count=count)
 
+    api_key = await get_decrypted_key(db, current_user.id)
+    if not api_key:
+        # Insights is an automatic background fetch, not a user-initiated action —
+        # fail quietly the same way "not enough applications yet" does, rather than
+        # surfacing a hard error for something the user didn't explicitly trigger.
+        return CandidacyInsightsRead(observation=None, count=count)
+
     summaries = [
         {
             "title": j.title,
@@ -463,7 +479,7 @@ async def get_candidacy_insights(
                 profile_lines.append(f"- {cat.category}: {', '.join(cat.items)}")
     profile_context = "\n".join(profile_lines) if profile_lines else None
 
-    result = await generate_insights(summaries, profile_context=profile_context)
+    result = await generate_insights(summaries, api_key, profile_context=profile_context)
     return CandidacyInsightsRead(
         headline=result.get("headline"),
         observed=result.get("observed"),

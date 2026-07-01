@@ -682,6 +682,154 @@ function VoiceEditor({ personal, onSave }: { personal: import('@/lib/api').Perso
   )
 }
 
+// ---- API key section (BYO Anthropic key) ----
+
+function ApiKeySettings() {
+  const [status, setStatus] = useState<import('@/lib/api').CredentialStatus | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [keyInput, setKeyInput] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [savedFlash, setSavedFlash] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      setStatus(await api.getApiKeyStatus())
+    } catch {
+      // Silently leave status null — the empty state below reads fine either way
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!savedFlash) return
+    const t = setTimeout(() => setSavedFlash(false), 2000)
+    return () => clearTimeout(t)
+  }, [savedFlash])
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await api.setApiKey(keyInput.trim())
+      setStatus(updated)
+      setKeyInput('')
+      setEditing(false)
+      setSavedFlash(true)
+    } catch (e) {
+      let detail = e instanceof Error ? e.message : 'Could not verify this key.'
+      try {
+        detail = JSON.parse(detail).detail ?? detail
+      } catch { /* not JSON — show raw message */ }
+      setError(detail)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    setConfirmDelete(false)
+    const previous = status
+    setStatus({ provider: 'anthropic', has_key: false, key_hint: null, label: null, last_verified_at: null })
+    try {
+      await api.deleteApiKey()
+    } catch {
+      setStatus(previous)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-sm font-semibold text-neutral-800">Anthropic API key</p>
+        <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
+      </div>
+      <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
+        Your own key, billed to you. CareerOS never sees or pays for your generation usage.
+      </p>
+
+      <AnimatePresence mode="wait">
+        {editing || !status?.has_key ? (
+          <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+            <Field label="API key">
+              <input
+                type="password"
+                value={keyInput}
+                onChange={e => setKeyInput(e.target.value)}
+                placeholder="sk-ant-..."
+                className={inputCls}
+                style={inputStyle}
+                autoComplete="off"
+              />
+            </Field>
+            {error && <p className="text-xs" style={{ color: 'var(--c-danger)' }}>{error}</p>}
+            <div className="flex items-center justify-end gap-2 pt-1">
+              {editing && (
+                <CancelButton onClick={() => { setEditing(false); setError(null); setKeyInput('') }} />
+              )}
+              <button
+                onClick={save}
+                disabled={saving || keyInput.trim().length < 10}
+                className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
+              >
+                {saving ? 'Verifying…' : 'Save key'}
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-mono text-neutral-700">sk-ant-••••{status.key_hint}</p>
+                {status.last_verified_at && (
+                  <p className="text-xs text-neutral-400 mt-1">
+                    Verified {new Date(status.last_verified_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setEditing(true)} className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors">
+                  Update
+                </button>
+                <AnimatePresence mode="wait" initial={false}>
+                  {!confirmDelete ? (
+                    <motion.button
+                      key="del"
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      transition={{ duration: 0.1 }}
+                      onClick={() => setConfirmDelete(true)}
+                      className="text-xs text-neutral-400 hover:text-red-400 transition-colors"
+                    >
+                      Remove
+                    </motion.button>
+                  ) : (
+                    <motion.div
+                      key="confirm"
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      transition={{ duration: 0.1 }}
+                      className="flex items-center gap-3"
+                    >
+                      <button onClick={remove} className="text-xs text-red-400 hover:text-red-600 transition-colors">
+                        Confirm
+                      </button>
+                      <button onClick={() => setConfirmDelete(false)} className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors">
+                        Cancel
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ---- Main page ----
 
 export default function ProfilePage() {
@@ -952,6 +1100,17 @@ export default function ProfilePage() {
         </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Profile</h1>
       </motion.div>
+
+      {/* API key — required before anything else works */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...spring.gentle, delay: 0.02 }}
+        className="mb-10 pb-10"
+        style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
+      >
+        <ApiKeySettings />
+      </motion.section>
 
       {/* Projects — most important, first */}
       <motion.section

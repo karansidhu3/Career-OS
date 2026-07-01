@@ -190,16 +190,50 @@ Verified: full backend test suite (159/160 passing — the 1 failure is a pre-ex
 LaTeX non-breaking-space test on `main`) plus a live smoke-test call through the new adapter
 confirming real tool-call + token-usage parsing still works.
 
-### Phase 3 — Encrypted BYO API key — not started
+### Phase 3 — Encrypted BYO API key — ✅ DONE (2026-06-30/07-01, local only — not yet deployed)
 
-The phase that actually stops Karan's bill growing with other users' usage. New `ai_credentials`
-table: `user_id`, `provider`, `encrypted_key` (envelope-encrypted with the Phase 0 master key,
-versioned for future key rotation), `key_hint` (last 4 chars, for UX), `label`,
-`last_verified_at`. Settings UI to add/verify/rotate/delete a key. One validation call on
-key-add (tiny, billed to the user's own key, never Karan's). Every generation and insights call
-switches to pull the *requesting user's* decrypted key instead of `ANTHROPIC_API_KEY` — this
-also migrates `generate_insights`, which currently silently bills Karan's key for every user's
-candidacy insights and would otherwise be missed.
+The phase that actually stops Karan's bill growing with other users' usage. Hard cutover: there
+is no shared fallback key anymore — `settings.anthropic_api_key` was removed entirely, and every
+generation/insights call requires the requesting user's own stored key or fails with a clear 400.
+
+- New `ai_credentials` table (`backend/app/models/ai_credential.py`, RLS in
+  `backend/migrations/009_ai_credentials_rls.sql`): `user_id`, `provider` (default `"anthropic"`),
+  `encrypted_key`, `key_version`, `key_hint` (last 4 chars, for UX), `label`, `last_verified_at`.
+  Unique on `(user_id, provider)` — adding a key again rotates it (upsert), it doesn't duplicate.
+- `backend/app/services/crypto.py` — envelope encryption via `cryptography`'s `Fernet`.
+  `encrypt()` uses the current `ENCRYPTION_MASTER_KEY`; `decrypt()` tries it plus any keys in
+  `ENCRYPTION_MASTER_KEY_PREVIOUS` (comma-separated) via `MultiFernet`, so rotating the master key
+  doesn't break decryption of rows encrypted under the old one.
+- `backend/app/routers/credentials.py` — `GET/POST/DELETE /admin/settings/api-key`. POST
+  validates the submitted key with one tiny real forced-tool-call to Anthropic (billed to the
+  submitter's own key) before encrypting and storing it; on failure returns a specific 400
+  (`anthropic.AuthenticationError` → "Invalid API key", etc.) rather than a generic error.
+- `backend/app/services/llm_client.py`'s `get_llm_client()` now takes an explicit `api_key`
+  argument (no more reading a global settings key) — this is the exact seam Phase 2 built.
+  `generate_materials`/`generate_insights`/`_call_compression` in `generation.py` all take an
+  `api_key` parameter now and thread it through to the adapter.
+- `backend/app/routers/jobs.py` — `generate_job`/`regenerate_job` check for a stored key
+  *before* doing anything (fail fast, no half-created job) and return
+  `400 "Add your Anthropic API key in Settings before generating."` if missing. Insights
+  (an automatic background fetch, not user-initiated) instead fails quietly to the same
+  all-`None` shape as "not enough applications yet" rather than surfacing a hard error.
+- Frontend: `ApiKeySettings` section on `/profile` (top of page, before Projects — the
+  doctrine's minimal-nav principle argued against a new navbar icon for this). Add/rotate/remove
+  a key inline, masked input, last-4-hint + verified-date display when a key is stored.
+  `frontend/lib/api.ts` gained `CredentialStatus` + `getApiKeyStatus`/`setApiKey`/`deleteApiKey`.
+
+**Verified:** 174/175 backend tests passing (1 pre-existing, unrelated LaTeX failure) including
+new `tests/unit/test_crypto.py` (round-trip, non-determinism, key-rotation via `MultiFernet`) and
+`tests/integration/test_credentials_api.py` (full CRUD, validation-failure paths, rotation,
+never-returns-raw-key). A real end-to-end in-process run confirmed: adding a key stores it
+encrypted and retrievable, generation through the real per-user-key path succeeds (Anthropic call
+mocked — Phase 2 already proved the real adapter works; this phase's own logic is the encrypt/
+store/decrypt/gate plumbing), a user with no key gets a clear 400, and the local DB was verified
+byte-for-byte unchanged (35 real jobs, 0 leftover test credentials) after the run. Frontend
+verified via a clean `next build` + `tsc --noEmit` (the interactive browser preview hit an
+unrelated environment/tooling issue in this session and couldn't be used for visual confirmation).
+`frontend/app/page.tsx` has a pre-existing, unrelated hydration-mismatch warning around the
+insights `AnimatePresence` block — not touched by this phase, worth a separate fix.
 
 ### Phase 4 — Onboarding + profile import — not started
 

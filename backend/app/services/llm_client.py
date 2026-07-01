@@ -2,17 +2,15 @@
 
 Every call site in generation.py sends a system prompt + messages and forces a single
 tool call, then reads the tool's input and token usage. LLMClient captures exactly that
-shape. AnthropicAdapter is the only implementation today; Phase 3 (per-user BYO API
-keys) will construct it with the requesting user's decrypted key instead of
-settings.anthropic_api_key.
+shape. AnthropicAdapter is the only implementation, constructed with the requesting
+user's own decrypted API key (see app.services.credentials) — there is no shared
+fallback key, so every generation and insights call is billed to the user who ran it.
 """
 import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import anthropic
-
-from app.config import settings
 
 
 @dataclass
@@ -76,5 +74,5 @@ class AnthropicAdapter(LLMClient):
         )
 
 
-def get_llm_client() -> LLMClient:
-    return AnthropicAdapter(api_key=settings.anthropic_api_key)
+def get_llm_client(api_key: str) -> LLMClient:
+    return AnthropicAdapter(api_key=api_key)

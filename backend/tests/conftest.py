@@ -17,7 +17,9 @@ else:
     # Integration tests will be skipped when TEST_DATABASE_URL is absent.
     os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://localhost/careeros_test_placeholder")
 
-os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test-key")
+# Fixed test-only Fernet key — not a secret, just needs to be a valid key so
+# app.services.crypto can encrypt/decrypt in tests without real config.
+os.environ.setdefault("ENCRYPTION_MASTER_KEY", "OpIdcV5IwT4yLCfuh7FWOQMtSkLy_-5V4f3sHO7nb0A=")
 
 
 import pytest

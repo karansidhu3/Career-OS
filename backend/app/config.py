@@ -13,7 +13,13 @@ class Settings(BaseSettings):
     # Falls back to database_url when unset (RLS is then a no-op, not an error).
     app_database_url: str = ""
 
-    anthropic_api_key: str = ""
+    # Envelope-encryption key for per-user AI provider credentials (Phase 3).
+    # Must be a Fernet key (generate with `Fernet.generate_key()`), stored as a
+    # Railway secret — never in code or the database. Rotation: move the old
+    # key into encryption_master_key_previous (comma-separated if more than
+    # one) when rotating so already-encrypted rows keep decrypting.
+    encryption_master_key: str = ""
+    encryption_master_key_previous: str = ""
 
     # Set DEV_MODE=true in local .env to allow running without Clerk configured.
     # Never set this in production — the startup check enforces it.

@@ -100,6 +100,16 @@ export interface FullProfile {
   skills: SkillCategory[]
 }
 
+// ---- AI credentials (BYO API key) ----
+
+export interface CredentialStatus {
+  provider: string
+  has_key: boolean
+  key_hint: string | null
+  label: string | null
+  last_verified_at: string | null
+}
+
 // ---- Shared ----
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -204,4 +214,11 @@ export const api = {
   // Education
   updateEducation: (id: number, data: Omit<Education, 'id'>) =>
     request<Education>(`/admin/profile/education/${id}`, json('PUT', data)),
+
+  // AI provider credentials (BYO API key)
+  getApiKeyStatus: () => request<CredentialStatus>('/admin/settings/api-key'),
+  setApiKey: (api_key: string, label?: string) =>
+    request<CredentialStatus>('/admin/settings/api-key', json('POST', { api_key, label })),
+  deleteApiKey: () =>
+    request<void>('/admin/settings/api-key', { method: 'DELETE' }),
 }

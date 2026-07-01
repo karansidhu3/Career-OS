@@ -34,7 +34,7 @@ from slowapi.util import get_remote_address
 
 from app.clerk_auth import get_current_user
 from app.models.user import User
-from app.routers import jobs, profile
+from app.routers import credentials, jobs, profile
 
 _limiter = Limiter(key_func=get_remote_address)
 
@@ -44,6 +44,7 @@ _test_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _test_app.include_router(profile.router, prefix="/admin")
 _test_app.include_router(jobs.router, prefix="/admin")
+_test_app.include_router(credentials.router, prefix="/admin")
 
 
 @_test_app.get("/health")

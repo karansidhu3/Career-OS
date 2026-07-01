@@ -12,16 +12,29 @@ user-scoped routes correctly won't see them — that's the behavior under test.
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from app.models.ai_credential import AICredential
 from app.models.job import Job
+from app.services.crypto import encrypt
 
 pytestmark = pytest.mark.integration
 
 SAMPLE_JD = "Senior Software Engineer role at a fast-growing startup. " * 5  # > 10 chars
 
 
+async def _add_api_key(db_session, user_id):
+    """Generation requires the requesting user to have a stored, decryptable key (Phase 3)."""
+    encrypted_key, key_version = encrypt("sk-ant-test-fixture-key-1234")
+    db_session.add(AICredential(
+        user_id=user_id, provider="anthropic", encrypted_key=encrypted_key,
+        key_version=key_version, key_hint="1234",
+    ))
+    await db_session.commit()
+
+
 # ── POST /admin/jobs/generate ─────────────────────────────────────────────────
 
-async def test_generate_returns_201_with_processing_status(client):
+async def test_generate_returns_201_with_processing_status(client, db_session, current_test_user):
+    await _add_api_key(db_session, current_test_user.id)
     with patch("app.routers.jobs._run_generation", new=AsyncMock()):
         resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 201
@@ -39,6 +52,14 @@ async def test_generate_rejects_short_description(client):
 async def test_generate_rejects_missing_description(client):
     resp = await client.post("/admin/jobs/generate", json={})
     assert resp.status_code == 422
+
+
+async def test_generate_requires_api_key(client):
+    """Without a stored key, generation must fail fast with a clear 400 — never
+    silently fall back to a shared/global key."""
+    resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    assert resp.status_code == 400
+    assert "API key" in resp.json()["detail"]
 
 
 # ── GET /admin/jobs ───────────────────────────────────────────────────────────

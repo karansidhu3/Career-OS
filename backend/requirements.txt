@@ -11,3 +11,4 @@ slowapi>=0.1.9
 pypdf>=4.0.0
 pyjwt[crypto]>=2.10.0
 httpx>=0.28.0
+cryptography>=43.0.0

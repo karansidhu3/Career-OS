@@ -13,7 +13,7 @@ from sqlalchemy import text
 import app.models  # noqa: F401 — registers all models with Base before create_all
 from app.config import settings
 from app.database import Base, engine
-from app.routers import jobs, profile
+from app.routers import credentials, jobs, profile
 
 _log = logging.getLogger(__name__)
 
@@ -170,6 +170,7 @@ app.add_middleware(
 # not a router-level dependency — each handler needs the resolved User to scope its queries.
 app.include_router(profile.router, prefix="/admin")
 app.include_router(jobs.router, prefix="/admin")
+app.include_router(credentials.router, prefix="/admin")
 
 
 @app.get("/health")
