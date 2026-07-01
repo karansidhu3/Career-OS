@@ -398,15 +398,41 @@ R2 was already external to Railway and needed no changes.
   connections, and volumes (`postgres-volume`, `redis-volume`) are untouched — any service can be
   brought back with a single "Redeploy" if ever needed. Full cancellation is a separate later step.
 
-### Phase 6 — Account lifecycle — not started
+### Phase 6 — Account lifecycle — in progress (started 2026-07-01)
 
-Async data export (zip: profile JSON + markdown, all resumes/cover letters as LaTeX + PDF,
-application history as CSV/JSON, account metadata) — delivered by email when ready, not
-generated synchronously. Account deletion with a 7-day grace period before hard delete, with an
-email confirmation. Session list + revoke (per-device, "revoke all others") — standard security
-hygiene expected by serious users. Soft-delete + undo specifically on profile sections, since
-that's the most irreplaceable data in the product (accidentally deleting years of career history
-should be recoverable).
+Four independent sub-features. Order: data export → account deletion → session list/revoke →
+soft-delete/undo on profile sections.
+
+**Email carve-out**: `CLAUDE.md`'s "no email integration" rule predates this phase and conflicts
+with export/deletion needing to notify the user. Resolved: a minimal `EmailClient` seam
+(mirrors `LLMClient`/`PDFStorage`) sends transactional email for exactly two triggers —
+export-ready, deletion-confirmation — nothing else. `app/services/email_client.py`: `EmailClient`
+ABC, `ResendAdapter` (plain HTTP via `httpx`, already a dependency — no new SDK), `NoOpEmailClient`
+fallback when `RESEND_API_KEY` is unset (local dev never needs a real key). 5 unit tests
+(`tests/unit/test_email_client.py`).
+
+**Data export — ✅ backend done, frontend not started.** `app/models/account_export.py` +
+migration 010 (RLS, same `tenant_isolation` pattern as 006/009). `app/services/account_export.py`
+builds a zip: profile JSON + markdown, account metadata, application history JSON + CSV, and per-job
+resume (LaTeX + PDF) / cover letter (text + PDF) — reads cached PDFs from `PDFStorage` first,
+compiles fresh only on a cache miss. Runs on the ARQ worker (`run_export_job` in `app/worker.py`,
+mirrors `run_generation_job`'s pattern), stores the zip via the existing `PDFStorage` seam
+(`account_export_key()`), emails "your export is ready" on completion. Three endpoints under
+`/admin/account/export` (request, poll status, download) with a 409 concurrency guard (one export
+at a time, same pattern as generation). 19 new tests total across
+`tests/integration/test_account_export.py`, `test_account_api.py`, `test_worker_export_job.py` —
+full backend suite 229/230 passing (1 pre-existing unrelated LaTeX failure).
+
+**Caught during testing**: `app.worker.AsyncSessionLocal` is a module-level global bound to
+`DATABASE_URL` at import time — not `TEST_DATABASE_URL`. A worker-job test that doesn't rebind it
+to the test engine would silently write to the real dev database instead of the test one. Fixed
+by monkeypatching `app.worker.AsyncSessionLocal` to the test engine for the duration of those
+tests only; verified afterward that the real local dev DB's row counts were unchanged. Worth
+remembering for any future test of `run_generation_job` too — it was never covered by an automated
+test for the same reason, only a real manual end-to-end check (see Phase 5's notes).
+
+Remaining: account deletion (7-day grace period + email confirmation), session list/revoke
+(Clerk-backed), soft-delete+undo on profile sections, and the export feature's frontend UI.
 
 ### Phase 7 — Observability + abuse guardrails — not started
 

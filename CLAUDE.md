@@ -38,7 +38,11 @@ No navigation. No page transitions. One surface.
 - Job scraping / sourcing — wrong product
 - Analytics or career dashboards — CRM thinking
 - Multi-user features — destroys personal context moat
-- Email integration — out of scope
+- Email integration for notifications, digests, or marketing — pull-only product. **Exception**
+  (decided during Phase 6 planning, 2026-07-01): transactional email for two specific
+  security-critical account-lifecycle triggers — data export ready, account deletion
+  confirmation — via a minimal `EmailClient` seam (mirrors `LLMClient`/`PDFStorage`). Nothing
+  beyond those two triggers; no engagement/notification email of any kind.
 - Interview scheduler — out of scope
 - Gamification or progress metrics — wrong emotional direction
 - Status tracking beyond interview/offer — CRM thinking

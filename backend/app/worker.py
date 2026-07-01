@@ -14,12 +14,18 @@ import uuid
 from arq.connections import RedisSettings
 from sqlalchemy import select, text
 
+from datetime import datetime, timedelta, timezone
+
 from app.config import settings
 from app.database import AsyncSessionLocal
+from app.models.account_export import AccountExport
 from app.models.job import Job
+from app.models.user import User
+from app.services.account_export import build_export_zip
 from app.services.credentials import get_decrypted_key
+from app.services.email_client import get_email_client
 from app.services.generation import generate_materials
-from app.services.pdf_storage import cache_resume_pdf
+from app.services.pdf_storage import account_export_key, cache_resume_pdf, get_pdf_storage
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +89,42 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             logger.exception("Resume PDF caching failed for job %d — will compile on first request", job_id)
 
 
+async def run_export_job(ctx, export_id: int, user_id: str) -> None:
+    """ARQ task: build the account data export zip, store it, email the user
+    that it's ready (see app.services.email_client — one of the two transactional
+    email triggers this app sends, per CLAUDE.md's carve-out).
+    """
+    async with AsyncSessionLocal() as db:
+        await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
+        export = (await db.execute(select(AccountExport).where(AccountExport.id == export_id))).scalar_one_or_none()
+        if not export:
+            return
+        user = (await db.execute(select(User).where(User.id == export.user_id))).scalar_one_or_none()
+        try:
+            zip_bytes = await build_export_zip(db, user)
+            await get_pdf_storage().save(account_export_key(export_id), zip_bytes)
+            export.status = "ready"
+            export.completed_at = datetime.now(timezone.utc)
+            export.expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        except Exception as e:
+            logger.exception("Export failed for export %d: %s", export_id, e)
+            export.status = "failed"
+            export.error_message = str(e)[:500]
+        finally:
+            await db.commit()
+
+    if export.status == "ready" and user:
+        link_line = f'<p><a href="{settings.frontend_url}">Sign in to CareerOS</a> to download it.</p>' if settings.frontend_url else "<p>Sign in to CareerOS to download it.</p>"
+        try:
+            await get_email_client().send(
+                to=user.email,
+                subject="Your CareerOS data export is ready",
+                html_body=f"<p>Your account data export is ready — it includes your profile, every generated resume and cover letter, and your application history.</p>{link_line}<p>This download link expires in 7 days.</p>",
+            )
+        except Exception:
+            logger.exception("Failed to send export-ready email for export %d", export_id)
+
+
 class WorkerSettings:
-    functions = [run_generation_job]
+    functions = [run_generation_job, run_export_job]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)

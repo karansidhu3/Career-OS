@@ -54,6 +54,16 @@ class Settings(BaseSettings):
     r2_secret_access_key: str = ""
     r2_bucket_name: str = ""
 
+    # Resend (Phase 6) — transactional email ONLY, scoped to two triggers: data export
+    # ready, account deletion confirmation. See CLAUDE.md's "What NOT to build" carve-out.
+    # get_email_client() falls back to a no-op (logs, doesn't send) when unset, so local
+    # dev never needs a real key.
+    resend_api_key: str = ""
+    email_from_address: str = "CareerOS <onboarding@resend.dev>"
+    # Used to build the "sign in to download" link in the two transactional emails above.
+    # Left unset in local dev — the email templates just omit the link when empty.
+    frontend_url: str = ""
+
     model_config = {"env_file": ".env"}
 
     def cors_origins(self) -> list[str]:

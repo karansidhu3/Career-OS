@@ -110,6 +110,10 @@ def cover_letter_pdf_key(job_id: int) -> str:
     return f"cover-letter-{job_id}.pdf"
 
 
+def account_export_key(export_id: int) -> str:
+    return f"export-{export_id}.zip"
+
+
 async def cache_resume_pdf(job_id: int, resume_latex: str) -> bytes:
     """Compile the resume once and store it — called right after generation succeeds,
     and again on demand if a request finds the cache empty (compile-on-miss)."""
