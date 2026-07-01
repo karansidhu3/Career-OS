@@ -126,8 +126,8 @@ AI call entirely (deterministic logic instead).
   Left in the repo, not called from `main.py`'s lifespan. Needs a per-user redesign (e.g.
   seeding a demo Clerk account) before it's useful again.
 
-**Two production incidents hit and fixed during this rollout** (useful precedent for future
-migrations that touch data integrity or the auth boundary):
+**Three production incidents hit and fixed during this rollout** (useful precedent for future
+migrations that touch data integrity, the auth boundary, or connection-scoped database state):
 
 1. **Migration 008 (`user_id NOT NULL`) crashed startup.** It ran unconditionally in the same
    startup batch as the columns being added, before anyone had signed in — production's
@@ -144,11 +144,35 @@ migrations that touch data integrity or the auth boundary):
    Clerk session, so it got a 307 redirect instead of 200 and the healthcheck failed (same safe
    rollback behavior — no downtime, but blocked). **Fix:** added a dedicated public
    `/api/health` route excluded from the Clerk auth check, pointed `healthcheckPath` at it.
+3. **RLS connection-pooling race caused intermittent 500s on writes.** Adding a project (and
+   likely any create/update route doing `commit()` then `refresh()`) intermittently failed with
+   `invalid input syntax for type uuid: ""`. Two compounding bugs: (a) `AsyncSession`'s default
+   behavior releases its connection back to the pool on every `commit()` — since the RLS GUC
+   (`app.current_user_id`) is set session-scoped specifically to survive a request's own commits,
+   a *different concurrent request* could grab the released connection between this request's
+   commit and its next query, and that other request's cleanup could reset the GUC first;
+   (b) `get_db()`'s cleanup called `rollback()` then `set_config(..., false)` to reset the GUC but
+   never committed that reset — Postgres reverts a session-scoped `SET` issued inside a
+   transaction if that transaction later rolls back (a real, easy-to-miss behavior), so the reset
+   silently never took effect, meaning a *real* leftover user_id — not just an empty string —
+   could persist on a reused connection. **Fix:** `get_db()` now explicitly holds one connection
+   for the entire request via `engine.connect()`, never releasing it mid-request regardless of
+   internal commits; cleanup now commits the GUC reset so it can't be rolled back away. Reproduced
+   deterministically with event-synchronized concurrent asyncio tasks against real Postgres —
+   confirmed the exact production error first, then confirmed the fix — and added as a permanent
+   regression test (`backend/tests/integration/test_database.py`) against the real
+   `app.database.get_db`, since the existing test fixtures override `get_db` entirely for
+   convenience and wouldn't have caught this.
 
-**Lesson for future migrations:** anything touching `user_id`/data-integrity constraints must
-assume production has real pre-existing unclaimed data — never assume a clean database. Anything
-touching `proxy.ts`'s route protection must double-check `healthcheckPath` (both services)
-still resolves publicly.
+**Lessons for future migrations:**
+- Anything touching `user_id`/data-integrity constraints must assume production has real
+  pre-existing unclaimed data — never assume a clean database.
+- Anything touching `proxy.ts`'s route protection must double-check `healthcheckPath` (both
+  services) still resolves publicly.
+- Any RLS-dependent session-level Postgres state (GUCs set via `set_config`) must be paired with
+  a connection held for the whole request. SQLAlchemy's `AsyncSession` releases connections back
+  to the pool between transactions by default, which silently breaks this pattern under
+  concurrent load. Any new code opening its own session outside `get_db` needs the same care.
 
 ### Phase 2 — AI provider abstraction — not started
 
