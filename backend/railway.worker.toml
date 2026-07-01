@@ -1,0 +1,10 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+# No healthcheckPath — the ARQ worker has no HTTP server to probe (unlike the
+# API service, which uses railway.toml's /health check). Both services share
+# the same Dockerfile/root directory; this file exists so the Worker service
+# can point its Config-as-code setting here instead of railway.toml.
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
