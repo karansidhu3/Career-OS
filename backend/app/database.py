@@ -10,12 +10,16 @@ class Base(DeclarativeBase):
 
 
 def _normalize(url: str) -> str:
-    # Railway provides postgresql:// or postgres:// — rewrite to asyncpg dialect
+    # Providers hand back postgresql:// or postgres:// — rewrite to asyncpg dialect
     if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+asyncpg://", 1)
-    if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return url
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    # Providers (Neon included) hand back the libpq `sslmode` query param, but
+    # asyncpg's connect() has no `sslmode` kwarg — it wants `ssl` instead, and
+    # raises TypeError if `sslmode` is passed through. Railway never surfaced
+    # this because its internal connection strings omit sslmode entirely.
+    return url.replace("sslmode=", "ssl=", 1)
 
 
 def _get_db_url() -> str:

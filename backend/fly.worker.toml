@@ -1,0 +1,19 @@
+app = "careeros-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  CONTAINER = "1"
+
+[processes]
+  app = "arq app.worker.WorkerSettings"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[[restart]]
+  policy = "on-failure"
+  retries = 3

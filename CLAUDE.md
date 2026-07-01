@@ -54,9 +54,11 @@ No navigation. No page transitions. One surface.
 |-------|------------|
 | Backend | FastAPI (Python 3.12), async |
 | Frontend | Next.js 16 (App Router), React 19, Tailwind CSS v4, Framer Motion |
-| Database | PostgreSQL (SQLAlchemy async) |
+| Database | PostgreSQL (SQLAlchemy async), hosted on Neon |
 | LLM | Claude API (`claude-sonnet-4-6`) |
-| Hosting | Railway (Dockerfile-based build) |
+| Job queue | ARQ + Redis (Upstash) |
+| Object storage | Cloudflare R2 (compiled PDFs) |
+| Hosting | Fly.io (backend + worker, Dockerfile-based), Vercel (frontend) |
 
 ---
 
@@ -209,9 +211,9 @@ The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generati
 
 **ADR-002** — No automated job ingestion. Manual JD paste only.
 
-**ADR-003** — Railway, Dockerfile-based build. Tectonic binary installed via curl during image build for server-side LaTeX→PDF compilation.
+**ADR-003** — Fly.io for backend + worker (Dockerfile-based build, same image for both — worker overrides the start command). Tectonic binary installed via curl during image build for server-side LaTeX→PDF compilation. Frontend on Vercel, Postgres on Neon, Redis on Upstash. Migrated off Railway (2026-07-01) — Railway's Hobby plan charges a flat $5/mo minimum regardless of usage; this app's real usage is closer to $1/mo, and Fly/Vercel/Neon/Upstash's usage-based billing (plus generous free tiers on Neon/Upstash) tracks actual cost instead. See ADR-010.
 
-**ADR-004** — Background task generation. POST `/admin/jobs/generate` returns immediately (status="processing"). Background task calls Claude, writes result to DB. Frontend polls every 2.5s until done. Sidesteps Railway's HTTP proxy timeout.
+**ADR-004** — Background/async generation. POST `/admin/jobs/generate` returns immediately (status="processing"); actual generation runs in a separate ARQ worker process (see ADR-010 / Phase 5), not inline in the request. Frontend polls every 2.5s until done. Sidesteps HTTP proxy timeouts on generation requests that take longer than a typical request/response cycle.
 
 **ADR-005** — Inline generation flow. The home page (/) handles all states: idle → generating → result. No route change during the core loop. `/jobs/[id]` is the archive deep-link viewer only.
 
@@ -222,6 +224,8 @@ The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generati
 **ADR-008** — Cover letter compiled to PDF server-side using a separate LaTeX template (charter font, gray header band). Plain text cover letter is stored in DB and can be edited before download; PATCH `/admin/jobs/{id}/cover-letter` persists edits.
 
 **ADR-009** — Tectonic package cache warmed at startup. First real PDF request is fast; warmup happens in a background asyncio task so it doesn't block server startup.
+
+**ADR-010** — Migrated hosting from Railway to Fly.io + Vercel + Neon + Upstash (2026-07-01), cost-driven (see ADR-003). Backend and worker are separate Fly apps (`careeros-backend`, `careeros-worker`) sharing one Dockerfile/image via `backend/fly.toml` and `backend/fly.worker.toml` — the worker's config overrides the start command (`arq app.worker.WorkerSettings`) and has no `[http_service]` block, since it has no HTTP server. Both run on `shared-cpu-1x:512mb` — 256mb OOM-killed both the backend (Tectonic's warmup compile alone uses ~150MB on top of ~100MB baseline) and the worker (same Tectonic cost, plus the Anthropic response handling, during a real generation job) under real load, even though idle health checks looked fine at 256mb. Fly defaults to provisioning 2 machines per app (HA); both are intentionally scaled to 1 (`fly scale count 1`) since redundancy isn't worth doubling compute cost for this app's traffic — **be careful when scaling down while a machine is actively processing a job**: `fly scale count` can destroy the machine mid-work rather than the idle one, requiring `fly machine start` on whatever's left. Postgres connection strings from non-Railway providers (Neon included) include `?sslmode=require`, which asyncpg's `connect()` rejects outright (`TypeError: unexpected keyword argument 'sslmode'` — it wants `ssl=` instead); `app.database._normalize()` now rewrites this automatically. The Neon `careeros_app` restricted role (mirroring Railway's, per migration 006) was created manually with a fresh generated password — never reuse a role/credential across providers, and never let a provider's "suggested variables" autofill a security-relevant secret across services (same lesson as Phase 5's Redis setup, this time against Neon's own owner role auto-suggestion habits).
 
 ---
 

@@ -349,6 +349,54 @@ the actual Cloudflare bucket succeeded (`backend: R2Storage`, `roundtrip ok: Tru
 `after delete: None`). PDFs now survive container restarts/redeploys and are shared across
 replicas — the local-filesystem fallback is no longer in use in production.
 
+### Hosting migration — Railway → Fly.io + Vercel + Neon + Upstash — ✅ DONE (2026-07-01)
+
+Cost-driven: Railway's Hobby plan is a flat $5/mo minimum regardless of usage, and this app's
+real usage is closer to $1/mo. Moved to usage-based providers instead: **Fly.io** (backend +
+worker, same Dockerfile as Railway), **Vercel** (frontend, native Next.js support, no Dockerfile
+needed), **Neon** (Postgres, generous free tier), **Upstash** (Redis, pay-per-request). Cloudflare
+R2 was already external to Railway and needed no changes.
+
+- **Neon**: schema + migrations applied via the app's own startup migration runner (pointed at
+  Neon instead of Railway) rather than a raw `pg_dump` of schema — Postgres roles are cluster-level
+  and don't come across in a normal dump. The restricted `careeros_app` role (mirroring Railway's,
+  documented in migration 006) was recreated manually on Neon with a freshly generated password.
+  Data itself (1 user, profile, 36 jobs, 1 AI credential) was copied read-only from Railway via
+  `pg_dump`-equivalent Python scripting, respecting FK dependency order, toggling
+  `NO FORCE ROW LEVEL SECURITY` around the bulk insert (owner is otherwise subject to RLS too, by
+  design), then resetting integer PK sequences afterward (same gotcha as the Phase 2 DB-recovery
+  incident). Verified with a full RLS round-trip against the real migrated data post-copy: no GUC
+  → 0 rows, correct user's GUC → all 36 jobs, wrong GUC → 0 rows.
+- **`app.database._normalize()` bug found and fixed**: asyncpg's `connect()` has no `sslmode`
+  kwarg — only `ssl` — and raises `TypeError` if `sslmode` is passed through untranslated. Railway
+  never surfaced this because its connection strings omit `sslmode` entirely; Neon's (and most
+  other providers') include `?sslmode=require` by default. Fixed with a query-param rewrite in
+  `_normalize()`, covered by 5 new unit tests (`tests/unit/test_database_normalize.py`).
+- **Fly.io**: `careeros-backend` and `careeros-worker` are separate Fly apps sharing one
+  Dockerfile/image via `backend/fly.toml` / `backend/fly.worker.toml` (same split-config pattern
+  as Railway's `railway.toml` / `railway.worker.toml`). Both initially deployed at
+  `shared-cpu-1x:256mb` and both got OOM-killed under real load — the backend's Tectonic warmup
+  compile alone uses ~150MB on top of ~100MB baseline, and the worker hit the same Tectonic cost
+  plus Anthropic response handling during an actual generation job. Idle health checks looked fine
+  at 256mb in both cases; the OOM only showed up under real work. Bumped both to 512mb, which held
+  under a real end-to-end generation (Vercel → Fly backend → ARQ enqueue → Fly worker → Anthropic
+  → Tectonic → R2). Fly defaults to provisioning 2 machines per app for HA; both apps were scaled
+  down to 1 (`fly scale count 1`) since redundancy isn't worth doubling compute cost here — but
+  scaling down while a machine is actively mid-job can destroy the wrong one (it destroyed the
+  machine that had just picked up a retry, not an idle one), requiring `fly machine start` on
+  whatever was left. Lesson: don't touch machine counts while a job is in flight.
+- **Vercel**: frontend deployed with zero Dockerfile changes (Next.js is natively supported).
+  `ALLOWED_ORIGINS` on the Fly backend and Clerk's dev-instance config both needed no changes
+  beyond the new domain — Clerk dev instances are domain-agnostic as long as the key pair matches.
+- **Verified end-to-end for real**: Karan signed in on the new stack himself and confirmed his
+  real profile + all 36 jobs were intact, then ran a real generation that initially failed with
+  the 256mb OOM (a genuinely useful real-world catch, not just synthetic testing) and succeeded
+  cleanly once the worker was bumped to 512mb — resume LaTeX (6.8KB) and cover letter (1.6KB) both
+  generated, job status `generated`.
+- Railway is intentionally left running, untouched, as a rollback safety net until confidence
+  builds over real usage; decommission (pause, then cancel) is a deliberate later step, not done
+  as part of this migration.
+
 ### Phase 6 — Account lifecycle — not started
 
 Async data export (zip: profile JSON + markdown, all resumes/cover letters as LaTeX + PDF,
