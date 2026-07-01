@@ -3,6 +3,8 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -143,7 +145,14 @@ async def lifespan(_: FastAPI):
     # Warm up Tectonic package cache in the background — doesn't block startup
     import asyncio
     asyncio.create_task(_warmup_tectonic())
-    yield
+
+    # ARQ pool for enqueueing generation jobs (Phase 5) — the actual work runs in
+    # a separate worker process (`arq app.worker.WorkerSettings`), not here.
+    app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    try:
+        yield
+    finally:
+        await app.state.arq_pool.close()
 
 
 app = FastAPI(

@@ -34,6 +34,18 @@ class Settings(BaseSettings):
     clerk_secret_key: str = ""
     clerk_frontend_api_domain: str = ""
 
+    # ARQ job queue backend (Phase 5). Generation runs in a separate worker process
+    # (`arq app.worker.WorkerSettings`) so a redeploy/crash of the API doesn't lose
+    # in-flight jobs the way in-process BackgroundTasks did. Local dev: a dedicated
+    # `careeros-redis` Docker container, not the default 6379 port (see backend
+    # README/CLAUDE notes — 6379 is often occupied by an unrelated project locally).
+    redis_url: str = "redis://localhost:6380"
+
+    # Local-filesystem PDF cache (Phase 5). Compiled once at generation time instead
+    # of recompiling LaTeX on every download. Placeholder ahead of a real object
+    # storage backend (Cloudflare R2 — deferred; see app.services.pdf_storage).
+    pdf_storage_dir: str = "./pdf_storage"
+
     model_config = {"env_file": ".env"}
 
     def cors_origins(self) -> list[str]:

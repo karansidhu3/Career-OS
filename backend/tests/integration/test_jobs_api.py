@@ -10,7 +10,6 @@ inserted directly via db_session must carry that user's id, otherwise the
 user-scoped routes correctly won't see them — that's the behavior under test.
 """
 import pytest
-from unittest.mock import AsyncMock, patch
 
 from app.models.ai_credential import AICredential
 from app.models.job import Job
@@ -32,16 +31,27 @@ async def _add_api_key(db_session, user_id):
 
 
 # ── POST /admin/jobs/generate ─────────────────────────────────────────────────
+# Generation now runs on a separate ARQ worker process (Phase 5) — these routes
+# just enqueue and return immediately. arq_pool_mock (conftest.py) replaces the
+# real Redis-backed pool, so tests assert against enqueue_job calls directly.
 
-async def test_generate_returns_201_with_processing_status(client, db_session, current_test_user):
+async def test_generate_returns_201_with_processing_status(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
-    with patch("app.routers.jobs._run_generation", new=AsyncMock()):
-        resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 201
     data = resp.json()
     assert data["status"] == "processing"
     assert data["title"] == "Generating…"
     assert "id" in data
+
+
+async def test_generate_enqueues_on_arq_pool(client, db_session, current_test_user, arq_pool_mock):
+    await _add_api_key(db_session, current_test_user.id)
+    resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    job_id = resp.json()["id"]
+    arq_pool_mock.enqueue_job.assert_awaited_once_with(
+        "run_generation_job", job_id, SAMPLE_JD, str(current_test_user.id)
+    )
 
 
 async def test_generate_rejects_short_description(client):
@@ -52,6 +62,30 @@ async def test_generate_rejects_short_description(client):
 async def test_generate_rejects_missing_description(client):
     resp = await client.post("/admin/jobs/generate", json={})
     assert resp.status_code == 422
+
+
+async def test_generate_rejects_second_concurrent_generation(client, db_session, current_test_user):
+    """Per-user concurrency limit (Phase 5) — one active generation at a time."""
+    await _add_api_key(db_session, current_test_user.id)
+    first = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    assert first.status_code == 201
+
+    second = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    assert second.status_code == 409
+    assert "already in progress" in second.json()["detail"]
+
+
+async def test_generate_allowed_after_previous_job_completed(client, db_session, current_test_user):
+    await _add_api_key(db_session, current_test_user.id)
+    first = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    job_id = first.json()["id"]
+
+    # Simulate the worker having finished (concurrency check only counts 'processing')
+    await client.patch(f"/admin/jobs/{job_id}/status", json={"status": "applied"})
+    db_session.expire_all()
+
+    second = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    assert second.status_code == 201
 
 
 async def test_generate_requires_api_key(client):

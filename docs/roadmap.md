@@ -277,15 +277,53 @@ the real local DB was confirmed byte-for-byte unchanged afterward. Frontend veri
 environment/tooling issue as Phase 3 (stuck tab, can't reach `localhost`) and couldn't be used —
 worth investigating separately.
 
-### Phase 5 — Reliability — not started
+### Phase 5 — Reliability — ✅ DONE locally (2026-07-01); worker/R2 not deployed to Railway
 
-ARQ + Redis background job queue so generation survives server restarts — the current in-process
-`BackgroundTasks` silently loses jobs on redeploy, which was an acceptable risk for a single user
-but becomes a real trust problem once other people depend on it (losing someone's resume
-generation on an application deadline is bad). PDFs compiled once at generation time and stored
-in Cloudflare R2, served via signed URL — no recompiling on every download (the current
-compile-on-request pattern doesn't scale past a handful of users). Per-user concurrency limit
-(one active generation at a time) to avoid races.
+Two deliberate scope decisions going in, both made explicitly with Karan given cost/access
+constraints: (1) the worker is built and verified in local dev only this session — deploying it
+as a second always-on Railway service is a separate step, held off because Railway trial credit
+was nearly exhausted; (2) Cloudflare R2 itself is deferred — no Cloudflare account access exists
+to provision a bucket — but the storage *seam* is built now, backed by local filesystem, so
+swapping in R2 later is a config change, not a rewrite.
+
+- **ARQ + Redis job queue**: `backend/app/worker.py` — `run_generation_job` is now the only place
+  generation actually runs, in a completely separate process (`arq app.worker.WorkerSettings`)
+  from the API. `generate_job`/`regenerate_job` in `jobs.py` enqueue via `request.app.state.arq_pool`
+  (created in `main.py`'s lifespan) instead of FastAPI's `BackgroundTasks`, which silently dropped
+  in-flight jobs on redeploy — acceptable risk for one user, a real trust problem once other
+  people depend on it. Local Redis runs as a dedicated `careeros-redis` Docker container on port
+  6380 (6379 was already occupied locally by an unrelated project's Redis — same collision
+  pattern as the Postgres/backend port issues from earlier phases).
+- **Per-user concurrency limit**: `generate`/`regenerate` now check for an existing `processing`
+  job for that user and return `409` ("already in progress") instead of allowing two concurrent
+  generations to race on the same profile/session state.
+- **PDF storage seam**: `backend/app/services/pdf_storage.py` — `PDFStorage` interface (mirrors
+  the `LLMClient` pattern from Phase 2/3) with `LocalFilesystemStorage` as the only implementation.
+  Cache keys are deterministic functions of `job_id` (`resume-{id}.pdf` / `cover-letter-{id}.pdf`),
+  so nothing new needed to be stored in the database to track them. Resume and cover letter PDFs
+  are compiled once — resume right after a successful generation (in the worker), cover letter on
+  first request — and served from cache afterward instead of recompiling LaTeX on every download
+  (the old pattern didn't scale past a handful of users). Editing the cover letter invalidates its
+  cached PDF so the next download recompiles from the new text rather than serving stale bytes.
+  Deleting a job removes its cached PDFs too.
+
+**Verified:** 197/198 backend tests (1 pre-existing, unrelated LaTeX failure) including new
+`tests/unit/test_pdf_storage.py`, `tests/integration/test_pdf_caching.py` (compile-once,
+cache-hit-on-second-request, invalidate-on-edit, cleanup-on-delete — all with `compile_latex_to_pdf`
+mocked), and new `test_jobs_api.py` cases for ARQ enqueue assertions and the 409 concurrency limit.
+Beyond mocked tests, ran a **real** end-to-end check: started an actual `arq app.worker.WorkerSettings`
+process, enqueued a job directly against real Redis (bypassing the API entirely), and polled
+Postgres directly (not through the API) to confirm a completely independent process picked it up,
+set the RLS GUC correctly, decrypted the credential, made a real call to Anthropic (which correctly
+401'd — a deliberately fake key was used, per the same credential-handling rule from Phase 3: never
+inject a real key into an automated script), and wrote `status="failed"` without crashing. That the
+job left `"processing"` and reached a real terminal state, driven entirely by a process this script
+never touched afterward, is the actual reliability property Phase 5 is about. Confirmed the real
+local DB was unchanged (35 jobs, 1 user, 0 stray credentials) after every check.
+
+**Explicitly deferred to later:**
+- Deploying the worker as a Railway service (needs Karan's go-ahead given cost)
+- Cloudflare R2 bucket + API token (needs Karan's own Cloudflare account)
 
 ### Phase 6 — Account lifecycle — not started
 

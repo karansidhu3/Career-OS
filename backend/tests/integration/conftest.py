@@ -15,6 +15,8 @@ Architecture:
 """
 import os
 import uuid
+from unittest.mock import AsyncMock
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -45,6 +47,11 @@ _test_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 _test_app.include_router(profile.router, prefix="/admin")
 _test_app.include_router(jobs.router, prefix="/admin")
 _test_app.include_router(credentials.router, prefix="/admin")
+
+# Generation now runs on a separate ARQ worker process (Phase 5) instead of
+# in-process BackgroundTasks — routes enqueue via request.app.state.arq_pool.
+# Tests never run a real worker; they assert against this mock instead.
+_test_app.state.arq_pool = AsyncMock()
 
 
 @_test_app.get("/health")
@@ -82,6 +89,19 @@ async def db_session(test_engine) -> AsyncSession:
     _session_factory = async_sessionmaker(test_engine, expire_on_commit=False)
     async with _session_factory() as session:
         yield session
+
+
+@pytest.fixture(autouse=True)
+def reset_arq_pool_mock():
+    """Reset call history between tests — the mock instance itself is shared
+    module-level state since it lives on the module-level _test_app."""
+    _test_app.state.arq_pool.reset_mock()
+    yield
+
+
+@pytest.fixture
+def arq_pool_mock():
+    return _test_app.state.arq_pool
 
 
 @pytest_asyncio.fixture(autouse=True)

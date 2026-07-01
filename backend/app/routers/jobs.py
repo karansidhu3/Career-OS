@@ -5,22 +5,22 @@ import re
 
 from pypdf import PdfReader, PdfWriter
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clerk_auth import get_current_user
-from app.database import get_db, AsyncSessionLocal
+from app.database import get_db
 from app.models.job import Job
 from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
 from app.models.user import User
 from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobListRead, JobRead, StatusUpdate
 from app.services.credentials import get_decrypted_key
-from app.services.generation import generate_insights, generate_materials
-from app.services.pdf import compile_latex_to_pdf
+from app.services.generation import generate_insights
+from app.services.pdf_storage import cache_cover_letter_pdf, cache_resume_pdf, cover_letter_pdf_key, get_pdf_storage, invalidate_cover_letter_pdf, resume_pdf_key
 
 logger = logging.getLogger(__name__)
 
@@ -41,61 +41,6 @@ def _safe_filename(value: str, fallback: str = "company", max_len: int = 50) -> 
     safe = re.sub(r'[^a-zA-Z0-9\-]', '-', value)
     safe = re.sub(r'-{2,}', '-', safe).strip('-').lower()
     return (safe or fallback)[:max_len]
-
-
-def _apply_result(job: Job, result: dict) -> None:
-    """Write generation result dict onto a Job instance. Caps all AI-generated text lengths."""
-    job.title = (result.get("job_title") or "Untitled Role")[:200]
-    job.company = (result.get("job_company") or None)
-    if job.company:
-        job.company = job.company[:200]
-    job.fit_score = result["fit_score"]
-    # Cap AI output lengths — malformed responses cannot exhaust DB storage
-    job.resume_latex = (result.get("resume_latex") or "")[:120_000]
-    # Strip em dashes from cover letter — model sometimes ignores the language rule.
-    # " — " → ", "  |  bare "—" → ", "  (handles spaced and unspaced variants)
-    cover = (result.get("cover_letter") or "")
-    cover = cover.replace(" — ", ", ").replace("— ", ", ").replace(" —", ",").replace("—", ", ")
-    job.cover_letter = cover[:10_000]
-    job.strategic_note = (result.get("strategic_note") or None)
-    if job.strategic_note:
-        job.strategic_note = job.strategic_note[:2_000]
-    job.selected_projects = result.get("selected_projects") or None
-    job.input_tokens = result.get("input_tokens")
-    job.output_tokens = result.get("output_tokens")
-    job.cache_read_tokens = result.get("cache_read_tokens")
-    job.cache_write_tokens = result.get("cache_write_tokens")
-    job.compression_attempts = result.get("compression_attempts", 0)
-
-
-async def _run_generation(job_id: int, jd_text: str, user_id) -> None:
-    """Background task: call Claude, write results to DB. No HTTP proxy timeout concern here.
-
-    Opens its own session outside the request/dependency cycle, so the RLS GUC
-    that app.clerk_auth.get_current_user normally sets is never applied here —
-    set it explicitly using the caller-supplied user_id (known at the time the
-    route enqueued this task) before touching the job row at all. Looking the job
-    up first and deriving user_id from it would deadlock against RLS: an unset
-    GUC means the SELECT itself returns nothing.
-    """
-    async with AsyncSessionLocal() as db:
-        await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
-        job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
-        if not job:
-            return
-        try:
-            api_key = await get_decrypted_key(db, user_id)
-            if not api_key:
-                raise ValueError("No Anthropic API key on file")
-            result = await generate_materials(db, jd_text, api_key)
-            _apply_result(job, result)
-            job.status = "generated"
-        except Exception as e:
-            logger.exception("Generation failed for job %d: %s", job_id, e)
-            job.status = "failed"
-            job.title = job.title if job.title != "Generating…" else "Generation failed"
-        finally:
-            await db.commit()
 
 
 # ── Cover letter LaTeX builder ────────────────────────────────────────────────
@@ -238,18 +183,29 @@ def _build_cover_letter_latex(job: Job, personal: PersonalInfo | None) -> str:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+async def _has_active_generation(db: AsyncSession, user_id) -> bool:
+    """Per-user concurrency limit (Phase 5) — one active generation at a time, to
+    avoid two concurrent runs racing on the same profile/session state."""
+    existing = (
+        await db.execute(select(Job.id).where(Job.user_id == user_id, Job.status == "processing").limit(1))
+    ).scalar_one_or_none()
+    return existing is not None
+
+
 @router.post("/generate", response_model=JobRead, status_code=201)
 @limiter.limit("30/hour")
 async def generate_job(
     request: Request,
     body: JobGenerateRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create the job record immediately (status=processing), kick off generation in the background."""
+    """Create the job record immediately (status=processing), enqueue generation
+    on the ARQ worker (runs in a separate process — survives an API redeploy)."""
     if not await get_decrypted_key(db, current_user.id):
         raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
+    if await _has_active_generation(db, current_user.id):
+        raise HTTPException(status_code=409, detail="A generation is already in progress. Wait for it to finish before starting another.")
 
     job = Job(
         user_id=current_user.id,
@@ -262,7 +218,7 @@ async def generate_job(
     await db.commit()
     await db.refresh(job)
 
-    background_tasks.add_task(_run_generation, job.id, body.description, current_user.id)
+    await request.app.state.arq_pool.enqueue_job("run_generation_job", job.id, body.description, str(current_user.id))
     return job
 
 
@@ -271,7 +227,6 @@ async def generate_job(
 async def regenerate_job(
     request: Request,
     id: int,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -284,12 +239,14 @@ async def regenerate_job(
         raise HTTPException(status_code=400, detail="No JD stored for this job")
     if not await get_decrypted_key(db, current_user.id):
         raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
+    if await _has_active_generation(db, current_user.id):
+        raise HTTPException(status_code=409, detail="A generation is already in progress. Wait for it to finish before starting another.")
 
     job.status = "processing"
     await db.commit()
     await db.refresh(job)
 
-    background_tasks.add_task(_run_generation, job.id, job.description, current_user.id)
+    await request.app.state.arq_pool.enqueue_job("run_generation_job", job.id, job.description, str(current_user.id))
     return job
 
 
@@ -307,7 +264,9 @@ async def download_resume_pdf(
         raise HTTPException(status_code=404, detail="Resume not found")
 
     try:
-        pdf_bytes = await compile_latex_to_pdf(job.resume_latex)
+        pdf_bytes = await get_pdf_storage().load(resume_pdf_key(job.id))
+        if pdf_bytes is None:
+            pdf_bytes = await cache_resume_pdf(job.id, job.resume_latex)
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="PDF compilation not available")
     except RuntimeError:
@@ -344,7 +303,9 @@ async def preview_resume_pdf(
         raise HTTPException(status_code=404, detail="Resume not found")
 
     try:
-        pdf_bytes = await compile_latex_to_pdf(job.resume_latex)
+        pdf_bytes = await get_pdf_storage().load(resume_pdf_key(job.id))
+        if pdf_bytes is None:
+            pdf_bytes = await cache_resume_pdf(job.id, job.resume_latex)
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="PDF compilation not available")
     except RuntimeError:
@@ -365,7 +326,8 @@ async def update_cover_letter(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Persist an edited cover letter. The existing PDF endpoint compiles from the updated text."""
+    """Persist an edited cover letter. Invalidates the cached PDF (Phase 5) so the
+    download endpoint recompiles from the updated text instead of serving stale bytes."""
     job = (
         await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
     ).scalar_one_or_none()
@@ -374,6 +336,7 @@ async def update_cover_letter(
     job.cover_letter = body.cover_letter
     await db.commit()
     await db.refresh(job)
+    await invalidate_cover_letter_pdf(job.id)
     return job
 
 
@@ -389,13 +352,14 @@ async def download_cover_letter(
     if not job or not job.cover_letter:
         raise HTTPException(status_code=404, detail="Cover letter not found")
 
-    personal = (
-        await db.execute(select(PersonalInfo).where(PersonalInfo.user_id == current_user.id).limit(1))
-    ).scalar_one_or_none()
-
     try:
-        latex = _build_cover_letter_latex(job, personal)
-        pdf_bytes = await compile_latex_to_pdf(latex)
+        pdf_bytes = await get_pdf_storage().load(cover_letter_pdf_key(job.id))
+        if pdf_bytes is None:
+            personal = (
+                await db.execute(select(PersonalInfo).where(PersonalInfo.user_id == current_user.id).limit(1))
+            ).scalar_one_or_none()
+            latex = _build_cover_letter_latex(job, personal)
+            pdf_bytes = await cache_cover_letter_pdf(job.id, latex)
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="PDF compilation not available")
     except RuntimeError:
@@ -503,6 +467,9 @@ async def delete_job(
         raise HTTPException(status_code=404, detail="Not found")
     await db.delete(job)
     await db.commit()
+    storage = get_pdf_storage()
+    await storage.delete(resume_pdf_key(id))
+    await storage.delete(cover_letter_pdf_key(id))
 
 
 @router.get("", response_model=list[JobListRead])

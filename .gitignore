@@ -8,6 +8,7 @@ dist/
 build/
 .pytest_cache/
 .DS_Store
+pdf_storage/
 node_modules/
 .next/
 *.log
