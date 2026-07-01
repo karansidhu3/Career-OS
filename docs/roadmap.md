@@ -277,14 +277,25 @@ the real local DB was confirmed byte-for-byte unchanged afterward. Frontend veri
 environment/tooling issue as Phase 3 (stuck tab, can't reach `localhost`) and couldn't be used —
 worth investigating separately.
 
-### Phase 5 — Reliability — ✅ DONE locally (2026-07-01); worker/R2 not deployed to Railway
+### Phase 5 — Reliability — ✅ DONE and deployed to Railway (2026-07-01)
 
-Two deliberate scope decisions going in, both made explicitly with Karan given cost/access
-constraints: (1) the worker is built and verified in local dev only this session — deploying it
-as a second always-on Railway service is a separate step, held off because Railway trial credit
-was nearly exhausted; (2) Cloudflare R2 itself is deferred — no Cloudflare account access exists
-to provision a bucket — but the storage *seam* is built now, backed by local filesystem, so
+Built and verified locally first; Karan then explicitly chose to deploy the worker + Redis to
+Railway despite being on the trial plan with ~$1.42 credit left (flagged the risk, he said to
+proceed anyway). Cloudflare R2 itself is still deferred — no Cloudflare account access exists to
+provision a bucket — but the storage *seam* is built now, backed by local filesystem, so
 swapping in R2 later is a config change, not a rewrite.
+
+**Production deployment**: new Redis service (Railway's own template) and a new Worker service
+(same repo, root `/backend`, custom start command `arq app.worker.WorkerSettings`). The Worker
+needed its own `backend/railway.worker.toml` — sharing Backend's `railway.toml` meant Railway
+tried to healthcheck `/health` against a service with no HTTP server at all, failing every
+deploy. All cross-service config (`REDIS_URL`, `ENCRYPTION_MASTER_KEY`, `DATABASE_URL`,
+`APP_DATABASE_URL`) uses Railway variable references (`${{Backend.X}}`, `${{Redis.REDIS_URL}}`)
+rather than Railway's auto-suggested values — it suggested a freshly-random
+`ENCRYPTION_MASTER_KEY` for the worker that would have silently broken decryption. Verified live
+via deploy logs: Backend starts clean with a working healthcheck (proves the ARQ pool connected
+to real Redis without crashing); Worker logs show `Starting worker for 1 functions:
+run_generation_job` with a real Redis connection — matching local verification exactly.
 
 - **ARQ + Redis job queue**: `backend/app/worker.py` — `run_generation_job` is now the only place
   generation actually runs, in a completely separate process (`arq app.worker.WorkerSettings`)
@@ -322,8 +333,10 @@ never touched afterward, is the actual reliability property Phase 5 is about. Co
 local DB was unchanged (35 jobs, 1 user, 0 stray credentials) after every check.
 
 **Explicitly deferred to later:**
-- Deploying the worker as a Railway service (needs Karan's go-ahead given cost)
-- Cloudflare R2 bucket + API token (needs Karan's own Cloudflare account)
+- Cloudflare R2 bucket + API token (needs Karan's own Cloudflare account) — the worker + Redis
+  themselves are now deployed to Railway production (2026-07-01), just the PDF cache backend
+  remains local-filesystem, which doesn't persist across a container restart/redeploy but
+  degrades gracefully (recompiles on cache miss) rather than breaking anything
 
 ### Phase 6 — Account lifecycle — not started
 
