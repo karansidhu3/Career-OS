@@ -42,9 +42,17 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6380"
 
     # Local-filesystem PDF cache (Phase 5). Compiled once at generation time instead
-    # of recompiling LaTeX on every download. Placeholder ahead of a real object
-    # storage backend (Cloudflare R2 — deferred; see app.services.pdf_storage).
+    # of recompiling LaTeX on every download. Used when R2 isn't configured (local
+    # dev, or before R2_BUCKET_NAME etc. are set) — see app.services.pdf_storage.
     pdf_storage_dir: str = "./pdf_storage"
+
+    # Cloudflare R2 (S3-compatible) PDF storage — the production backend for the
+    # same cache. get_pdf_storage() picks R2 automatically once r2_bucket_name is
+    # set; leaving it unset keeps using the local-filesystem fallback above.
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_name: str = ""
 
     model_config = {"env_file": ".env"}
 

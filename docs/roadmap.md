@@ -332,11 +332,19 @@ job left `"processing"` and reached a real terminal state, driven entirely by a 
 never touched afterward, is the actual reliability property Phase 5 is about. Confirmed the real
 local DB was unchanged (35 jobs, 1 user, 0 stray credentials) after every check.
 
-**Explicitly deferred to later:**
-- Cloudflare R2 bucket + API token (needs Karan's own Cloudflare account) — the worker + Redis
-  themselves are now deployed to Railway production (2026-07-01), just the PDF cache backend
-  remains local-filesystem, which doesn't persist across a container restart/redeploy but
-  degrades gracefully (recompiles on cache miss) rather than breaking anything
+**Cloudflare R2 — code done, activation pending Karan's account (2026-07-01):**
+`app/services/pdf_storage.py` gained `R2Storage` (boto3's S3 client against R2's S3-compatible
+endpoint — `https://<account_id>.r2.cloudflarestorage.com`, `region_name="auto"`). `get_pdf_storage()`
+now picks `R2Storage` automatically whenever `R2_BUCKET_NAME` is set, otherwise falls back to
+`LocalFilesystemStorage` — no caller or deploy-config changes needed either way. New settings:
+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`. Verified via 13
+new unit tests with boto3 mocked (put/get/delete calls, R2 endpoint construction, cache-miss →
+`None` via `ClientError` code `NoSuchKey`, backend auto-selection) — 205/206 full suite passing
+(1 pre-existing unrelated failure). Not yet activated: needs Karan to create the Cloudflare
+account/bucket/API token himself (no Cloudflare access exists here) and set the four env vars on
+Railway directly — per this project's credential-handling rule, third-party API keys always go
+in via the user's own hands, never typed into a field by the agent. Until then, the app keeps
+using the local-filesystem fallback, which works but doesn't survive a container restart/redeploy.
 
 ### Phase 6 — Account lifecycle — not started
 
