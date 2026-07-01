@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +23,19 @@ from app.schemas.profile import (
     SkillCategoryBase,
     SkillCategoryRead,
 )
+from app.schemas.profile_import import ProfileImportDraft
+from app.services.credentials import get_decrypted_key
+from app.services.resume_import import extract_profile_draft, extract_text_from_docx, extract_text_from_pdf
+
+logger = logging.getLogger(__name__)
+
+
+def _limiter_key(request: Request) -> str:
+    auth_header = request.headers.get("authorization", "")
+    return auth_header or get_remote_address(request)
+
+
+limiter = Limiter(key_func=_limiter_key)
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -333,3 +350,50 @@ async def delete_skill_category(
         raise HTTPException(status_code=404, detail="Not found")
     await db.delete(row)
     await db.commit()
+
+
+# --- Resume import (Phase 4) ---
+
+_SUPPORTED_EXTENSIONS = (".pdf", ".docx")
+
+
+@router.post("/import", response_model=ProfileImportDraft)
+@limiter.limit("10/hour")
+async def import_resume(
+    request: Request,
+    file: UploadFile | None = File(None),
+    text: str | None = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Extract a structured profile draft from an uploaded resume (PDF/DOCX) or
+    pasted text. Returns the draft for the frontend to show for review/edit —
+    nothing is written to the profile tables here. Billed to the requesting
+    user's own key; requires one to already be on file (Phase 3 gate).
+    """
+    api_key = await get_decrypted_key(db, current_user.id)
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before importing a resume.")
+
+    if file is not None:
+        filename = (file.filename or "").lower()
+        if not filename.endswith(_SUPPORTED_EXTENSIONS):
+            raise HTTPException(status_code=400, detail="Unsupported file type — upload a PDF or DOCX.")
+        data = await file.read()
+        try:
+            resume_text = extract_text_from_docx(data) if filename.endswith(".docx") else extract_text_from_pdf(data)
+        except Exception:
+            logger.exception("Failed to extract text from uploaded resume")
+            raise HTTPException(status_code=400, detail="Could not read this file. Try pasting the text directly.")
+    elif text:
+        resume_text = text
+    else:
+        raise HTTPException(status_code=400, detail="Provide a resume file or pasted text.")
+
+    try:
+        return await extract_profile_draft(resume_text, api_key)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Resume import extraction failed")
+        raise HTTPException(status_code=502, detail="Could not extract profile data from this resume. Try pasting the text directly.")

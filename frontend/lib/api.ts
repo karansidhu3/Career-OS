@@ -110,6 +110,56 @@ export interface CredentialStatus {
   last_verified_at: string | null
 }
 
+// ---- Resume import (Phase 4) ----
+
+export interface ImportedPersonal {
+  name: string | null
+  email: string | null
+  phone: string | null
+  linkedin: string | null
+  github: string | null
+  location: string | null
+}
+
+export interface ImportedEducation {
+  school: string
+  degree: string
+  field: string | null
+  minor: string | null
+  start_date: string | null
+  end_date: string | null
+}
+
+export interface ImportedExperience {
+  company: string
+  role: string
+  start_date: string | null
+  end_date: string | null
+  location: string | null
+  description: string
+}
+
+export interface ImportedProject {
+  name: string
+  start_date: string | null
+  end_date: string | null
+  github_url: string | null
+  description: string
+}
+
+export interface ImportedSkillCategory {
+  category: string
+  items: string[]
+}
+
+export interface ProfileImportDraft {
+  personal: ImportedPersonal
+  education: ImportedEducation[]
+  experience: ImportedExperience[]
+  projects: ImportedProject[]
+  skills: ImportedSkillCategory[]
+}
+
 // ---- Shared ----
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -212,6 +262,8 @@ export const api = {
     request<void>(`/admin/profile/skills/${id}`, { method: 'DELETE' }),
 
   // Education
+  createEducation: (data: Omit<Education, 'id'>) =>
+    request<Education>('/admin/profile/education', json('POST', data)),
   updateEducation: (id: number, data: Omit<Education, 'id'>) =>
     request<Education>(`/admin/profile/education/${id}`, json('PUT', data)),
 
@@ -221,4 +273,13 @@ export const api = {
     request<CredentialStatus>('/admin/settings/api-key', json('POST', { api_key, label })),
   deleteApiKey: () =>
     request<void>('/admin/settings/api-key', { method: 'DELETE' }),
+
+  // Resume import — draft only, never written to the profile until the caller
+  // saves each reviewed item via the CRUD methods above.
+  importResume: (input: { file: File } | { text: string }) => {
+    const formData = new FormData()
+    if ('file' in input) formData.append('file', input.file)
+    else formData.append('text', input.text)
+    return request<ProfileImportDraft>('/admin/profile/import', { method: 'POST', body: formData })
+  },
 }

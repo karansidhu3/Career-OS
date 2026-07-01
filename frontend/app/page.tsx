@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, CandidacyInsights, Job } from '@/lib/api'
+import { ApiKeySettings } from '@/components/ApiKeySettings'
+import { ProfileSetupGate } from '@/components/ProfileSetupGate'
 import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
 import { BrandMark } from '@/components/BrandMark'
@@ -15,6 +17,9 @@ import { relativeDate, parseStrategicNote } from '@/lib/utils'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type AppState =
+  | { mode: 'checking' }
+  | { mode: 'needs-key' }
+  | { mode: 'needs-profile' }
   | { mode: 'idle' }
   | { mode: 'generating'; jobId: number }
   | { mode: 'result'; job: Job }
@@ -406,7 +411,7 @@ function GeneratingSkeleton() {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [appState, setAppState] = useState<AppState>({ mode: 'idle' })
+  const [appState, setAppState] = useState<AppState>({ mode: 'checking' })
   const [jd, setJd] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [genElapsed, setGenElapsed] = useState(0)
@@ -440,8 +445,13 @@ export default function Home() {
   useEffect(() => {
     const saved = sessionStorage.getItem('careeros-jd')
     if (saved) setJd(saved)
-    textareaRef.current?.focus()
   }, [])
+
+  // ── Focus the textarea once the idle surface actually mounts — onboarding
+  // gates (checking/needs-key/needs-profile) render first and don't have it ──
+  useEffect(() => {
+    if (appState.mode === 'idle') textareaRef.current?.focus()
+  }, [appState.mode])
 
   const handleJdChange = (value: string) => {
     setJd(value)
@@ -524,15 +534,30 @@ export default function Home() {
     }
   }, [resultJobId])
 
-  // ── Profile completeness — show setup note if profile is empty ──
+  // ── Onboarding gate — enforced order: API key → profile → idle. Runs once on
+  // mount; any check failing (offline, etc.) fails open to idle rather than
+  // blocking a returning user on a transient network hiccup. ──
   useEffect(() => {
-    api.getProfile()
-      .then(p => {
+    (async () => {
+      try {
+        const keyStatus = await api.getApiKeyStatus()
+        if (!keyStatus.has_key) {
+          setAppState({ mode: 'needs-key' })
+          return
+        }
+        const p = await api.getProfile()
+        if (!p.personal) {
+          setAppState({ mode: 'needs-profile' })
+          return
+        }
         const hasContent = (p.experience && p.experience.length > 0) ||
                            (p.projects && p.projects.length > 0)
         setProfileEmpty(!hasContent)
-      })
-      .catch(() => {})
+        setAppState({ mode: 'idle' })
+      } catch {
+        setAppState({ mode: 'idle' })
+      }
+    })()
   }, [])
 
   // ── Elapsed timer while generating ──
@@ -639,6 +664,44 @@ export default function Home() {
   return (
     <div className="max-w-3xl mx-auto px-6 pb-24">
       <AnimatePresence mode="wait">
+
+        {/* ── CHECKING STATE — onboarding gate resolving, before we know which surface to show ── */}
+        {appState.mode === 'checking' && (
+          <motion.div key="checking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 180px)' }}>
+              <div className="w-8 h-8 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── NEEDS-KEY STATE — enforced order: account → API key → profile ── */}
+        {appState.mode === 'needs-key' && (
+          <motion.div key="needs-key" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
+            <div className="pt-16 max-w-md mx-auto">
+              <h1 className="text-2xl font-semibold text-neutral-900 mb-2 text-center">Add your Anthropic API key</h1>
+              <p className="text-sm text-neutral-500 text-center mb-10 leading-relaxed">
+                CareerOS runs on your own key — every generation is billed to you, never to us.
+              </p>
+              <ApiKeySettings
+                onSaved={async () => {
+                  try {
+                    const p = await api.getProfile()
+                    setAppState({ mode: p.personal ? 'idle' : 'needs-profile' })
+                  } catch {
+                    setAppState({ mode: 'needs-profile' })
+                  }
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── NEEDS-PROFILE STATE — three entry paths, review before saving ── */}
+        {appState.mode === 'needs-profile' && (
+          <motion.div key="needs-profile" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
+            <ProfileSetupGate onComplete={() => setAppState({ mode: 'idle' })} />
+          </motion.div>
+        )}
 
         {/* ── IDLE STATE ── */}
         {appState.mode === 'idle' && (

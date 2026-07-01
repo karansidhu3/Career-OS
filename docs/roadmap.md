@@ -235,16 +235,47 @@ unrelated environment/tooling issue in this session and couldn't be used for vis
 `frontend/app/page.tsx` has a pre-existing, unrelated hydration-mismatch warning around the
 insights `AnimatePresence` block — not touched by this phase, worth a separate fix.
 
-### Phase 4 — Onboarding + profile import — not started
+### Phase 4 — Onboarding + profile import — ✅ DONE (2026-07-01, local only — not yet deployed)
 
-Enforced order: account creation → API key setup (validated) → profile creation. This ordering
-is deliberate: resume import (PDF/DOCX → structured profile via AI extraction) only runs *after*
-the key exists, so extraction is billed to the user, never to Karan. Always a review/edit step
-before accepting AI-extracted data as ground truth — never silently trust it. Three profile-entry
-paths: upload existing resume, start from scratch, paste raw text. Skill-confidence inference
-(if kept) is deterministic keyword/substring matching against experience/project text, not an
-LLM call — cut specifically during the original design discussion to keep this phase token-free
-on Karan's side.
+Enforced order via the home page's own state machine, not a separate route: `app/page.tsx` gained
+`checking` → `needs-key` → `needs-profile` → `idle` gate states, checked once on mount
+(`GET /admin/settings/api-key` then `GET /admin/profile`). A returning user with both already
+falls straight through to `idle`; a brand new signup cannot reach the core loop until both exist.
+Any network failure during the check fails open to `idle` (consistent with this file's existing
+fail-open patterns for non-critical fetches) rather than hard-locking a returning user out on a
+hiccup.
+
+- **`needs-key`**: renders `ApiKeySettings` (extracted from `/profile` into
+  `components/ApiKeySettings.tsx` so both surfaces share one implementation) with an `onSaved`
+  callback that re-checks the profile and advances to `needs-profile` or `idle`.
+- **`needs-profile`**: renders `components/ProfileSetupGate.tsx` — the three entry paths from the
+  spec: upload a resume (PDF/DOCX), paste resume text, or start from scratch (a minimal
+  name+email form; the rest is added later via `/profile` at their own pace — this is also what
+  finally makes personal-info *creation* possible from the UI at all, which nothing did before).
+- Resume import: `backend/app/services/resume_import.py` — `extract_text_from_pdf`/
+  `extract_text_from_docx` (new `python-docx`/`python-multipart` deps) feed raw text into one
+  forced tool-call via the Phase 2/3 `LLMClient` seam, billed to the *user's own* key (the
+  Phase 3 gate applies here too — `POST /admin/profile/import` 400s without a stored key).
+  Returns a structured draft; **never writes to the database**.
+- Review/edit step is real, not decorative: `ProfileSetupGate`'s review stage renders every
+  extracted education/experience/project/skill row as an editable, removable card. Nothing is
+  persisted until the user hits "Looks good — save my profile," which then calls the *existing*
+  per-item CRUD endpoints (`POST /admin/profile/education` — added a `createEducation` frontend
+  method since one never existed; education previously had no create UI at all).
+- Skill-confidence inference (the "if kept" note in the original spec) was **not built** — it was
+  explicitly optional and nothing in this phase's actual deliverables depended on it.
+
+**Verified:** 185/186 backend tests (1 pre-existing, unrelated LaTeX failure) including new
+`tests/unit/test_resume_import.py` and `tests/integration/test_profile_import_api.py` (PDF/DOCX
+text extraction, AI-extraction reshaping, the import endpoint's key gate, and — importantly — a
+dedicated test asserting the import endpoint writes nothing to the profile tables). A real
+in-process run through a throwaway JIT-provisioned account (never Karan's) walked the entire
+sequence for real: no key → add key → no profile → import (paste text, AI call mocked) → draft
+returned but nothing written → save via CRUD → profile now populated — 19/19 checks passed, and
+the real local DB was confirmed byte-for-byte unchanged afterward. Frontend verified via clean
+`next build` + `tsc --noEmit`; the interactive browser preview hit the same unrelated
+environment/tooling issue as Phase 3 (stuck tab, can't reach `localhost`) and couldn't be used —
+worth investigating separately.
 
 ### Phase 5 — Reliability — not started
 
