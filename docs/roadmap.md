@@ -411,7 +411,7 @@ ABC, `ResendAdapter` (plain HTTP via `httpx`, already a dependency — no new SD
 fallback when `RESEND_API_KEY` is unset (local dev never needs a real key). 5 unit tests
 (`tests/unit/test_email_client.py`).
 
-**Data export — ✅ backend done, frontend not started.** `app/models/account_export.py` +
+**Data export — ✅ done (backend + frontend).** `app/models/account_export.py` +
 migration 010 (RLS, same `tenant_isolation` pattern as 006/009). `app/services/account_export.py`
 builds a zip: profile JSON + markdown, account metadata, application history JSON + CSV, and per-job
 resume (LaTeX + PDF) / cover letter (text + PDF) — reads cached PDFs from `PDFStorage` first,
@@ -431,8 +431,20 @@ tests only; verified afterward that the real local dev DB's row counts were unch
 remembering for any future test of `run_generation_job` too — it was never covered by an automated
 test for the same reason, only a real manual end-to-end check (see Phase 5's notes).
 
+**Frontend**: `components/AccountDataExport.tsx` on `/profile`, right after `ApiKeySettings` —
+request → poll every 2.5s (same interval as job-generation polling) → download, mirroring
+`ApiKeySettings`'s visual/motion conventions. Verified via a clean `next build` + `tsc --noEmit`
++ ESLint (zero issues on the new file) — the interactive browser preview couldn't be used this
+session: even an unprotected route (`/api/health`) failed to load in the embedded preview tool
+with `net::ERR_ABORTED`, while `curl` against the identical running server worked correctly. Most
+likely cause: the app's `Content-Security-Policy: frame-ancestors 'none'` header (a legitimate,
+intentional clickjacking defense, unrelated to this change) conflicts with the preview tool
+rendering pages inside an iframe. Same class of tooling limitation hit in Phases 3/4 — worth a
+real browser check from Karan directly (not the embedded preview) before considering this fully
+verified interactively.
+
 Remaining: account deletion (7-day grace period + email confirmation), session list/revoke
-(Clerk-backed), soft-delete+undo on profile sections, and the export feature's frontend UI.
+(Clerk-backed), soft-delete+undo on profile sections.
 
 ### Phase 7 — Observability + abuse guardrails — not started
 

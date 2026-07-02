@@ -110,6 +110,17 @@ export interface CredentialStatus {
   last_verified_at: string | null
 }
 
+// ---- Account data export (Phase 6) ----
+
+export interface AccountExport {
+  id: number
+  status: string
+  created_at: string | null
+  completed_at: string | null
+  expires_at: string | null
+  error_message: string | null
+}
+
 // ---- Resume import (Phase 4) ----
 
 export interface ImportedPersonal {
@@ -273,6 +284,13 @@ export const api = {
     request<CredentialStatus>('/admin/settings/api-key', json('POST', { api_key, label })),
   deleteApiKey: () =>
     request<void>('/admin/settings/api-key', { method: 'DELETE' }),
+
+  // Account data export (Phase 6) — async: request enqueues on the worker,
+  // poll status until "ready", then download.
+  requestExport: () => request<AccountExport>('/admin/account/export', { method: 'POST' }),
+  getExportStatus: (id: number) => request<AccountExport>(`/admin/account/export/${id}`),
+  downloadExport: (id: number) =>
+    downloadBlob(`/admin/account/export/${id}/download`, `careeros-export-${id}.zip`),
 
   // Resume import — draft only, never written to the profile until the caller
   // saves each reviewed item via the CRUD methods above.

@@ -2,6 +2,14 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "careeros-backend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "source .venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port 8010"],
+      "port": 8010,
+      "autoPort": false,
+      "cwd": "backend"
+    },
+    {
       "name": "careeros-demo",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "3003"],

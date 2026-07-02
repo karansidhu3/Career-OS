@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, FullProfile, Project, Experience, SkillCategory } from '@/lib/api'
+import { AccountDataExport } from '@/components/AccountDataExport'
 import { ApiKeySettings } from '@/components/ApiKeySettings'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
@@ -963,6 +964,17 @@ export default function ProfilePage() {
         style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
       >
         <ApiKeySettings />
+      </motion.section>
+
+      {/* Account data export — rare, deliberate action */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...spring.gentle, delay: 0.04 }}
+        className="mb-10 pb-10"
+        style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
+      >
+        <AccountDataExport />
       </motion.section>
 
       {/* Projects — most important, first */}
