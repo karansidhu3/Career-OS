@@ -449,9 +449,10 @@ export default function Home() {
 
   // ── Focus the textarea once the idle surface actually mounts — onboarding
   // gates (checking/needs-key/needs-profile) render first and don't have it ──
-  useEffect(() => {
-    if (appState.mode === 'idle') textareaRef.current?.focus()
-  }, [appState.mode])
+  // Focusing is handled by the idle motion.div's onAnimationComplete below —
+  // AnimatePresence mode="wait" holds the idle content (and its textarea)
+  // unmounted until the outgoing surface's exit animation finishes, so a
+  // useEffect keyed on appState.mode fires before the ref is ever attached.
 
   const handleJdChange = (value: string) => {
     setJd(value)
@@ -711,6 +712,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, y: -8 }}
             transition={spring.gentle}
+            onAnimationComplete={() => textareaRef.current?.focus()}
           >
             <div className="pt-12">
 

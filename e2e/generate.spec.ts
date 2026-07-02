@@ -78,6 +78,30 @@ const MOCK_JOB_GENERATED = {
 async function setupMocks(page: Page) {
   let callCount = 0
 
+  // GET /admin/settings/api-key and /admin/profile → mocked so the mount-time
+  // onboarding-gate check (page.tsx) always resolves to the idle/textarea
+  // state, regardless of the real backend's state for this Clerk test user.
+  await page.route('**/admin/settings/api-key', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ provider: 'anthropic', has_key: true, key_hint: 'sk-ant-...xyz', label: null, last_verified_at: new Date().toISOString() }),
+    })
+  )
+  await page.route('**/admin/profile', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        personal: { id: 1, name: 'Test User', email: 'careeros-e2e-test@example.com', phone: null, linkedin: null, github: null, location: null },
+        education: [],
+        experience: [{ id: 1, company: 'Acme', title: 'Engineer', start_date: '2024-01', end_date: null, bullets: ['Did things'] }],
+        projects: [],
+        skills: [],
+      }),
+    })
+  )
+
   // POST /admin/jobs/generate → returns processing job immediately
   await page.route('**/admin/jobs/generate', route =>
     route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(MOCK_JOB_PROCESSING) })
