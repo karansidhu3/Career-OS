@@ -398,10 +398,10 @@ R2 was already external to Railway and needed no changes.
   connections, and volumes (`postgres-volume`, `redis-volume`) are untouched — any service can be
   brought back with a single "Redeploy" if ever needed. Full cancellation is a separate later step.
 
-### Phase 6 — Account lifecycle — in progress (started 2026-07-01)
+### Phase 6 — Account lifecycle — ✅ DONE (2026-07-01)
 
-Four independent sub-features. Order: data export → account deletion → session list/revoke →
-soft-delete/undo on profile sections.
+Four independent sub-features, all shipped: data export → account deletion → session list/revoke
+→ soft-delete/undo on profile sections.
 
 **Email carve-out**: `CLAUDE.md`'s "no email integration" rule predates this phase and conflicts
 with export/deletion needing to notify the user. Resolved: a minimal `EmailClient` seam
@@ -431,20 +431,67 @@ tests only; verified afterward that the real local dev DB's row counts were unch
 remembering for any future test of `run_generation_job` too — it was never covered by an automated
 test for the same reason, only a real manual end-to-end check (see Phase 5's notes).
 
-**Frontend**: `components/AccountDataExport.tsx` on `/profile`, right after `ApiKeySettings` —
-request → poll every 2.5s (same interval as job-generation polling) → download, mirroring
-`ApiKeySettings`'s visual/motion conventions. Verified via a clean `next build` + `tsc --noEmit`
-+ ESLint (zero issues on the new file) — the interactive browser preview couldn't be used this
-session: even an unprotected route (`/api/health`) failed to load in the embedded preview tool
-with `net::ERR_ABORTED`, while `curl` against the identical running server worked correctly. Most
-likely cause: the app's `Content-Security-Policy: frame-ancestors 'none'` header (a legitimate,
-intentional clickjacking defense, unrelated to this change) conflicts with the preview tool
-rendering pages inside an iframe. Same class of tooling limitation hit in Phases 3/4 — worth a
-real browser check from Karan directly (not the embedded preview) before considering this fully
-verified interactively.
+**Account deletion**: `users.scheduled_deletion_at` (migration 011) starts a 7-day grace period.
+`POST/GET/DELETE /admin/account/delete` request/check/cancel. Requesting sends the second (and
+last) of the two transactional emails this app sends — a deletion-confirmation with the deadline
+and how to cancel; cancelling is silent by design (no third email trigger). An hourly ARQ cron job
+(`run_account_deletion_sweep`, `WorkerSettings.cron_jobs`) hard-deletes any user past their
+deadline via `app/services/account_deletion.hard_delete_user` — purges every RLS-protected
+user-scoped table plus cached PDFs/export zips in object storage, then the user row itself.
 
-Remaining: account deletion (7-day grace period + email confirmation), session list/revoke
-(Clerk-backed), soft-delete+undo on profile sections.
+**Session management**: `app/services/clerk_sessions.py` calls Clerk's Backend API
+(`GET/POST .../sessions`, mirrors `_fetch_clerk_email`'s existing pattern) to list and revoke
+sessions. `GET /admin/account/sessions`, `POST .../sessions/{id}/revoke`,
+`POST .../sessions/revoke-others`. The revoke endpoint fetches the target session first and checks
+`session.user_id` matches the caller before revoking — a Clerk session id isn't scoped to this
+app, so skipping that check would let one user revoke an arbitrary other user's session by
+guessing/sending its id (a real IDOR risk, caught and tested before shipping). A new
+`get_current_session_id` dependency in `clerk_auth.py` decodes the `sid` claim a second time
+(rather than changing `get_current_user`'s return type everywhere it's used) so the frontend can
+mark which session is "this device."
+
+**Soft-delete + undo**: `deleted_at` added to `education`/`experience`/`project`/`skill_category`
+(migration 012). DELETE endpoints set it instead of removing the row; list/get/full-profile
+endpoints filter it out; a `POST .../restore` endpoint clears it. Update and delete both 404 on an
+already-deleted row (can't edit something in the trash without restoring it first). No forced
+purge window — restore works indefinitely server-side; the frontend surfaces it as an immediate
+"Undo" toast (~6s) after each delete, reusing the exact optimistic-update pattern the delete
+handlers already had.
+
+**Frontend**: `components/AccountDeletion.tsx` (danger zone, bottom of `/profile`, typed
+"DELETE" confirmation — deliberate friction for a destructive action, not a single click) and
+`components/SessionManagement.tsx` (placed with the other account-level settings). The undo toast
+lives inline in `app/profile/page.tsx` (`undoToast` state + `performUndo`), shared across the three
+sections that already had delete buttons (education never had one — out of scope, not something
+this phase added). Verified live against Karan's real account via a real browser (not the embedded
+preview tool — see below): sign-in carried over from an earlier session sharing the same Clerk
+instance, sessions list showed 3 real devices with correct "This device" detection and live
+revoke buttons, the deletion confirmation's typed-gate and cancel path both worked correctly
+(never actually confirmed — would have really scheduled deletion on Karan's live account).
+
+**Preview-tool root cause finally identified** (corrects a wrong guess from earlier this phase):
+it's not the app's CSP `frame-ancestors` header. Clerk's dev-instance middleware rewrites a
+truly-cold first request (no `dev-browser` cookie yet) to a synthetic bootstrap path that 404s;
+every request after that correctly redirects. Reproduced deterministically with two back-to-back
+`curl -I` calls against a freshly-started server. The embedded preview tool's readiness check is a
+single non-retrying probe, so it permanently gets stuck showing "Awaiting server…" the moment it
+loses that race — a real browser never notices because a normal page load fires many requests, not
+one. Not fixable without weakening Clerk's auth middleware (not worth it for a preview tool) or the
+tool adding retry logic (outside this app's control). Also caught along the way: `.claude/launch.json`'s
+`careeros-backend` config can't run at all — the preview tool's process sandbox can't even read the
+venv (`PermissionError` on `pyvenv.cfg`), stricter than the sandbox this session's own Bash tool runs
+under. Backend must be started via Bash for local iteration; only the frontend config works with
+`preview_start`.
+
+**Also caught**: the backend dev server used for manual testing was a long-running process from a
+prior session with no `--reload`, so the new `/admin/account/{delete,sessions}` routes 404'd until
+it was restarted — a reminder to always confirm which process is actually serving a port before
+trusting "it's already running" during manual verification.
+
+Full backend suite: 269/270 (1 pre-existing unrelated LaTeX failure). 37 new backend tests across
+account deletion (service + API + cron sweep), session management (unit + API with the IDOR test),
+and soft-delete (21 parametrized tests across all 4 sections). Frontend: clean `next build` +
+`tsc --noEmit`, zero new ESLint issues.
 
 ### Phase 7 — Observability + abuse guardrails — not started
 

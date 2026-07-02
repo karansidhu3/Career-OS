@@ -1,10 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, FullProfile, Project, Experience, SkillCategory } from '@/lib/api'
 import { AccountDataExport } from '@/components/AccountDataExport'
+import { AccountDeletion } from '@/components/AccountDeletion'
 import { ApiKeySettings } from '@/components/ApiKeySettings'
+import { SessionManagement } from '@/components/SessionManagement'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
@@ -696,6 +698,40 @@ export default function ProfilePage() {
   const [addingExp, setAddingExp] = useState(false)
   const [addingSkill, setAddingSkill] = useState(false)
 
+  // Undo (Phase 6) — profile-section deletes are soft-deletes server-side now;
+  // this toast is the immediate-window UX for it. The row stays recoverable
+  // via the same restore endpoint even after the toast disappears — career
+  // history is the most irreplaceable data in the product.
+  const [undoToast, setUndoToast] = useState<{ kind: 'project' | 'experience' | 'skill'; id: number; label: string } | null>(null)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showUndo = useCallback((kind: 'project' | 'experience' | 'skill', id: number, label: string) => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    setUndoToast({ kind, id, label })
+    undoTimerRef.current = setTimeout(() => setUndoToast(null), 6000)
+  }, [])
+
+  const performUndo = async () => {
+    if (!undoToast) return
+    const { kind, id } = undoToast
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    setUndoToast(null)
+    try {
+      if (kind === 'project') {
+        const restored = await api.restoreProject(id)
+        setProfile(prev => prev ? { ...prev, projects: [...prev.projects, restored].sort((a, b) => a.sort_order - b.sort_order) } : prev)
+      } else if (kind === 'experience') {
+        const restored = await api.restoreExperience(id)
+        setProfile(prev => prev ? { ...prev, experience: [...prev.experience, restored].sort((a, b) => a.sort_order - b.sort_order) } : prev)
+      } else {
+        const restored = await api.restoreSkillCategory(id)
+        setProfile(prev => prev ? { ...prev, skills: [...prev.skills, restored].sort((a, b) => a.sort_order - b.sort_order) } : prev)
+      }
+    } catch {
+      // best-effort — if restore fails, the item just stays deleted
+    }
+  }
+
   const load = useCallback(async () => {
     try {
       setLoadError(false)
@@ -842,10 +878,12 @@ export default function ProfilePage() {
     // Optimistic: remove from state immediately, restore the specific item on API failure
     const removed = profile!.projects.find(p => p.id === id)
     setProfile(prev => prev ? { ...prev, projects: prev.projects.filter(p => p.id !== id) } : prev)
+    if (removed) showUndo('project', id, removed.name)
 
     api.deleteProject(id).catch(() => {
       // Restore only the deleted item — don't replace the whole array (other concurrent
       // changes would be lost if we used a snapshot of the full list)
+      setUndoToast(null)
       if (removed) {
         setProfile(prev => prev
           ? { ...prev, projects: [...prev.projects, removed].sort((a, b) => a.sort_order - b.sort_order) }
@@ -887,8 +925,10 @@ export default function ProfilePage() {
 
     const removed = profile!.experience.find(e => e.id === id)
     setProfile(prev => prev ? { ...prev, experience: prev.experience.filter(e => e.id !== id) } : prev)
+    if (removed) showUndo('experience', id, `${removed.role} at ${removed.company}`)
 
     api.deleteExperience(id).catch(() => {
+      setUndoToast(null)
       if (removed) {
         setProfile(prev => prev
           ? { ...prev, experience: [...prev.experience, removed].sort((a, b) => a.sort_order - b.sort_order) }
@@ -925,8 +965,10 @@ export default function ProfilePage() {
     if (newSkillId === id) setNewSkillId(null)
     const removed = profile!.skills.find(s => s.id === id)
     setProfile(prev => prev ? { ...prev, skills: prev.skills.filter(s => s.id !== id) } : prev)
+    if (removed) showUndo('skill', id, removed.category)
 
     api.deleteSkillCategory(id).catch(() => {
+      setUndoToast(null)
       if (removed) {
         setProfile(prev => prev
           ? { ...prev, skills: [...prev.skills, removed].sort((a, b) => a.sort_order - b.sort_order) }
@@ -975,6 +1017,17 @@ export default function ProfilePage() {
         style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
       >
         <AccountDataExport />
+      </motion.section>
+
+      {/* Session management — rare, deliberate action */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...spring.gentle, delay: 0.05 }}
+        className="mb-10 pb-10"
+        style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
+      >
+        <SessionManagement />
       </motion.section>
 
       {/* Projects — most important, first */}
@@ -1134,6 +1187,35 @@ export default function ProfilePage() {
           <VoiceEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
         </motion.section>
       )}
+
+      {/* Danger zone — deliberately last, visually separated from everyday editing */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...spring.gentle, delay: 0.26 }}
+        className="mb-10 pt-10"
+        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
+      >
+        <AccountDeletion />
+      </motion.section>
+
+      <AnimatePresence>
+        {undoToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={spring.snappy}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-3 rounded-xl text-sm z-50"
+            style={{ background: 'var(--c-ink, #18181B)', color: 'white', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}
+          >
+            <span>Deleted &ldquo;{undoToast.label}&rdquo;</span>
+            <button onClick={performUndo} className="font-semibold underline underline-offset-2">
+              Undo
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

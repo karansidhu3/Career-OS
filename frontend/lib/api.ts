@@ -121,6 +121,27 @@ export interface AccountExport {
   error_message: string | null
 }
 
+// ---- Account deletion (Phase 6) ----
+
+export interface AccountDeletionStatus {
+  scheduled_deletion_at: string | null
+}
+
+// ---- Session management (Phase 6) ----
+
+export interface AccountSession {
+  id: string
+  status: string
+  last_active_at: string | null
+  created_at: string | null
+  browser: string | null
+  device_type: string | null
+  ip_address: string | null
+  city: string | null
+  country: string | null
+  is_current: boolean
+}
+
 // ---- Resume import (Phase 4) ----
 
 export interface ImportedPersonal {
@@ -255,6 +276,8 @@ export const api = {
     request<Project>(`/admin/profile/projects/${id}`, json('PUT', data)),
   deleteProject: (id: number) =>
     request<void>(`/admin/profile/projects/${id}`, { method: 'DELETE' }),
+  restoreProject: (id: number) =>
+    request<Project>(`/admin/profile/projects/${id}/restore`, { method: 'POST' }),
 
   // Experience
   createExperience: (data: Omit<Experience, 'id'>) =>
@@ -263,6 +286,8 @@ export const api = {
     request<Experience>(`/admin/profile/experience/${id}`, json('PUT', data)),
   deleteExperience: (id: number) =>
     request<void>(`/admin/profile/experience/${id}`, { method: 'DELETE' }),
+  restoreExperience: (id: number) =>
+    request<Experience>(`/admin/profile/experience/${id}/restore`, { method: 'POST' }),
 
   // Skills
   createSkillCategory: (data: Omit<SkillCategory, 'id'>) =>
@@ -271,12 +296,18 @@ export const api = {
     request<SkillCategory>(`/admin/profile/skills/${id}`, json('PUT', data)),
   deleteSkillCategory: (id: number) =>
     request<void>(`/admin/profile/skills/${id}`, { method: 'DELETE' }),
+  restoreSkillCategory: (id: number) =>
+    request<SkillCategory>(`/admin/profile/skills/${id}/restore`, { method: 'POST' }),
 
   // Education
   createEducation: (data: Omit<Education, 'id'>) =>
     request<Education>('/admin/profile/education', json('POST', data)),
   updateEducation: (id: number, data: Omit<Education, 'id'>) =>
     request<Education>(`/admin/profile/education/${id}`, json('PUT', data)),
+  deleteEducation: (id: number) =>
+    request<void>(`/admin/profile/education/${id}`, { method: 'DELETE' }),
+  restoreEducation: (id: number) =>
+    request<Education>(`/admin/profile/education/${id}/restore`, { method: 'POST' }),
 
   // AI provider credentials (BYO API key)
   getApiKeyStatus: () => request<CredentialStatus>('/admin/settings/api-key'),
@@ -291,6 +322,18 @@ export const api = {
   getExportStatus: (id: number) => request<AccountExport>(`/admin/account/export/${id}`),
   downloadExport: (id: number) =>
     downloadBlob(`/admin/account/export/${id}/download`, `careeros-export-${id}.zip`),
+
+  // Account deletion (Phase 6) — 7-day grace period, cancel any time before it lapses.
+  getDeletionStatus: () => request<AccountDeletionStatus>('/admin/account/delete'),
+  requestDeletion: () => request<AccountDeletionStatus>('/admin/account/delete', { method: 'POST' }),
+  cancelDeletion: () => request<AccountDeletionStatus>('/admin/account/delete', { method: 'DELETE' }),
+
+  // Session management (Phase 6)
+  listSessions: () => request<AccountSession[]>('/admin/account/sessions'),
+  revokeSession: (id: string) =>
+    request<{ status: string }>(`/admin/account/sessions/${id}/revoke`, { method: 'POST' }),
+  revokeOtherSessions: () =>
+    request<{ revoked: string[] }>('/admin/account/sessions/revoke-others', { method: 'POST' }),
 
   // Resume import — draft only, never written to the profile until the caller
   // saves each reviewed item via the CRUD methods above.
