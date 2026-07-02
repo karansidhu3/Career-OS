@@ -123,6 +123,9 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Install root dependencies (playwright, @clerk/testing)
+        run: npm ci
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
@@ -153,6 +156,12 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           CI: true
+          # clerkSetup() (global-setup.ts) needs these to fetch a Testing Token;
+          # clerk.signIn() (fixtures/auth.ts) needs the test user's credentials.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_E2E_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_E2E_SECRET_KEY }}
+          CLERK_E2E_TEST_EMAIL: ${{ secrets.CLERK_E2E_TEST_EMAIL }}
+          CLERK_E2E_TEST_PASSWORD: ${{ secrets.CLERK_E2E_TEST_PASSWORD }}
 
       - name: Upload Playwright report
         if: failure()

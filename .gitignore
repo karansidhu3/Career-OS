@@ -12,3 +12,5 @@ pdf_storage/
 node_modules/
 .next/
 *.log
+test-results/
+playwright-report/

@@ -8,8 +8,16 @@
 import { test, expect, Page } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { signInTestUser } from './fixtures/auth'
 
 const SAMPLE_JD = readFileSync(join(__dirname, 'fixtures/sample-jd.txt'), 'utf-8')
+
+// Every route these tests visit (/, /applications) sits behind Clerk's auth
+// middleware — sign in once per test as the dedicated E2E test user before
+// touching any of them.
+test.beforeEach(async ({ page }) => {
+  await signInTestUser(page)
+})
 
 // Stable mock data that mirrors the real API response shape
 const MOCK_JOB_PROCESSING = {
