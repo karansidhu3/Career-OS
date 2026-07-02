@@ -72,7 +72,7 @@ def _escape_latex(text: str) -> str:
         .replace("“", "``")   # left double quote
         .replace("”", "''")   # right double quote
         .replace("…", "...")   # ellipsis
-        .replace(" ", " ")    # non-breaking space
+        .replace(" ", " ")  # non-breaking space
     )
     return _LATEX_SPECIAL_RE.sub(lambda m: _LATEX_CHAR_MAP[m.group()], text)
 

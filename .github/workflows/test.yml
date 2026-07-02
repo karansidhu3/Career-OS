@@ -175,3 +175,44 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Deploy (Fly.io: backend + worker) ────────────────────────────────────────
+  # Vercel deploys the frontend itself via its own GitHub integration — no job
+  # needed here for that. Only runs on an actual push to main (never on PRs),
+  # and only after every other check on this push has passed. Deliberately does
+  # NOT wait on `e2e` — it's known-broken against the Clerk sign-in wall (never
+  # authenticates; needs @clerk/testing integration, tracked separately), so
+  # gating deploy on it would mean deploy never runs at all.
+  deploy-backend:
+    name: Deploy backend (Fly.io)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend-unit, backend-integration, frontend-unit, secret-scan]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy backend
+        working-directory: backend
+        run: flyctl deploy --config fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BACKEND }}
+
+  deploy-worker:
+    name: Deploy worker (Fly.io)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend-unit, backend-integration, frontend-unit, secret-scan]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy worker
+        working-directory: backend
+        run: flyctl deploy --config fly.worker.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_WORKER }}
