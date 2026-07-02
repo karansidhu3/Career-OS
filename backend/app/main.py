@@ -223,5 +223,9 @@ app.include_router(account.router, prefix="/admin")
 
 
 @app.get("/health")
+@app.head("/health")
 async def health():
+    # Uptime monitors (Phase 7) commonly probe with HEAD instead of GET to save
+    # bandwidth — FastAPI/Starlette does not auto-add HEAD support for a route
+    # registered with only @app.get, so it needs its own explicit registration.
     return {"status": "ok"}

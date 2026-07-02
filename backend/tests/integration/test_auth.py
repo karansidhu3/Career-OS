@@ -27,6 +27,14 @@ async def test_health_endpoint_is_unauthenticated(client):
     assert resp.status_code == 200
 
 
+async def test_health_endpoint_supports_head(client):
+    """Uptime monitors (Phase 7) commonly probe with HEAD, not GET, to save
+    bandwidth — a route registered with only @app.get does not automatically
+    support HEAD in FastAPI/Starlette, so this needs its own coverage."""
+    resp = await client.head("/health")
+    assert resp.status_code == 200
+
+
 async def test_admin_route_requires_bearer_token(client):
     """Without the test override, a request with no Authorization header is rejected."""
     _test_app.dependency_overrides.pop(get_current_user, None)

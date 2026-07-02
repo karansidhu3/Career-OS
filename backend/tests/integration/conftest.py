@@ -56,6 +56,7 @@ _test_app.state.arq_pool = AsyncMock()
 
 
 @_test_app.get("/health")
+@_test_app.head("/health")
 async def _health():
     return {"status": "ok"}
 
