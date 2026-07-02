@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.database import Base
@@ -32,6 +32,11 @@ class Education(Base):
     minor = Column(String)
     start_date = Column(String)
     end_date = Column(String)
+    # Phase 6 — soft-delete + undo. NULL means active; list/get endpoints filter
+    # these out, DELETE endpoints set this instead of removing the row, and a
+    # /restore endpoint clears it. Career history is the most irreplaceable data
+    # in the product — accidental deletes must be recoverable.
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class Experience(Base):
@@ -46,6 +51,7 @@ class Experience(Base):
     location = Column(Text)
     description = Column(Text, default="")
     sort_order = Column(Integer, default=0)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class Project(Base):
@@ -59,6 +65,7 @@ class Project(Base):
     github_url = Column(Text)
     description = Column(Text, default="")
     sort_order = Column(Integer, default=0)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class SkillCategory(Base):
@@ -69,3 +76,4 @@ class SkillCategory(Base):
     category = Column(String, nullable=False)
     items = Column(JSONB, default=list)
     sort_order = Column(Integer, default=0)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)

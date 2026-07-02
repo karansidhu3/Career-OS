@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from slowapi import Limiter
@@ -49,21 +50,29 @@ async def get_full_profile(
         await db.execute(select(PersonalInfo).where(PersonalInfo.user_id == current_user.id).limit(1))
     ).scalar_one_or_none()
     education = (
-        await db.execute(select(Education).where(Education.user_id == current_user.id))
+        await db.execute(
+            select(Education).where(Education.user_id == current_user.id, Education.deleted_at.is_(None))
+        )
     ).scalars().all()
     experience = (
         await db.execute(
-            select(Experience).where(Experience.user_id == current_user.id).order_by(Experience.sort_order)
+            select(Experience)
+            .where(Experience.user_id == current_user.id, Experience.deleted_at.is_(None))
+            .order_by(Experience.sort_order)
         )
     ).scalars().all()
     projects = (
         await db.execute(
-            select(Project).where(Project.user_id == current_user.id).order_by(Project.sort_order)
+            select(Project)
+            .where(Project.user_id == current_user.id, Project.deleted_at.is_(None))
+            .order_by(Project.sort_order)
         )
     ).scalars().all()
     skills = (
         await db.execute(
-            select(SkillCategory).where(SkillCategory.user_id == current_user.id).order_by(SkillCategory.sort_order)
+            select(SkillCategory)
+            .where(SkillCategory.user_id == current_user.id, SkillCategory.deleted_at.is_(None))
+            .order_by(SkillCategory.sort_order)
         )
     ).scalars().all()
     return FullProfile(
@@ -118,7 +127,9 @@ async def list_education(
     db: AsyncSession = Depends(get_db),
 ):
     return (
-        await db.execute(select(Education).where(Education.user_id == current_user.id))
+        await db.execute(
+            select(Education).where(Education.user_id == current_user.id, Education.deleted_at.is_(None))
+        )
     ).scalars().all()
 
 
@@ -143,7 +154,9 @@ async def update_education(
     db: AsyncSession = Depends(get_db),
 ):
     row = (
-        await db.execute(select(Education).where(Education.id == id, Education.user_id == current_user.id))
+        await db.execute(
+            select(Education).where(Education.id == id, Education.user_id == current_user.id, Education.deleted_at.is_(None))
+        )
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
@@ -160,13 +173,37 @@ async def delete_education(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Soft-delete (Phase 6) — sets deleted_at rather than removing the row, so
+    it's recoverable via POST .../restore. Career history is the most
+    irreplaceable data in the product."""
     row = (
-        await db.execute(select(Education).where(Education.id == id, Education.user_id == current_user.id))
+        await db.execute(
+            select(Education).where(Education.id == id, Education.user_id == current_user.id, Education.deleted_at.is_(None))
+        )
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
-    await db.delete(row)
+    row.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+@router.post("/education/{id}/restore", response_model=EducationRead)
+async def restore_education(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    row = (
+        await db.execute(
+            select(Education).where(Education.id == id, Education.user_id == current_user.id, Education.deleted_at.is_not(None))
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    row.deleted_at = None
+    await db.commit()
+    await db.refresh(row)
+    return row
 
 
 # --- Experience ---
@@ -178,7 +215,9 @@ async def list_experience(
 ):
     return (
         await db.execute(
-            select(Experience).where(Experience.user_id == current_user.id).order_by(Experience.sort_order)
+            select(Experience)
+            .where(Experience.user_id == current_user.id, Experience.deleted_at.is_(None))
+            .order_by(Experience.sort_order)
         )
     ).scalars().all()
 
@@ -204,7 +243,9 @@ async def update_experience(
     db: AsyncSession = Depends(get_db),
 ):
     row = (
-        await db.execute(select(Experience).where(Experience.id == id, Experience.user_id == current_user.id))
+        await db.execute(
+            select(Experience).where(Experience.id == id, Experience.user_id == current_user.id, Experience.deleted_at.is_(None))
+        )
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
@@ -222,12 +263,33 @@ async def delete_experience(
     db: AsyncSession = Depends(get_db),
 ):
     row = (
-        await db.execute(select(Experience).where(Experience.id == id, Experience.user_id == current_user.id))
+        await db.execute(
+            select(Experience).where(Experience.id == id, Experience.user_id == current_user.id, Experience.deleted_at.is_(None))
+        )
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
-    await db.delete(row)
+    row.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+@router.post("/experience/{id}/restore", response_model=ExperienceRead)
+async def restore_experience(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    row = (
+        await db.execute(
+            select(Experience).where(Experience.id == id, Experience.user_id == current_user.id, Experience.deleted_at.is_not(None))
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    row.deleted_at = None
+    await db.commit()
+    await db.refresh(row)
+    return row
 
 
 # --- Projects ---
@@ -239,7 +301,9 @@ async def list_projects(
 ):
     return (
         await db.execute(
-            select(Project).where(Project.user_id == current_user.id).order_by(Project.sort_order)
+            select(Project)
+            .where(Project.user_id == current_user.id, Project.deleted_at.is_(None))
+            .order_by(Project.sort_order)
         )
     ).scalars().all()
 
@@ -265,7 +329,9 @@ async def update_project(
     db: AsyncSession = Depends(get_db),
 ):
     row = (
-        await db.execute(select(Project).where(Project.id == id, Project.user_id == current_user.id))
+        await db.execute(
+            select(Project).where(Project.id == id, Project.user_id == current_user.id, Project.deleted_at.is_(None))
+        )
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
@@ -283,12 +349,33 @@ async def delete_project(
     db: AsyncSession = Depends(get_db),
 ):
     row = (
-        await db.execute(select(Project).where(Project.id == id, Project.user_id == current_user.id))
+        await db.execute(
+            select(Project).where(Project.id == id, Project.user_id == current_user.id, Project.deleted_at.is_(None))
+        )
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
-    await db.delete(row)
+    row.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+@router.post("/projects/{id}/restore", response_model=ProjectRead)
+async def restore_project(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    row = (
+        await db.execute(
+            select(Project).where(Project.id == id, Project.user_id == current_user.id, Project.deleted_at.is_not(None))
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    row.deleted_at = None
+    await db.commit()
+    await db.refresh(row)
+    return row
 
 
 # --- Skills ---
@@ -300,7 +387,9 @@ async def list_skills(
 ):
     return (
         await db.execute(
-            select(SkillCategory).where(SkillCategory.user_id == current_user.id).order_by(SkillCategory.sort_order)
+            select(SkillCategory)
+            .where(SkillCategory.user_id == current_user.id, SkillCategory.deleted_at.is_(None))
+            .order_by(SkillCategory.sort_order)
         )
     ).scalars().all()
 
@@ -326,7 +415,9 @@ async def update_skill_category(
     db: AsyncSession = Depends(get_db),
 ):
     row = (
-        await db.execute(select(SkillCategory).where(SkillCategory.id == id, SkillCategory.user_id == current_user.id))
+        await db.execute(
+            select(SkillCategory).where(SkillCategory.id == id, SkillCategory.user_id == current_user.id, SkillCategory.deleted_at.is_(None))
+        )
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
@@ -344,12 +435,33 @@ async def delete_skill_category(
     db: AsyncSession = Depends(get_db),
 ):
     row = (
-        await db.execute(select(SkillCategory).where(SkillCategory.id == id, SkillCategory.user_id == current_user.id))
+        await db.execute(
+            select(SkillCategory).where(SkillCategory.id == id, SkillCategory.user_id == current_user.id, SkillCategory.deleted_at.is_(None))
+        )
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
-    await db.delete(row)
+    row.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+@router.post("/skills/{id}/restore", response_model=SkillCategoryRead)
+async def restore_skill_category(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    row = (
+        await db.execute(
+            select(SkillCategory).where(SkillCategory.id == id, SkillCategory.user_id == current_user.id, SkillCategory.deleted_at.is_not(None))
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    row.deleted_at = None
+    await db.commit()
+    await db.refresh(row)
+    return row
 
 
 # --- Resume import (Phase 4) ---

@@ -167,3 +167,20 @@ async def get_current_user(
 
     await _set_rls_user(db, user.id)
     return user
+
+
+async def get_current_session_id(creds: HTTPAuthorizationCredentials | None = Security(_bearer)) -> str | None:
+    """The Clerk session id (`sid` claim) behind the current request — used by
+    the session-management endpoints (Phase 6) to identify which of a user's
+    sessions is the one making the request, e.g. for "sign out everywhere else."
+    Decodes the token a second time rather than threading state through
+    get_current_user, to avoid changing that function's return type everywhere
+    it's already used as a dependency.
+    """
+    if not creds:
+        return None
+    try:
+        claims = _decode_clerk_token(creds.credentials)
+    except jwt.PyJWTError:
+        return None
+    return claims.get("sid")

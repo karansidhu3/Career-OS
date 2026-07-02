@@ -12,6 +12,7 @@ import logging
 import uuid
 
 from arq.connections import RedisSettings
+from arq.cron import cron
 from sqlalchemy import select, text
 
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,7 @@ from app.database import AsyncSessionLocal
 from app.models.account_export import AccountExport
 from app.models.job import Job
 from app.models.user import User
+from app.services.account_deletion import hard_delete_user
 from app.services.account_export import build_export_zip
 from app.services.credentials import get_decrypted_key
 from app.services.email_client import get_email_client
@@ -125,6 +127,38 @@ async def run_export_job(ctx, export_id: int, user_id: str) -> None:
             logger.exception("Failed to send export-ready email for export %d", export_id)
 
 
+async def run_account_deletion_sweep(ctx) -> None:
+    """ARQ cron job (hourly — see WorkerSettings.cron_jobs): hard-deletes any user
+    whose account-deletion grace period (Phase 6) has passed. No email on this
+    trigger — the confirmation email already went out when deletion was requested;
+    this sweep is silent, matching the two-transactional-email limit in CLAUDE.md.
+    """
+    async with AsyncSessionLocal() as db:
+        due_users = list(
+            (
+                await db.execute(
+                    select(User).where(
+                        User.scheduled_deletion_at.is_not(None),
+                        User.scheduled_deletion_at <= datetime.now(timezone.utc),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    for user in due_users:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user.id)})
+            try:
+                await hard_delete_user(db, user)
+                logger.info("Hard-deleted user %s after grace period expired", user.id)
+            except Exception:
+                logger.exception("Failed to hard-delete user %s during deletion sweep", user.id)
+                await db.rollback()
+
+
 class WorkerSettings:
     functions = [run_generation_job, run_export_job]
+    cron_jobs = [cron(run_account_deletion_sweep, hour=None, minute=0)]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
