@@ -14,7 +14,7 @@ import logging
 
 import httpx
 import jwt
-from fastapi import Depends, HTTPException, Security
+from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 from sqlalchemy import select, text, update
@@ -25,6 +25,7 @@ from app.database import ElevatedSessionLocal, get_db
 from app.models.job import Job
 from app.models.profile import Education, Experience, PersonalInfo, Project, SkillCategory
 from app.models.user import User
+from app.services.error_tracking import set_user_context
 
 _log = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ async def _set_rls_user(db: AsyncSession, user_id) -> None:
 
 
 async def get_current_user(
+    request: Request,
     creds: HTTPAuthorizationCredentials | None = Security(_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> User:
@@ -147,6 +149,8 @@ async def get_current_user(
     ).scalar_one_or_none()
     if user:
         await _set_rls_user(db, user.id)
+        request.state.user_id = str(user.id)
+        set_user_context(str(user.id))
         return user
 
     # First time this Clerk identity has hit the backend — provision locally.
@@ -166,6 +170,8 @@ async def get_current_user(
         await _claim_legacy_data(user.id)
 
     await _set_rls_user(db, user.id)
+    request.state.user_id = str(user.id)
+    set_user_context(str(user.id))
     return user
 
 

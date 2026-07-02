@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clerk_auth import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models.job import Job
 from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
@@ -192,6 +193,59 @@ async def _has_active_generation(db: AsyncSession, user_id) -> bool:
     return existing is not None
 
 
+# ── Guardrails (Phase 7) ────────────────────────────────────────────────────
+#
+# Counted in Redis via the existing ARQ pool connection (ArqRedis subclasses
+# redis.asyncio.Redis, so plain get/incr/expire work directly on it) rather
+# than a new DB column — a `Job` row isn't created on every generation attempt
+# (regenerate reuses the existing row), so counting Job rows would undercount
+# actual Anthropic calls.
+
+def _daily_cap_key(user_id) -> str:
+    return f"daily_gen_count:{user_id}"
+
+
+def _velocity_key(user_id) -> str:
+    return f"gen_velocity:{user_id}"
+
+
+async def _daily_generation_count(pool, user_id) -> int:
+    """Per-user daily generation cap — protects a user whose leaked API key is
+    being drained through CareerOS, and protects this app's own infra from
+    runaway load. Rolling 24h window (not calendar day), so it can't be reset
+    by waiting for midnight UTC."""
+    value = await pool.get(_daily_cap_key(user_id))
+    return int(value) if value else 0
+
+
+async def _record_generation(pool, user_id) -> None:
+    """Called once a generation attempt has actually passed every other gate
+    and been enqueued — increments both the daily cap counter (24h TTL) and
+    the velocity counter (10min TTL), logging a structured anomaly warning the
+    moment the velocity counter first crosses the threshold. Anomaly detection
+    only logs; it never blocks — the daily cap above is the actual hard limit.
+    """
+    daily_key = _daily_cap_key(user_id)
+    daily_count = await pool.incr(daily_key)
+    if daily_count == 1:
+        await pool.expire(daily_key, 24 * 3600)
+
+    velocity_key = _velocity_key(user_id)
+    velocity_count = await pool.incr(velocity_key)
+    if velocity_count == 1:
+        await pool.expire(velocity_key, 600)
+    if velocity_count == settings.velocity_anomaly_threshold:
+        logger.warning(
+            "Generation velocity anomaly: user exceeded threshold",
+            extra={
+                "user_id": str(user_id),
+                "anomaly": "generation_velocity",
+                "count": velocity_count,
+                "window_seconds": 600,
+            },
+        )
+
+
 @router.post("/generate", response_model=JobRead, status_code=201)
 @limiter.limit("30/hour")
 async def generate_job(
@@ -206,6 +260,9 @@ async def generate_job(
         raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
     if await _has_active_generation(db, current_user.id):
         raise HTTPException(status_code=409, detail="A generation is already in progress. Wait for it to finish before starting another.")
+    pool = request.app.state.arq_pool
+    if await _daily_generation_count(pool, current_user.id) >= settings.daily_generation_limit:
+        raise HTTPException(status_code=429, detail=f"Daily generation limit reached ({settings.daily_generation_limit}/24h). Try again later.")
 
     job = Job(
         user_id=current_user.id,
@@ -218,7 +275,8 @@ async def generate_job(
     await db.commit()
     await db.refresh(job)
 
-    await request.app.state.arq_pool.enqueue_job("run_generation_job", job.id, body.description, str(current_user.id))
+    await pool.enqueue_job("run_generation_job", job.id, body.description, str(current_user.id))
+    await _record_generation(pool, current_user.id)
     return job
 
 
@@ -241,12 +299,16 @@ async def regenerate_job(
         raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
     if await _has_active_generation(db, current_user.id):
         raise HTTPException(status_code=409, detail="A generation is already in progress. Wait for it to finish before starting another.")
+    pool = request.app.state.arq_pool
+    if await _daily_generation_count(pool, current_user.id) >= settings.daily_generation_limit:
+        raise HTTPException(status_code=429, detail=f"Daily generation limit reached ({settings.daily_generation_limit}/24h). Try again later.")
 
     job.status = "processing"
     await db.commit()
     await db.refresh(job)
 
-    await request.app.state.arq_pool.enqueue_job("run_generation_job", job.id, job.description, str(current_user.id))
+    await pool.enqueue_job("run_generation_job", job.id, job.description, str(current_user.id))
+    await _record_generation(pool, current_user.id)
     return job
 
 

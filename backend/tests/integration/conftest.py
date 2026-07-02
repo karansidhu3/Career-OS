@@ -94,9 +94,14 @@ async def db_session(test_engine) -> AsyncSession:
 
 @pytest.fixture(autouse=True)
 def reset_arq_pool_mock():
-    """Reset call history between tests — the mock instance itself is shared
-    module-level state since it lives on the module-level _test_app."""
-    _test_app.state.arq_pool.reset_mock()
+    """Reset call history AND any return_value/side_effect between tests — the
+    mock instance itself is shared module-level state since it lives on the
+    module-level _test_app. Plain reset_mock() does not clear return_value/
+    side_effect by default, so a test that configures arq_pool_mock.get or
+    .incr (Phase 7's daily-cap/velocity guardrails) would otherwise leak that
+    configuration into every later test in the same run.
+    """
+    _test_app.state.arq_pool.reset_mock(return_value=True, side_effect=True)
     yield
 
 

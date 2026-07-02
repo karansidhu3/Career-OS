@@ -64,6 +64,22 @@ class Settings(BaseSettings):
     # Left unset in local dev — the email templates just omit the link when empty.
     frontend_url: str = ""
 
+    # Sentry (Phase 7) — exception tracking. app.services.error_tracking.init_error_tracking()
+    # is a no-op when unset, so local dev never needs a DSN or talks to Sentry at all.
+    sentry_dsn: str = ""
+
+    # Per-user daily generation cap (Phase 7) — protects a user whose leaked API key is
+    # being drained through CareerOS, and protects this app's own infra from runaway
+    # load. Counted over a rolling 24h window in Redis (app.routers.jobs), not calendar
+    # day, so it can't be trivially reset by waiting for midnight UTC.
+    daily_generation_limit: int = 20
+
+    # Anomaly detection (Phase 7) — plain request counting, no AI. If a user crosses
+    # this many generations within a 10-minute rolling window, it's logged as a
+    # structured warning (e.g. for a leaked API key being drained rapidly) but not
+    # blocked — daily_generation_limit above is the actual hard limit.
+    velocity_anomaly_threshold: int = 5
+
     model_config = {"env_file": ".env"}
 
     def cors_origins(self) -> list[str]:

@@ -1,5 +1,7 @@
 import logging
 import sys
+import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,9 +17,15 @@ from sqlalchemy import text
 import app.models  # noqa: F401 — registers all models with Base before create_all
 from app.config import settings
 from app.database import Base, engine
+from app.logging_config import configure_logging
 from app.routers import account, credentials, jobs, profile
+from app.services.error_tracking import init_error_tracking
+
+configure_logging()
+init_error_tracking()
 
 _log = logging.getLogger(__name__)
+_access_log = logging.getLogger("access")
 
 
 def _limiter_key(request: Request) -> str:
@@ -174,6 +182,37 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    """One structured JSON log line per request (Phase 7) — request_id, user_id
+    (when authenticated; set on request.state by app.clerk_auth.get_current_user,
+    which runs after this middleware as a route dependency), method, path,
+    status_code, duration_ms. Registered after CORSMiddleware so it wraps
+    outermost — sees the final status code and the full request duration.
+    """
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+    start = time.monotonic()
+    response = await call_next(request)
+    duration_ms = round((time.monotonic() - start) * 1000, 2)
+    _access_log.info(
+        "%s %s %s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        extra={
+            "request_id": request_id,
+            "user_id": getattr(request.state, "user_id", None),
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+        },
+    )
+    response.headers["X-Request-Id"] = request_id
+    return response
 
 # /admin routes are authenticated per-route via app.clerk_auth.get_current_user,
 # not a router-level dependency — each handler needs the resolved User to scope its queries.
