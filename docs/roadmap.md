@@ -652,6 +652,18 @@ Also verified live against the real local dev server (restarted to pick up the n
 Phase 6 lesson about stale non-`--reload` processes): real JSON log lines for both a `200` and a
 `401` request, correct `X-Request-Id` response header, `user_id: null` on unauthenticated paths.
 
+**Gap found and fixed the same day**: `app/worker.py` runs as its own process
+(`arq app.worker.WorkerSettings`) and never imports `app.main` — so `configure_logging()`/
+`init_error_tracking()`, both wired only in `main.py`, would never have run in the worker at all.
+That's arguably where they matter *most*: Anthropic calls, LaTeX compilation, and the export/
+deletion sweeps are the most exception-prone code in the app, and once `SENTRY_DSN` is set, worker
+exceptions would have silently never reached Sentry while API exceptions did. Fixed with an ARQ
+`on_startup` hook (`_on_startup`, wired via `WorkerSettings.on_startup`) that calls both, plus
+`set_user_context()` calls alongside each of the worker's three existing RLS-GUC `set_config` calls
+(`run_generation_job`, `run_export_job`, the deletion sweep loop) so worker exceptions are also
+attributed to a user in Sentry, matching the API's behavior. 2 new unit tests
+(`tests/unit/test_worker_startup.py`); full suite 292/292 (164 unit + 128 integration).
+
 ### Phase 8 — Public launch readiness — not started
 
 Landing page (pre-auth) explicitly states the BYO-key model as a trust feature: "you bring your

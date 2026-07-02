@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.database import AsyncSessionLocal
+from app.logging_config import configure_logging
 from app.models.account_export import AccountExport
 from app.models.job import Job
 from app.models.user import User
@@ -26,10 +27,22 @@ from app.services.account_deletion import hard_delete_user
 from app.services.account_export import build_export_zip
 from app.services.credentials import get_decrypted_key
 from app.services.email_client import get_email_client
+from app.services.error_tracking import init_error_tracking, set_user_context
 from app.services.generation import generate_materials
 from app.services.pdf_storage import account_export_key, cache_resume_pdf, get_pdf_storage
 
 logger = logging.getLogger(__name__)
+
+
+async def _on_startup(ctx) -> None:
+    """The worker runs as its own process (`arq app.worker.WorkerSettings`) —
+    it never imports app.main, so Phase 7's JSON logging / Sentry init (wired
+    there) would otherwise never run here. This is arguably where it matters
+    most: Anthropic calls, LaTeX compilation, and export/deletion sweeps are
+    the most exception-prone code in the app.
+    """
+    configure_logging()
+    init_error_tracking()
 
 
 def _apply_result(job: Job, result: dict) -> None:
@@ -67,6 +80,7 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
     """
     async with AsyncSessionLocal() as db:
         await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
+        set_user_context(str(user_id))
         job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
         if not job:
             return
@@ -98,6 +112,7 @@ async def run_export_job(ctx, export_id: int, user_id: str) -> None:
     """
     async with AsyncSessionLocal() as db:
         await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
+        set_user_context(str(user_id))
         export = (await db.execute(select(AccountExport).where(AccountExport.id == export_id))).scalar_one_or_none()
         if not export:
             return
@@ -150,6 +165,7 @@ async def run_account_deletion_sweep(ctx) -> None:
     for user in due_users:
         async with AsyncSessionLocal() as db:
             await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user.id)})
+            set_user_context(str(user.id))
             try:
                 await hard_delete_user(db, user)
                 logger.info("Hard-deleted user %s after grace period expired", user.id)
@@ -162,3 +178,4 @@ class WorkerSettings:
     functions = [run_generation_job, run_export_job]
     cron_jobs = [cron(run_account_deletion_sweep, hour=None, minute=0)]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
+    on_startup = _on_startup
