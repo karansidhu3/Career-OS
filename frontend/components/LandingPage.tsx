@@ -112,6 +112,12 @@ export function LandingPage() {
             Sign in
           </a>
         </p>
+
+        <p className="text-xs text-neutral-400 text-center mt-3">
+          <a href="/terms" className="hover:text-neutral-600 underline underline-offset-2">Terms</a>
+          {' · '}
+          <a href="/privacy" className="hover:text-neutral-600 underline underline-offset-2">Privacy</a>
+        </p>
       </motion.div>
     </div>
   )

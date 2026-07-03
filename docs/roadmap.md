@@ -739,9 +739,23 @@ tests) was re-run alongside these and confirmed unaffected — 9/9 E2E tests tot
 (164 unit + 133 integration, 8 new tests for the waitlist endpoint: creation, invalid-email
 rejection, duplicate-email idempotency, and the deliberate no-auth-required requirement).
 
+**Terms of Service / Privacy Policy — ✅ drafted, not legally reviewed.** `frontend/app/terms/page.tsx`
+and `frontend/app/privacy/page.tsx`, both public routes (`proxy.ts`), sharing a
+`components/LegalPageShell.tsx` wrapper. Both open with an explicit, visible disclaimer that this
+is an AI-drafted starting point, not reviewed by a lawyer, and shouldn't be relied on as final
+before real public launch — that disclaimer is load-bearing, not boilerplate CYA. Content reflects
+this app's actual behavior rather than generic template text: the BYO-key billing model and who's
+responsible for Anthropic costs, the real list of third-party processors (Clerk, Anthropic, Neon,
+Cloudflare R2, Upstash, Fly/Vercel, Resend scoped to its two transactional triggers, Sentry with
+PII-scrubbing called out specifically), the actual data export/7-day-grace-period deletion flow
+from Phase 6, and the actual daily-cap/velocity-anomaly guardrails from Phase 7 described accurately
+(plain request counting, no AI, never inspects generation content). Linked from the waitlist
+landing page's footer. Verified via 3 new real-browser E2E tests
+(`e2e/legal-pages.spec.ts` — both pages reachable while signed out, both links from the landing
+page work) — full E2E suite now 12/12 (6 existing signed-in + 3 landing + 3 legal pages).
+
 **Remaining for Phase 8**:
-- Terms of Service / Privacy Policy — non-negotiable once the app stores other people's resumes,
-  job history, and encrypted API credentials. Not yet drafted.
+- Actual legal review of the ToS/Privacy drafts above before public launch.
 - Production Clerk instance — still on the free dev instance (usage caps, visible warning banner
   in the sign-in UI). Not yet started.
 

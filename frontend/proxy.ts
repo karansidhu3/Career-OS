@@ -5,7 +5,11 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 // visitors see the waitlist landing page instead of being redirected to sign-in —
 // app/page.tsx itself branches on auth state to render landing vs. the real app.
 // /api/waitlist is the pre-auth signup's own backend pass-through (same reasoning).
-const isPublicRoute = createRouteMatcher(['/sign-in(.*)', '/sign-up(.*)', '/api/health', '/', '/api/waitlist'])
+// /terms and /privacy are public so anyone deciding whether to trust CareerOS with
+// their resume can read them before creating an account, not just after.
+const isPublicRoute = createRouteMatcher([
+  '/sign-in(.*)', '/sign-up(.*)', '/api/health', '/', '/api/waitlist', '/terms', '/privacy',
+])
 
 export default clerkMiddleware(async (auth, req) => {
   if (!isPublicRoute(req)) {
