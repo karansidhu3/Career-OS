@@ -571,7 +571,7 @@ integration, secret-scan, both Fly deploys) — the first time this repository's
 genuinely exercised the E2E suite end to end. `CLERK_E2E_TEST_PASSWORD` GitHub secret deleted as
 cleanup once the password strategy was gone.
 
-### Phase 7 — Observability + abuse guardrails — ✅ DONE (2026-07-02, code + local verification; Sentry DSN and uptime monitor still need Karan's own accounts)
+### Phase 7 — Observability + abuse guardrails — ✅ DONE, fully live (2026-07-02)
 
 **Structured JSON logging**: `app/logging_config.py`'s `JsonFormatter` replaces the root logger's
 handler at import time (`configure_logging()`, called at the top of `main.py` before anything else
@@ -600,10 +600,13 @@ DSN. `traces_sample_rate=0.0` (error tracking only, no perf tracing — delibera
 `send_default_pii=False`, plus a `before_send` hook that strips `Authorization`/`Cookie` headers
 from any captured event as defense in depth beyond the SDK's own PII heuristics — this app's
 requests can carry a Clerk bearer token, and decrypted Anthropic keys pass through request
-handling, so scrubbing auth headers from crash reports is cheap insurance. **Karan still needs to
-create a Sentry project himself and set `SENTRY_DSN`** (third-party account creation is not
-something this agent does — same rule as the Cloudflare R2 and Resend keys in Phases 5–6);
-until then this stays a no-op in every environment including production.
+handling, so scrubbing auth headers from crash reports is cheap insurance. **Live in production**:
+Karan created a Sentry project and set `SENTRY_DSN` as a Fly secret on both `careeros-backend` and
+`careeros-worker`; confirmed via each app's own startup logs switching from `"SENTRY_DSN not set —
+error tracking disabled"` to `"Sentry error tracking enabled"`. This also surfaced a real gap —
+see `app/worker.py`'s fix below, in the same section — the worker runs as its own process and
+never imported `app.main`, so it had never actually initialized Sentry at all despite being the
+most exception-prone code in the app.
 
 **Per-user daily generation cap**: counted in Redis (`daily_gen_count:{user_id}`, 24h TTL) via the
 existing ARQ pool connection — `ArqRedis` subclasses `redis.asyncio.Redis`, so plain `get`/`incr`/
@@ -628,13 +631,30 @@ request — `DAILY_GENERATION_LIMIT` is the actual hard limit. This is aimed at 
 the daily cap (a leaked API key being drained) but surfaces it faster, before a full day's quota is
 burned.
 
-**Uptime monitoring**: both target endpoints already existed and needed no code changes —
-`GET /health` on the Fly backend (already wired into `fly.toml`'s `[[http_service.checks]]`) and
-`GET /api/health` on the Vercel frontend (a dedicated Next.js route, not proxied through the
-generic `/api/[...path]` backend-proxy — see Phase 1's incident #2 for why it has to be separate).
-Actually pointing an external uptime monitor (UptimeRobot, Better Uptime, etc.) at these two URLs
-is a third-party dashboard signup — **Karan's own action, not done here**, same reasoning as the
-Sentry DSN above.
+**Uptime monitoring**: both target endpoints already existed — `GET /health` on the Fly backend
+(already wired into `fly.toml`'s `[[http_service.checks]]`) and `GET /api/health` on the Vercel
+frontend (a dedicated Next.js route, not proxied through the generic `/api/[...path]` backend-proxy
+— see Phase 1's incident #2 for why it has to be separate). Karan set up UptimeRobot against both,
+which immediately surfaced two real, separate production bugs neither of the above had ever caught:
+
+1. **Backend `/health` rejected HEAD requests (405)** — UptimeRobot defaults to `HEAD`, not `GET`,
+   to save bandwidth. FastAPI/Starlette doesn't auto-add HEAD support for a route registered with
+   only `@app.get`. Fixed by stacking `@app.head("/health")` alongside it. The integration test
+   suite's `_test_app` (`tests/integration/conftest.py`) is a deliberately separate, minimal
+   FastAPI app from `app.main.app` — it had its own hand-duplicated `/health` route with the same
+   gap, which would have masked this regressing again; fixed there too.
+2. **Vercel Deployment Protection ("Vercel Authentication") was blocking all unauthenticated
+   access to the frontend in production** — not just UptimeRobot, *any* real user without a login
+   to Karan's Vercel account. `careeros-frontend`'s project settings had it enabled with no custom
+   domain configured, so every URL (including the actual production aliases) redirected to
+   `vercel.com/sso-api`. This had been true since the Fly/Vercel migration and nothing had
+   surfaced it — Karan's own browser always carried a valid Vercel session, so he never saw the
+   wall himself. Fixed by disabling it in Vercel's dashboard (Settings → Deployment Protection);
+   confirmed via `curl` returning `200` instead of a `302`. Karan plans to re-enable it scoped to
+   preview deployments only once a custom domain is set up (Vercel Authentication only gates the
+   `*.vercel.app` URLs, not a custom domain).
+
+Both monitors are now active against endpoints that actually return `200`.
 
 **Verified**: full backend suite 290/290 (162 unit + 128 integration, zero pre-existing failures
 remaining — the long-standing NBSP LaTeX failure was fixed earlier, see the CI/CD section above).
@@ -663,6 +683,13 @@ exceptions would have silently never reached Sentry while API exceptions did. Fi
 (`run_generation_job`, `run_export_job`, the deletion sweep loop) so worker exceptions are also
 attributed to a user in Sentry, matching the API's behavior. 2 new unit tests
 (`tests/unit/test_worker_startup.py`); full suite 292/292 (164 unit + 128 integration).
+
+**Final state, after the uptime-monitoring bugs above were fixed**: full backend suite 293/293
+(164 unit + 129 integration — 1 more integration test than the previous count, covering `/health`'s
+HEAD support). Both Fly apps confirmed live with `"Sentry error tracking enabled"` in their
+startup logs; both health endpoints return `200` for real GET and HEAD requests in production;
+Vercel Deployment Protection confirmed disabled via `curl` no longer redirecting to
+`vercel.com/sso-api`.
 
 ### Phase 8 — Public launch readiness — not started
 
