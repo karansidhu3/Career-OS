@@ -83,12 +83,19 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
     time) before touching the job row at all.
     """
     async with AsyncSessionLocal() as db:
-        await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
-        set_user_context(str(user_id))
-        job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
-        if not job:
-            return
+        job = None
         try:
+            # set_config/the job fetch live inside this try too — a dead pooled
+            # connection surfacing here previously escaped uncaught (see the
+            # `finally: await db.commit()` below, which never ran), leaving the
+            # job stuck at status="processing" forever with no way to retry.
+            # pool_pre_ping on the engine (app.database) should prevent the dead
+            # connection in the first place; this is the backstop for anything else.
+            await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
+            set_user_context(str(user_id))
+            job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
+            if not job:
+                return
             api_key = await get_decrypted_key(db, uuid.UUID(str(user_id)))
             if not api_key:
                 raise ValueError("No Anthropic API key on file")
@@ -97,12 +104,13 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             job.status = "generated"
         except Exception as e:
             logger.exception("Generation failed for job %d: %s", job_id, e)
-            job.status = "failed"
-            job.title = job.title if job.title != "Generating…" else "Generation failed"
+            if job is not None:
+                job.status = "failed"
+                job.title = job.title if job.title != "Generating…" else "Generation failed"
         finally:
             await db.commit()
 
-    if job.status == "generated" and job.resume_latex:
+    if job is not None and job.status == "generated" and job.resume_latex:
         try:
             await cache_resume_pdf(job_id, job.resume_latex)
         except Exception:
@@ -115,13 +123,18 @@ async def run_export_job(ctx, export_id: int, user_id: str) -> None:
     email triggers this app sends, per CLAUDE.md's carve-out).
     """
     async with AsyncSessionLocal() as db:
-        await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
-        set_user_context(str(user_id))
-        export = (await db.execute(select(AccountExport).where(AccountExport.id == export_id))).scalar_one_or_none()
-        if not export:
-            return
-        user = (await db.execute(select(User).where(User.id == export.user_id))).scalar_one_or_none()
+        export = None
+        user = None
         try:
+            # See run_generation_job's comment above — set_config/the row fetches
+            # live inside this try so a dead pooled connection surfacing here
+            # doesn't leave the export stuck at status="processing" forever.
+            await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
+            set_user_context(str(user_id))
+            export = (await db.execute(select(AccountExport).where(AccountExport.id == export_id))).scalar_one_or_none()
+            if not export:
+                return
+            user = (await db.execute(select(User).where(User.id == export.user_id))).scalar_one_or_none()
             zip_bytes = await build_export_zip(db, user)
             await get_pdf_storage().save(account_export_key(export_id), zip_bytes)
             export.status = "ready"
@@ -129,12 +142,13 @@ async def run_export_job(ctx, export_id: int, user_id: str) -> None:
             export.expires_at = datetime.now(timezone.utc) + timedelta(days=7)
         except Exception as e:
             logger.exception("Export failed for export %d: %s", export_id, e)
-            export.status = "failed"
-            export.error_message = str(e)[:500]
+            if export is not None:
+                export.status = "failed"
+                export.error_message = str(e)[:500]
         finally:
             await db.commit()
 
-    if export.status == "ready" and user:
+    if export is not None and export.status == "ready" and user:
         link_line = f'<p><a href="{settings.frontend_url}">Sign in to CareerOS</a> to download it.</p>' if settings.frontend_url else "<p>Sign in to CareerOS to download it.</p>"
         try:
             await get_email_client().send(

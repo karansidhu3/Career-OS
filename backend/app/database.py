@@ -42,6 +42,11 @@ engine = create_async_engine(
     max_overflow=10,
     pool_timeout=30,
     pool_recycle=1800,
+    # Neon can suspend/close an idle connection well before pool_recycle's 30-minute
+    # age limit kicks in — pre_ping issues a cheap liveness check before handing out
+    # a pooled connection and transparently reconnects if it's already dead, instead
+    # of surfacing "connection is closed" mid-query.
+    pool_pre_ping=True,
 )
 
 # Least-privilege engine — what every request actually runs queries through.
@@ -55,6 +60,7 @@ app_engine = create_async_engine(
     max_overflow=10,
     pool_timeout=30,
     pool_recycle=1800,  # recycle connections every 30 min to avoid stale connections
+    pool_pre_ping=True,  # see `engine` above — Neon can close a connection sooner than that
 )
 AsyncSessionLocal = async_sessionmaker(app_engine, expire_on_commit=False)
 
