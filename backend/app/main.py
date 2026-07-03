@@ -18,7 +18,7 @@ import app.models  # noqa: F401 — registers all models with Base before create
 from app.config import settings
 from app.database import Base, engine
 from app.logging_config import configure_logging
-from app.routers import account, credentials, jobs, profile
+from app.routers import account, credentials, jobs, profile, waitlist
 from app.services.error_tracking import init_error_tracking
 
 configure_logging()
@@ -220,6 +220,8 @@ app.include_router(profile.router, prefix="/admin")
 app.include_router(jobs.router, prefix="/admin")
 app.include_router(credentials.router, prefix="/admin")
 app.include_router(account.router, prefix="/admin")
+# Public, unauthenticated (Phase 8) — no /admin prefix, no current_user dependency.
+app.include_router(waitlist.router)
 
 
 @app.get("/health")

@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useUser } from '@clerk/nextjs'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, CandidacyInsights, Job } from '@/lib/api'
 import { ApiKeySettings } from '@/components/ApiKeySettings'
+import { LandingPage } from '@/components/LandingPage'
 import { ProfileSetupGate } from '@/components/ProfileSetupGate'
 import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
@@ -411,6 +413,10 @@ function GeneratingSkeleton() {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Home() {
+  // / is public now (Phase 8, proxy.ts) — a signed-out visitor lands here and
+  // sees the waitlist page instead of the core loop. isSignedIn is checked
+  // below, after every other hook (Rules of Hooks), right before the render.
+  const { isLoaded, isSignedIn } = useUser()
   const [appState, setAppState] = useState<AppState>({ mode: 'checking' })
   const [jd, setJd] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -659,6 +665,12 @@ export default function Home() {
     return () => window.removeEventListener('keydown', onKey)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appState.mode, submitting, jd])
+
+  // ─── Pre-auth branch (Phase 8) ──────────────────────────────────────────────
+  // Every hook above has already run unconditionally (Rules of Hooks) — this
+  // branch only changes what gets rendered.
+  if (!isLoaded) return null
+  if (!isSignedIn) return <LandingPage />
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 

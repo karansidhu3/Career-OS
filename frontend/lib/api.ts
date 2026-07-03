@@ -343,4 +343,9 @@ export const api = {
     else formData.append('text', input.text)
     return request<ProfileImportDraft>('/admin/profile/import', { method: 'POST', body: formData })
   },
+
+  // Waitlist (Phase 8) — pre-auth, hits /api/waitlist directly (not the generic
+  // /api/[...path] proxy, which requires a Clerk session that doesn't exist yet).
+  joinWaitlist: (email: string) =>
+    request<{ status: string }>('/waitlist', json('POST', { email })),
 }

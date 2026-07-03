@@ -691,15 +691,59 @@ startup logs; both health endpoints return `200` for real GET and HEAD requests 
 Vercel Deployment Protection confirmed disabled via `curl` no longer redirecting to
 `vercel.com/sso-api`.
 
-### Phase 8 — Public launch readiness — not started
+### Phase 8 — Public launch readiness — in progress (started 2026-07-02)
 
-Landing page (pre-auth) explicitly states the BYO-key model as a trust feature: "you bring your
-own AI key, we never see your generation costs." Decision point: open signup vs. waitlist — a
-waitlist buys time to prove Phases 5–7 hold under real concurrent load before it's irreversible.
-Terms of Service / Privacy Policy — non-negotiable once the app stores other people's resumes,
-job application history, and encrypted API credentials. Separate Clerk **production** instance
-(currently still using the free dev instance, which has usage caps and a visible warning banner)
-before any real traffic beyond Karan and close friends.
+Karan chose **waitlist over open signup** — buys time to prove Phases 5–7's guardrails hold under
+real concurrent load before opening the door is irreversible. Not blocking on a custom domain
+(none yet; ~$10–15/year whenever he gets one) — Clerk's production instance and everything else
+below is being built against the current Vercel/Fly URLs, since none of it requires re-doing when
+a domain is added later.
+
+**Waitlist landing page — ✅ done.** `/` is now a public route (`proxy.ts`'s `isPublicRoute`) —
+`app/page.tsx` calls Clerk's `useUser()` (after every other hook, per Rules of Hooks — hooks can't
+be conditional) and renders `components/LandingPage.tsx` instead of the core loop whenever
+`isSignedIn` is false. The landing page leads with the BYO-key model as a trust feature ("you
+bring your own AI key — CareerOS never sees or pays for your usage"), not a footnote, plus an email
+capture form and a "sign in" link for anyone already invited.
+
+Backend: `app/models/waitlist.py`'s `WaitlistEntry` (email, `created_at`, `invited_at` — the last
+nullable, set manually by Karan when he invites someone; no automated invite-email flow was built,
+consistent with CLAUDE.md's "no email digests/marketing" carve-out — this stays a plain signup
+list, not a mailing list). `app/routers/waitlist.py` — `POST /waitlist`, deliberately **not** under
+`/admin` (ADR-006) since there's no authenticated user yet at this point in the funnel; rate-limited
+5/hour by IP (a public, unauthenticated endpoint that writes to the database is a spam surface with
+no other gate); duplicate emails return the same "joined" response rather than revealing whether an
+address is already on the list.
+
+Frontend plumbing: a new dedicated `frontend/app/api/waitlist/route.ts`, mirroring the existing
+`app/api/health/route.ts` pattern — deliberately **not** routed through the generic
+`app/api/[...path]/route.ts` proxy, which calls Clerk's `auth()`/`getToken()` and would 401 before
+ever reaching the backend, since a pre-auth visitor has no Clerk session at all. Also added to
+`proxy.ts`'s public routes alongside `/`. The CSP's `connect-src 'self'` (Phase 1) meant the
+browser could never call the Fly backend directly even if we wanted to — this dedicated route is a
+server-to-server passthrough instead, exactly like the health-check route already was.
+
+**Verified for real**: this session's embedded browser preview tool could not complete navigation
+to the app at all (`net::ERR_ABORTED` on every attempt, including retries and reloads, even though
+`curl` against the same URL succeeded — see the updated
+`feedback_clerk_coldstart_preview_tool.md` memory for the full investigation). Fell back to two
+solid alternatives instead: a new React Testing Library component test suite
+(`frontend/tests/unit/LandingPage.test.tsx` — this project's first `.tsx` test file) covering the
+trust-message copy, email submission, success/error states, and the disabled-while-submitting
+button; and three new **real-browser** Playwright E2E tests (`e2e/landing.spec.ts`, run locally
+against real dev servers, not mocked) confirming a signed-out visit to `/` shows the waitlist form
+with zero textareas reachable (the actual security property that matters — a signed-out visitor
+genuinely cannot reach the core app), that joining the waitlist shows a confirmation, and that the
+sign-in link navigates correctly. The full existing signed-in E2E suite (`generate.spec.ts`, 6
+tests) was re-run alongside these and confirmed unaffected — 9/9 E2E tests total. Backend: 297/297
+(164 unit + 133 integration, 8 new tests for the waitlist endpoint: creation, invalid-email
+rejection, duplicate-email idempotency, and the deliberate no-auth-required requirement).
+
+**Remaining for Phase 8**:
+- Terms of Service / Privacy Policy — non-negotiable once the app stores other people's resumes,
+  job history, and encrypted API credentials. Not yet drafted.
+- Production Clerk instance — still on the free dev instance (usage caps, visible warning banner
+  in the sign-in UI). Not yet started.
 
 ---
 
