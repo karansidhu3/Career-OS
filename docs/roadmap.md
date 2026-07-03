@@ -754,10 +754,92 @@ landing page's footer. Verified via 3 new real-browser E2E tests
 (`e2e/legal-pages.spec.ts` — both pages reachable while signed out, both links from the landing
 page work) — full E2E suite now 12/12 (6 existing signed-in + 3 landing + 3 legal pages).
 
+### Security hardening — full pre-launch audit + top 7 remediations — ✅ DONE (2026-07-03)
+
+Ran a from-scratch, no-prior-findings-assumed security audit (5 parallel research passes across
+auth/IDOR, secrets/crypto/AI-provider isolation, API/upload/subprocess safety, database/RLS/infra,
+and frontend/XSS/CSP) covering every layer through OWASP Top 10, trust-boundary analysis, and a
+scored assessment per category. Zero Critical findings; RLS, authorization, and AI-key isolation
+were all independently confirmed sound. One High finding (below) and several Medium findings came
+back — one of which (an "IP spoofing" claim) turned out to be wrong on independent verification
+against `slowapi`'s actual source, and was corrected before acting on it rather than fixed as
+reported. Implemented the top 7 remediations:
+
+1. **Resume upload resource-exhaustion guard (the one High finding)** — `backend/app/routers/profile.py`
+   now caps uploads at 5MB, and `backend/app/services/resume_import.py` reads a DOCX's central
+   directory (via `zipfile.infolist()`, which doesn't decompress anything) to reject a declared
+   uncompressed size over 50MB *before* `python-docx` ever decompresses it — a classic zip bomb is
+   tiny on the wire and huge decompressed, so the upload-size cap alone doesn't catch it. This
+   mattered more here than in a typical app: backend and worker each run on a single
+   `shared-cpu-1x:512mb` Fly machine (`fly scale count 1`, deliberate per ADR-010, and this exact
+   machine already OOM'd once under real load during Phase 5) — one bad upload could take the app
+   down for every user, not just the uploader. Also added a global `MAX_REQUEST_BODY_BYTES` (10MB)
+   middleware in `main.py`, checked via `Content-Length` before the body is ever read, as
+   defense-in-depth beyond this one endpoint.
+2. **Rate-limit key fixed to use Fly's real client IP** — new `backend/app/rate_limit.py` replaces
+   4 duplicated copies of `_limiter_key` (main.py, jobs.py, credentials.py, profile.py) plus
+   waitlist.py's separate `get_remote_address` usage. The actual bug: `slowapi`'s own
+   `get_remote_address()` reads only `request.client.host`, and uvicorn is started without
+   `--proxy-headers` — so behind Fly's edge, every unauthenticated request (the waitlist, or any
+   auth-less hit to a protected endpoint) was likely bucketed by Fly's internal proxy address
+   rather than the real visitor, making the waitlist's "5/hour by IP" limit unreliable with zero
+   attacker effort required. Now keyed off Fly's own `Fly-Client-IP` header, set by Fly's edge and
+   not forgeable by a client outside Fly's network.
+3. **`azp` origin check now fails closed** — `backend/app/clerk_auth.py`'s defense-in-depth check
+   (rejects a token minted for a different frontend under the same Clerk instance) previously
+   no-opped entirely if `ALLOWED_ORIGINS` was ever empty. One `allowed and` removed from the
+   condition — if `azp` is present, it's always checked, so a token with an azp claim is rejected
+   rather than silently passed if origins were ever accidentally misconfigured to empty.
+4. **`ENCRYPTION_MASTER_KEY` validated at boot, not lazily** — new `crypto.validate_master_keys()`
+   eagerly constructs a `Fernet` instance for the current key and any previous (rotation) keys,
+   called from both `main.py`'s lifespan and `worker.py`'s `_on_startup`. A malformed/missing key
+   previously passed a clean startup and healthcheck, surfacing only as a confusing 500 for
+   whoever was the first real user to touch credentials.
+5. **`ON DELETE CASCADE` on every `user_id` foreign key** — migration 013 (idempotent
+   drop-then-recreate, matching every other migration here) plus the matching model change on all
+   8 FKs. `hard_delete_user()` already deletes every user-scoped row correctly, in the right order,
+   in one transaction — this is defense-in-depth for the case where a user row is ever deleted
+   through some other path (a future admin script, a manual `psql` session).
+6. **Sentry scrubbing extended beyond headers** — `_scrub_pii` already stripped
+   `Authorization`/`Cookie` headers; now also regex-redacts `sk-ant-...`-shaped substrings from
+   exception messages, log entries, and the top-level event message, since header-stripping alone
+   doesn't cover a key that ends up embedded in an exception's own text rather than a header.
+7. **Resume LaTeX compile failures now fail correctly instead of silently** — real gap found while
+   scoping this fix: the resume body is AI-generated LaTeX that (unlike this app's own cover-letter
+   template) isn't re-escaped after Claude writes it, so a compile failure is a real possibility.
+   `_compress_if_needed` in `generation.py` had two bugs: if the *first* compile ever failed, it
+   silently returned the broken LaTeX as if generation had succeeded (the job would show
+   "generated" but PDF downloads would always fail); if a *later* compile — after a compression
+   pass — failed, it returned that broken result instead of falling back to the pre-compression
+   version that had already proven it compiles. Fixed both: a first-compile failure now propagates
+   so `run_generation_job` correctly marks the job "failed" instead of storing unusable LaTeX, and
+   a later failure now returns the last version actually proven to compile.
+
+**Scope note on severity**: traced the actual exploitability of the LaTeX-escaping gap (#7) before
+treating it as more than a reliability fix — Tectonic has no `--shell-escape` (no code execution
+path), each compile runs in a fresh per-request sandboxed temp directory with a restricted
+environment, and any injection would only affect the *acting user's own* PDF, never another user's
+data. So the real-world security impact was low even before the fix; the fix is primarily a
+reliability improvement (a job that will only ever produce a broken PDF should say so, not claim
+success), not a vulnerability closure.
+
+**Verified**: full backend suite 319/319 (186 unit + 133 integration — 26 new tests across
+`test_rate_limit.py`, new `azp`/crypto/error-tracking/resume-import cases, and a new
+`test_compress_if_needed.py` exercising both fixed failure modes with mocked compilation). Full
+local E2E suite re-run against real dev servers after all 7 changes — 12/12 passing, confirming
+real Clerk sign-in still works correctly with the `azp` fail-closed change and that rate limiting
+doesn't block normal authenticated traffic. Migration 013 applied and confirmed live against the
+real local dev DB (`confdeltype = 'c'` on all 8 FKs). Global body-size middleware confirmed live
+(`413` on an 11MB body, `422` — correctly past the middleware — on a 6MB body that only fails
+Pydantic validation).
+
 **Remaining for Phase 8**:
 - Actual legal review of the ToS/Privacy drafts above before public launch.
 - Production Clerk instance — still on the free dev instance (usage caps, visible warning banner
   in the sign-in UI). Not yet started.
+- Remaining Medium/Low audit findings (redis-backed rate-limit storage, CSP nonce migration,
+  backend security headers, dependency pinning) — deferred, tracked in the audit report itself,
+  not urgent at current "friends only" scale.
 
 ---
 

@@ -766,20 +766,37 @@ async def _call_compression(body_latex: str, api_key: str) -> str:
 async def _compress_if_needed(assembled_latex: str, api_key: str, max_attempts: int = 2) -> tuple[str, int]:
     """Compile the resume and compress via Claude if it exceeds one page.
 
-    Errors in compilation or the compression call are caught so a failure here
-    never blocks generation — the original LaTeX is returned with 0 attempts.
+    The resume body is AI-generated LaTeX (see the module docstring on
+    escaping — this is the one substitution point that isn't re-escaped after
+    the model writes it), so a compile failure here is a real possibility, not
+    just a defensive check. Two distinct failure modes, handled differently:
+
+    - The FIRST compile (of the model's original output) fails: there is no
+      known-good LaTeX to fall back to, so this re-raises — a job whose resume
+      never actually compiles must be marked "failed" (see run_generation_job's
+      except Exception), not silently stored as "generated" with LaTeX that
+      will only surface as a broken PDF download later.
+    - A LATER compile (after a compression pass) fails: the pre-compression
+      LaTeX already proved it compiles, so that's returned instead of whatever
+      the failed compression attempt produced — never return LaTeX that hasn't
+      itself been proven to compile.
+
     Returns (final_latex, compression_attempts).
     """
     attempts = 0
     current = assembled_latex
+    last_known_good: str | None = None
 
     for _ in range(max_attempts):
         try:
             pdf_bytes = await compile_latex_to_pdf(current)
         except Exception:
-            logger.warning("Compression check: compilation failed, keeping current LaTeX")
-            break
+            if last_known_good is None:
+                raise
+            logger.warning("Compression check: compilation failed, falling back to last known-good LaTeX")
+            return last_known_good, attempts
 
+        last_known_good = current
         page_count = len(PdfReader(io.BytesIO(pdf_bytes)).pages)
         if page_count <= 1:
             break
@@ -795,7 +812,7 @@ async def _compress_if_needed(assembled_latex: str, api_key: str, max_attempts: 
 
         current = _assemble_resume_latex(compressed_body)
 
-    return current, attempts
+    return last_known_good, attempts
 
 
 async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> dict:

@@ -6,6 +6,7 @@ before it's saved via the existing profile CRUD endpoints. Billed to the request
 own key (see app.services.credentials), never Karan's.
 """
 import io
+import zipfile
 
 from docx import Document
 from pypdf import PdfReader
@@ -14,6 +15,19 @@ from app.services.generation import CLAUDE_MODEL
 from app.services.llm_client import get_llm_client
 
 MAX_RESUME_TEXT_CHARS = 20_000
+
+# A real resume's internal XML is a few hundred KB at most — this is a zip-bomb
+# guard (DOCX is a zip archive), not a realistic-resume-size limit. Read from
+# the central directory (zipfile.infolist() does not decompress anything) so
+# the check itself can't be used to trigger the same exhaustion it prevents.
+MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+
+
+def _check_docx_not_a_zip_bomb(data: bytes) -> None:
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        total_uncompressed = sum(info.file_size for info in zf.infolist())
+        if total_uncompressed > MAX_DOCX_UNCOMPRESSED_BYTES:
+            raise ValueError("This file's internal content is too large to be a real resume.")
 
 _EXTRACT_SYSTEM = (
     "You extract structured resume data from raw text. Extract only what is explicitly "
@@ -109,6 +123,7 @@ def extract_text_from_pdf(data: bytes) -> str:
 
 
 def extract_text_from_docx(data: bytes) -> str:
+    _check_docx_not_a_zip_bomb(data)
     doc = Document(io.BytesIO(data))
     return "\n".join(p.text for p in doc.paragraphs)
 

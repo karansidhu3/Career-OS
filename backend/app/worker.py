@@ -26,6 +26,7 @@ from app.models.user import User
 from app.services.account_deletion import hard_delete_user
 from app.services.account_export import build_export_zip
 from app.services.credentials import get_decrypted_key
+from app.services.crypto import validate_master_keys
 from app.services.email_client import get_email_client
 from app.services.error_tracking import init_error_tracking, set_user_context
 from app.services.generation import generate_materials
@@ -39,10 +40,13 @@ async def _on_startup(ctx) -> None:
     it never imports app.main, so Phase 7's JSON logging / Sentry init (wired
     there) would otherwise never run here. This is arguably where it matters
     most: Anthropic calls, LaTeX compilation, and export/deletion sweeps are
-    the most exception-prone code in the app.
+    the most exception-prone code in the app. Also validates ENCRYPTION_MASTER_KEY
+    eagerly (same reasoning as app.main's lifespan) — this is the process that
+    actually decrypts user API keys during generation.
     """
     configure_logging()
     init_error_tracking()
+    validate_master_keys()
 
 
 def _apply_result(job: Job, result: dict) -> None:

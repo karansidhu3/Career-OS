@@ -8,7 +8,6 @@ import logging
 
 from fastapi import APIRouter, Request
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,11 +15,12 @@ from fastapi import Depends
 
 from app.database import get_db
 from app.models.waitlist import WaitlistEntry
+from app.rate_limit import get_client_ip
 from app.schemas.waitlist import WaitlistSignup, WaitlistSignupResponse
 
 logger = logging.getLogger(__name__)
 
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_client_ip)
 
 router = APIRouter(prefix="/waitlist", tags=["waitlist"])
 

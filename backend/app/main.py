@@ -9,16 +9,18 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from sqlalchemy import text
 
 import app.models  # noqa: F401 — registers all models with Base before create_all
 from app.config import settings
 from app.database import Base, engine
 from app.logging_config import configure_logging
+from app.rate_limit import limiter_key
 from app.routers import account, credentials, jobs, profile, waitlist
+from app.services.crypto import validate_master_keys
 from app.services.error_tracking import init_error_tracking
 
 configure_logging()
@@ -28,14 +30,8 @@ _log = logging.getLogger(__name__)
 _access_log = logging.getLogger("access")
 
 
-def _limiter_key(request: Request) -> str:
-    """Rate-limit by the bearer token when present; fall back to IP for unauthenticated paths."""
-    auth_header = request.headers.get("authorization", "")
-    return auth_header or get_remote_address(request)
-
-
 # Rate limiter — shared across all routers
-limiter = Limiter(key_func=_limiter_key)
+limiter = Limiter(key_func=limiter_key)
 
 
 def _split_sql_statements(raw: str) -> list[str]:
@@ -142,6 +138,16 @@ async def lifespan(_: FastAPI):
             )
             sys.exit(1)
 
+    # Phase 3 removed the shared fallback key entirely — every environment needs a
+    # working ENCRYPTION_MASTER_KEY or the BYO-key feature (the whole app) can't
+    # function. Validated eagerly here so a missing/malformed key fails loudly at
+    # boot, not confusingly the first time a real user tries to add their key.
+    try:
+        validate_master_keys()
+    except RuntimeError as e:
+        _log.critical(str(e))
+        sys.exit(1)
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _run_migrations()
@@ -182,6 +188,20 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# Generous enough for the resume-upload endpoint (itself capped much lower, at
+# 5MB — see routers/profile.py), far below memory-exhaustion territory for the
+# single 512MB machine this runs on. Checked via Content-Length so an oversized
+# request is rejected before its body is ever read into memory, not after.
+MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024
+
+
+@app.middleware("http")
+async def request_size_limit_middleware(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length is not None and content_length.isdigit() and int(content_length) > MAX_REQUEST_BODY_BYTES:
+        return JSONResponse({"detail": "Request body too large."}, status_code=413)
+    return await call_next(request)
 
 
 @app.middleware("http")

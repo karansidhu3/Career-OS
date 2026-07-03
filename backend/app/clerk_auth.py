@@ -59,10 +59,13 @@ def _decode_clerk_token(token: str) -> dict:
         options={"verify_aud": False},  # Clerk session tokens don't set aud
     )
     # Defense in depth: reject tokens minted for a different frontend origin
-    # under the same Clerk instance, if azp is present.
+    # under the same Clerk instance, if azp is present. Deliberately fails
+    # closed — if ALLOWED_ORIGINS were ever accidentally emptied in production,
+    # a token that does carry an azp claim must still be rejected rather than
+    # silently passing because there was nothing configured to check it against.
     allowed = settings.cors_origins()
     azp = claims.get("azp")
-    if allowed and azp and azp not in allowed:
+    if azp and azp not in allowed:
         raise jwt.InvalidTokenError(f"Token authorized party {azp!r} is not an allowed origin")
     return claims
 

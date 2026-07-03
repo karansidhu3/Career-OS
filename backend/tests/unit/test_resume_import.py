@@ -4,6 +4,7 @@ The Anthropic call itself is mocked (this module's job is deterministic text ext
 plus reshaping the tool's output — not re-testing Claude's accuracy).
 """
 import io
+import zipfile
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -20,6 +21,16 @@ def _make_docx_bytes(paragraphs: list[str]) -> bytes:
         doc.add_paragraph(p)
     buf = io.BytesIO()
     doc.save(buf)
+    return buf.getvalue()
+
+
+def _make_zip_bomb_bytes(uncompressed_size: int) -> bytes:
+    """A real zip whose declared (central-directory) uncompressed size is huge
+    but whose actual on-the-wire bytes are tiny, via a highly compressible
+    repeated-byte payload — the same shape a real zip bomb takes."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("word/document.xml", b"A" * uncompressed_size)
     return buf.getvalue()
 
 
@@ -42,6 +53,21 @@ def test_extract_text_from_pdf_blank_page_returns_empty_string():
     data = _make_pdf_bytes()
     text = resume_import.extract_text_from_pdf(data)
     assert text == ""
+
+
+def test_extract_text_from_docx_rejects_zip_bomb():
+    """A real resume's internal XML is a few hundred KB at most — a DOCX
+    whose declared uncompressed content vastly exceeds that is rejected
+    before python-docx ever decompresses it."""
+    data = _make_zip_bomb_bytes(resume_import.MAX_DOCX_UNCOMPRESSED_BYTES + 1)
+    with pytest.raises(ValueError):
+        resume_import.extract_text_from_docx(data)
+
+
+def test_extract_text_from_docx_allows_realistic_size():
+    data = _make_docx_bytes(["A perfectly normal resume paragraph."] * 50)
+    text = resume_import.extract_text_from_docx(data)
+    assert "perfectly normal resume paragraph" in text
 
 
 @pytest.mark.asyncio

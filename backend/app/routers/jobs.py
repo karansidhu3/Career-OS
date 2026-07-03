@@ -8,7 +8,6 @@ from pypdf import PdfReader, PdfWriter
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +15,7 @@ from app.clerk_auth import get_current_user
 from app.config import settings
 from app.database import get_db
 from app.models.job import Job
+from app.rate_limit import limiter_key
 from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
 from app.models.user import User
 from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobListRead, JobRead, StatusUpdate
@@ -26,13 +26,7 @@ from app.services.pdf_storage import cache_cover_letter_pdf, cache_resume_pdf, c
 logger = logging.getLogger(__name__)
 
 
-def _limiter_key(request: Request) -> str:
-    """Rate-limit by the bearer token when present; fall back to IP for unauthenticated paths."""
-    auth_header = request.headers.get("authorization", "")
-    return auth_header or get_remote_address(request)
-
-
-limiter = Limiter(key_func=_limiter_key)
+limiter = Limiter(key_func=limiter_key)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 

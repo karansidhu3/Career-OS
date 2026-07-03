@@ -54,6 +54,20 @@ def test_decode_clerk_token_allows_missing_azp():
     assert result == claims
 
 
+def test_decode_clerk_token_rejects_azp_when_allowed_origins_empty():
+    """Fails closed, not open — if ALLOWED_ORIGINS were ever accidentally
+    emptied in production, a token with an azp claim must still be rejected
+    rather than silently passing because there was nothing to check it against."""
+    claims = {"sub": "user_123", "azp": "https://evil.example.com"}
+    with patch("app.clerk_auth._get_jwks_client", return_value=_mock_jwks_client()), \
+         patch("app.clerk_auth.jwt.decode", return_value=claims), \
+         patch("app.clerk_auth.settings") as mock_settings:
+        mock_settings.clerk_frontend_api_domain = "test.clerk.accounts.dev"
+        mock_settings.cors_origins.return_value = []
+        with pytest.raises(pyjwt.InvalidTokenError):
+            _decode_clerk_token("fake.jwt.token")
+
+
 def test_decode_clerk_token_propagates_signature_errors():
     with patch("app.clerk_auth._get_jwks_client", return_value=_mock_jwks_client()), \
          patch("app.clerk_auth.jwt.decode", side_effect=pyjwt.InvalidSignatureError("bad sig")), \

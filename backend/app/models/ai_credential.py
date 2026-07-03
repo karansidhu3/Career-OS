@@ -15,7 +15,7 @@ class AICredential(Base):
     __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_ai_credentials_user_provider"),)
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     provider = Column(String, nullable=False, default="anthropic")
     encrypted_key = Column(String, nullable=False)
     key_version = Column(Integer, nullable=False, default=1)

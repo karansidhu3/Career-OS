@@ -25,6 +25,31 @@ def test_decrypt_rejects_garbage():
         crypto.decrypt("not-a-real-fernet-token")
 
 
+def test_validate_master_keys_passes_with_real_key():
+    crypto.validate_master_keys()  # should not raise — test env has a real key configured
+
+
+def test_validate_master_keys_rejects_malformed_current_key(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "encryption_master_key", "not-a-valid-fernet-key")
+    with pytest.raises(RuntimeError):
+        crypto.validate_master_keys()
+
+
+def test_validate_master_keys_rejects_malformed_previous_key(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "encryption_master_key_previous", "also-not-valid")
+    with pytest.raises(RuntimeError):
+        crypto.validate_master_keys()
+
+
+def test_validate_master_keys_rejects_missing_key(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "encryption_master_key", "")
+    with pytest.raises(RuntimeError):
+        crypto.validate_master_keys()
+
+
 def test_decrypt_works_after_key_rotation(monkeypatch):
     """A key encrypted under the old master key must still decrypt once that key
     moves to encryption_master_key_previous — this is the whole point of MultiFernet."""

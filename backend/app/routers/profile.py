@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +10,7 @@ from app.clerk_auth import get_current_user
 from app.database import get_db
 from app.models.profile import Education, Experience, PersonalInfo, Project, SkillCategory
 from app.models.user import User
+from app.rate_limit import limiter_key
 from app.schemas.profile import (
     EducationBase,
     EducationRead,
@@ -30,13 +30,7 @@ from app.services.resume_import import extract_profile_draft, extract_text_from_
 
 logger = logging.getLogger(__name__)
 
-
-def _limiter_key(request: Request) -> str:
-    auth_header = request.headers.get("authorization", "")
-    return auth_header or get_remote_address(request)
-
-
-limiter = Limiter(key_func=_limiter_key)
+limiter = Limiter(key_func=limiter_key)
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -467,6 +461,10 @@ async def restore_skill_category(
 # --- Resume import (Phase 4) ---
 
 _SUPPORTED_EXTENSIONS = (".pdf", ".docx")
+# A real resume file is never anywhere close to this — this is a resource-exhaustion
+# guard for the raw upload (separate from resume_import's own zip-bomb check on the
+# DOCX's *uncompressed* content), since nothing else caps this today.
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
 
 @router.post("/import", response_model=ProfileImportDraft)
@@ -492,6 +490,8 @@ async def import_resume(
         if not filename.endswith(_SUPPORTED_EXTENSIONS):
             raise HTTPException(status_code=400, detail="Unsupported file type — upload a PDF or DOCX.")
         data = await file.read()
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="File is too large — resumes should be under 5MB.")
         try:
             resume_text = extract_text_from_docx(data) if filename.endswith(".docx") else extract_text_from_pdf(data)
         except Exception:

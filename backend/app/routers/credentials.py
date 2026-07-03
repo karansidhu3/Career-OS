@@ -4,26 +4,20 @@ from datetime import datetime, timezone
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clerk_auth import get_current_user
 from app.database import get_db
 from app.models.ai_credential import AICredential
 from app.models.user import User
+from app.rate_limit import limiter_key
 from app.schemas.credentials import CredentialCreate, CredentialStatus
 from app.services.credentials import DEFAULT_PROVIDER, get_credential
 from app.services.crypto import encrypt
 from app.services.generation import CLAUDE_MODEL
 from app.services.llm_client import get_llm_client
 
-
-def _limiter_key(request: Request) -> str:
-    auth_header = request.headers.get("authorization", "")
-    return auth_header or get_remote_address(request)
-
-
-limiter = Limiter(key_func=_limiter_key)
+limiter = Limiter(key_func=limiter_key)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 

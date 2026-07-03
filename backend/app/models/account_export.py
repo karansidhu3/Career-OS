@@ -16,7 +16,7 @@ class AccountExport(Base):
     __tablename__ = "account_exports"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     status = Column(String, nullable=False, default="processing")
     storage_key = Column(String)
     error_message = Column(String)
