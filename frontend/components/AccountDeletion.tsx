@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, AccountDeletionStatus } from '@/lib/api'
 import { spring } from '@/lib/motion'
+import { inputCls, inputStyle, CancelButton } from '@/components/FormControls'
 
 // ---- Account deletion (Phase 6) ----
 // A "danger zone" pattern — deliberately placed at the bottom of /profile,
@@ -69,7 +70,7 @@ export function AccountDeletion() {
           <button
             onClick={cancelDeletion}
             disabled={submitting}
-            className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-50 transition-all"
+            className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-40 transition-all"
             style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
           >
             {submitting ? 'Cancelling…' : 'Cancel deletion'}
@@ -107,17 +108,12 @@ export function AccountDeletion() {
                   type="text"
                   value={confirmText}
                   onChange={e => setConfirmText(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-sm text-neutral-700 focus:outline-none"
-                  style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.07)' }}
+                  className={inputCls}
+                  style={inputStyle}
                   autoComplete="off"
                 />
                 <div className="flex items-center justify-end gap-2">
-                  <button
-                    onClick={() => { setConfirming(false); setConfirmText(''); setError(null) }}
-                    className="px-4 py-1.5 rounded-xl text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
+                  <CancelButton onClick={() => { setConfirming(false); setConfirmText(''); setError(null) }} />
                   <button
                     onClick={requestDeletion}
                     disabled={confirmText !== 'DELETE' || submitting}

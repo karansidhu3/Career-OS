@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
 import { relativeDate } from '@/lib/utils'
 import { SectionLabel } from '@/components/SectionLabel'
+import { spring } from '@/lib/motion'
 
 function CloseIcon() {
   return (
@@ -151,7 +152,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+            transition={spring.standard}
             className="fixed top-0 right-0 h-full z-[61] flex flex-col"
             style={{
               width: 320,

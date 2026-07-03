@@ -7,6 +7,7 @@ import { api, Job } from '@/lib/api'
 import { CopyButton } from '@/components/CopyButton'
 import { SectionLabel } from '@/components/SectionLabel'
 import { ScoreRing } from '@/components/ScoreRing'
+import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, ResumeDownloadOverlay } from '@/components/ResultSections'
 import { spring } from '@/lib/motion'
 import { parseStrategicNote } from '@/lib/utils'
 
@@ -19,113 +20,6 @@ function getGenMessage(elapsed: number): string {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function Divider({ delay = 0 }: { delay?: number }) {
-  return (
-    <motion.div
-      className="my-8"
-      initial={{ scaleX: 0, opacity: 0 }}
-      animate={{ scaleX: 1, opacity: 1 }}
-      transition={{ ...spring.snappy, delay }}
-      style={{ height: '1px', background: 'var(--c-border)', transformOrigin: 'left' }}
-    />
-  )
-}
-
-function AnalysisSection({ title, bullets, color }: { title: string; bullets: string[]; color?: string }) {
-  if (!bullets.length) return null
-  return (
-    <div>
-      <SectionLabel className="mb-2" style={color ? { color } : undefined}>{title}</SectionLabel>
-      <ul className="space-y-1.5">
-        {bullets.map((b, i) => (
-          <li key={i} className="flex gap-2.5 text-[15px] text-neutral-700 leading-snug">
-            <span className="text-neutral-400 shrink-0 mt-0.5 select-none">·</span>
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function SelectedProjectsBar({ projects }: { projects: string[] }) {
-  if (!projects.length) return null
-  return (
-    <div className="flex items-center gap-2 flex-wrap mb-6">
-      <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-400 shrink-0">Emphasized</span>
-      {projects.map(p => (
-        <span
-          key={p}
-          className="text-xs text-neutral-700 px-2 py-0.5 rounded-full"
-          style={{ background: 'var(--c-tag-bg)', border: '1px solid var(--c-tag-border)' }}
-        >
-          {p}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function ResumePdfViewer({
-  blobUrl, loaded, failed, onLoad, onError, onDownload, downloading,
-}: {
-  blobUrl: string | null
-  loaded: boolean
-  failed: boolean
-  onLoad: () => void
-  onError: () => void
-  onDownload: () => void
-  downloading: boolean
-}) {
-  return (
-    <div
-      className="relative mb-5 rounded-sm overflow-hidden"
-      style={{
-        height: 880,
-        boxShadow: '0 4px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
-        border: '1px solid var(--c-border)',
-        background: '#fff',
-      }}
-    >
-      {failed ? (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
-          <p className="text-xs text-neutral-400">PDF preview unavailable — download to view</p>
-        </div>
-      ) : !loaded && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
-            <p className="text-xs text-neutral-400">Compiling PDF…</p>
-          </div>
-        </div>
-      )}
-      {blobUrl && (
-        <iframe
-          src={blobUrl}
-          onLoad={onLoad}
-          onError={onError}
-          title="Resume"
-          style={{
-            width: '100%', height: '100%', border: 'none', display: 'block',
-            opacity: loaded ? 1 : 0, transition: 'opacity 0.4s ease',
-          }}
-        />
-      )}
-      <div className="absolute top-3 right-3 z-10">
-        <motion.button
-          onClick={onDownload}
-          disabled={downloading}
-          whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 transition-all"
-          style={{ background: 'rgba(24,24,27,0.72)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-        >
-          {downloading ? 'Compiling…' : 'Download PDF'}
-        </motion.button>
-      </div>
-    </div>
-  )
-}
 
 function CoverLetterSection({ job }: { job: Job }) {
   const [downloading, setDownloading] = useState(false)
@@ -151,7 +45,7 @@ function CoverLetterSection({ job }: { job: Job }) {
           onClick={handleDownload}
           disabled={downloading}
           whileTap={{ scale: 0.97 }}
-          className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center gap-2 disabled:opacity-60"
+          className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center gap-2 disabled:opacity-40"
           style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
         >
           {downloading ? 'Compiling…' : 'Download Cover Letter'}
@@ -161,40 +55,6 @@ function CoverLetterSection({ job }: { job: Job }) {
         </motion.button>
         <CopyButton text={job.cover_letter!} label="Copy" />
       </div>
-    </div>
-  )
-}
-
-function LatexSection({ latex }: { latex: string }) {
-  const [expanded, setExpanded] = useState(false)
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => setExpanded(v => !v)}
-          className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
-        >
-          {expanded ? 'Hide LaTeX source ↑' : 'LaTeX source ↓'}
-        </button>
-        <CopyButton text={latex} label="Copy .tex" />
-      </div>
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={spring.snappy}
-            className="overflow-hidden"
-          >
-            <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
-              <pre className="text-xs font-mono text-neutral-500 leading-relaxed whitespace-pre-wrap break-all">
-                {latex}
-              </pre>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
@@ -577,22 +437,23 @@ export default function JobPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring.gentle, delay: 0.1 }}
+              className="relative"
             >
-              <ResumePdfViewer
+              <ResumePreview
+                jobId={job.id}
                 blobUrl={pdfBlobUrl}
                 loaded={pdfLoaded}
                 failed={pdfFailed}
                 onLoad={() => setPdfLoaded(true)}
                 onError={() => setPdfFailed(true)}
-                onDownload={handleDownload}
-                downloading={downloading}
               />
+              <ResumeDownloadOverlay onDownload={handleDownload} downloading={downloading} />
               <div className="mb-8 flex items-center gap-4 flex-wrap">
                 <motion.button
                   onClick={handleDownload}
                   disabled={downloading}
                   whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-40"
                   style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
                 >
                   {downloading ? 'Compiling…' : 'Download Resume'}

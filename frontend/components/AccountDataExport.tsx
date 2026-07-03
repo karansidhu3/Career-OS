@@ -83,7 +83,7 @@ export function AccountDataExport() {
             <button
               onClick={requestExport}
               disabled={requesting}
-              className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-50 transition-all"
+              className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-40 transition-all"
               style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
             >
               {requesting ? 'Starting…' : 'Request export'}

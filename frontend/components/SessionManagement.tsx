@@ -70,7 +70,7 @@ function SessionRow({ session, onRevoke }: { session: AccountSession; onRevoke: 
               transition={{ duration: 0.1 }}
               className="flex items-center gap-3"
             >
-              <button onClick={revoke} disabled={revoking} className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-50">
+              <button onClick={revoke} disabled={revoking} className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40">
                 {revoking ? 'Revoking…' : 'Confirm'}
               </button>
               <button onClick={() => setConfirmRevoke(false)} className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors">
@@ -125,7 +125,7 @@ export function SessionManagement() {
           <button
             onClick={revokeOthers}
             disabled={revokingOthers}
-            className="text-xs text-neutral-400 hover:text-red-400 transition-colors disabled:opacity-50"
+            className="text-xs text-neutral-400 hover:text-red-400 transition-colors disabled:opacity-40"
           >
             {revokingOthers ? 'Signing out…' : 'Sign out everywhere else'}
           </button>

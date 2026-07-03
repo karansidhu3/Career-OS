@@ -29,20 +29,6 @@ html, body { height: 100%; }
   --c-border-subtle:    rgba(0, 0, 0, 0.05);
   --c-border-highlight: rgba(255, 255, 255, 0.55); /* top-edge light catch — upper-left source */
 
-  /* Shadows — directional (right/down bias matches upper-left light source) */
-  --c-shadow-sm:
-    0 1px 0 rgba(0,0,0,0.03),
-    1px 2px 8px rgba(0,0,0,0.05),
-    0 4px 12px rgba(0,0,0,0.04);
-  --c-shadow-md:
-    0 1px 0 rgba(0,0,0,0.04),
-    2px 4px 12px rgba(0,0,0,0.06),
-    0 12px 32px rgba(0,0,0,0.05);
-  --c-shadow-lg:
-    0 0 0 0.5px rgba(0,0,0,0.06),
-    2px 4px 16px rgba(0,0,0,0.08),
-    0 24px 64px rgba(0,0,0,0.06);
-
   /* Navbar — warm tint, edge highlights baked into shadow token */
   --c-navbar: rgba(248, 246, 241, 0.84);
   --c-navbar-shadow:
@@ -181,6 +167,12 @@ body::before {
   box-shadow: var(--c-focus-glow);
 }
 
+/* ─── Shared form inputs — same focus illumination as the JD workspace ── */
+.form-input:focus-visible {
+  outline: none;
+  box-shadow: var(--c-focus-glow);
+}
+
 /* ─── Heading with directional light treatment ───────────────── */
 /* 1px upward highlight simulates light falling from above.        */
 .heading-lit {
@@ -206,20 +198,6 @@ body::before {
     --c-border:           rgba(255, 255, 255, 0.10);
     --c-border-subtle:    rgba(255, 255, 255, 0.06);
     --c-border-highlight: rgba(255, 255, 255, 0.09);
-
-    /* Shadows — dark directional */
-    --c-shadow-sm:
-      0 1px 0 rgba(0,0,0,0.4),
-      1px 2px 8px rgba(0,0,0,0.4),
-      0 4px 12px rgba(0,0,0,0.3);
-    --c-shadow-md:
-      0 1px 0 rgba(0,0,0,0.5),
-      2px 4px 12px rgba(0,0,0,0.5),
-      0 12px 32px rgba(0,0,0,0.4);
-    --c-shadow-lg:
-      0 0 0 0.5px rgba(255,255,255,0.06),
-      2px 4px 16px rgba(0,0,0,0.6),
-      0 24px 64px rgba(0,0,0,0.5);
 
     /* Navbar */
     --c-navbar: rgba(20, 18, 14, 0.90);

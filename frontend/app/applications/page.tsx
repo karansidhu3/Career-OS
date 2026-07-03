@@ -24,7 +24,7 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_TEXT: Record<string, string> = {
   generated: 'var(--c-accent)',
   applied:   'var(--c-success)',
-  skipped:   '#9ca3af',
+  skipped:   'var(--c-border)',
   interview: 'var(--c-warn)',
   offer:     'var(--c-warn)',
 }
@@ -73,7 +73,7 @@ function groupJobs(jobs: Job[]) {
 function AppRow({ job, i }: { job: Job; i: number }) {
   const router = useRouter()
   const isSpecial = job.status === 'interview' || job.status === 'offer'
-  const statusColor = STATUS_TEXT[job.status] ?? '#9ca3af'
+  const statusColor = STATUS_TEXT[job.status] ?? 'var(--c-border)'
 
   // Signal: first gap bullet from structured analysis, or first sentence of prose fallback
   const signal = (() => {
@@ -89,7 +89,7 @@ function AppRow({ job, i }: { job: Job; i: number }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...spring.standard, delay: i * 0.025 }}
-      className="w-full text-left flex items-center gap-3 py-3.5 group transition-colors"
+      className="w-full text-left flex items-center gap-3 -mx-3 px-3 py-3.5 rounded-xl group transition-colors hover:bg-[var(--c-icon-hover)]"
     >
       {/* Active status marker */}
       <div

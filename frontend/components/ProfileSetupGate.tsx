@@ -11,43 +11,8 @@ import {
   ProfileImportDraft,
 } from '@/lib/api'
 import { spring } from '@/lib/motion'
-
-const inputCls = "w-full px-3 py-2 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none"
-const inputStyle = { background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.07)' }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-neutral-400 mb-1">{label}</label>
-      {children}
-    </div>
-  )
-}
-
-function Input({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
-  return (
-    <input
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={inputCls}
-      style={inputStyle}
-    />
-  )
-}
-
-function PrimaryButton({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="px-5 py-2.5 rounded-2xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
-      style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-    >
-      {children}
-    </button>
-  )
-}
+import { Field, Input, PrimaryButton, inputCls, inputStyle } from '@/components/FormControls'
+import { SectionLabel } from '@/components/SectionLabel'
 
 type Stage =
   | { kind: 'choose' }
@@ -69,7 +34,7 @@ function ReviewEducation({ items, onChange }: { items: ImportedEducation[]; onCh
   if (items.length === 0) return null
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Education</p>
+      <SectionLabel>Education</SectionLabel>
       {items.map((e, i) => (
         <div key={i} className="flex items-start gap-3 py-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
           <div className="flex-1 grid grid-cols-2 gap-2">
@@ -87,7 +52,7 @@ function ReviewExperience({ items, onChange }: { items: ImportedExperience[]; on
   if (items.length === 0) return null
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Experience</p>
+      <SectionLabel>Experience</SectionLabel>
       {items.map((e, i) => (
         <div key={i} className="flex items-start gap-3 py-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
           <div className="flex-1 grid grid-cols-2 gap-2">
@@ -105,7 +70,7 @@ function ReviewProjects({ items, onChange }: { items: ImportedProject[]; onChang
   if (items.length === 0) return null
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Projects</p>
+      <SectionLabel>Projects</SectionLabel>
       {items.map((p, i) => (
         <div key={i} className="flex items-start gap-3 py-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
           <div className="flex-1">
@@ -122,7 +87,7 @@ function ReviewSkills({ items, onChange }: { items: ImportedSkillCategory[]; onC
   if (items.length === 0) return null
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Skills</p>
+      <SectionLabel>Skills</SectionLabel>
       {items.map((s, i) => (
         <div key={i} className="flex items-start gap-3 py-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
           <div className="flex-1 grid grid-cols-3 gap-2">

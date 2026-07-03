@@ -10,6 +10,7 @@ import { SessionManagement } from '@/components/SessionManagement'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
+import { Field, Input, SaveButton, CancelButton, inputCls, inputStyle } from '@/components/FormControls'
 
 // ---- Shared UI ----
 
@@ -35,54 +36,6 @@ function SectionHeader({
         </button>
       )}
     </div>
-  )
-}
-
-function SaveButton({ saving, onClick }: { saving: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={saving}
-      className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-50 transition-all"
-      style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-    >
-      {saving ? 'Saving…' : 'Save'}
-    </button>
-  )
-}
-
-function CancelButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="px-4 py-1.5 rounded-xl text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
-    >
-      Cancel
-    </button>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-neutral-400 mb-1">{label}</label>
-      {children}
-    </div>
-  )
-}
-
-const inputCls = "w-full px-3 py-2 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none"
-const inputStyle = { background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.07)' }
-
-function Input({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
-  return (
-    <input
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={inputCls}
-      style={inputStyle}
-    />
   )
 }
 
@@ -702,6 +655,10 @@ export default function ProfilePage() {
   // this toast is the immediate-window UX for it. The row stays recoverable
   // via the same restore endpoint even after the toast disappears — career
   // history is the most irreplaceable data in the product.
+  // Rule: this toast is reserved for deletes (reversible, but destructive in
+  // intent). Ordinary field saves use the inline SavedFlash checkmark instead —
+  // don't blur the two; the toast's weight should stay tied to "you just
+  // removed something."
   const [undoToast, setUndoToast] = useState<{ kind: 'project' | 'experience' | 'skill'; id: number; label: string } | null>(null)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1024,8 +981,7 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.05 }}
-        className="mb-10 pb-10"
-        style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
+        className="mb-10"
       >
         <SessionManagement />
       </motion.section>
@@ -1035,10 +991,14 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.06 }}
-        className="mb-10"
+        className="mb-10 pt-10"
+        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
       >
         <SectionHeader title="Projects" onAdd={addProject} adding={addingProject} />
         <div className="space-y-3">
+          {profile.projects.length === 0 && (
+            <p className="text-xs text-neutral-400">No projects added yet.</p>
+          )}
           <AnimatePresence>
             {profile.projects.map((p, i) => (
               <motion.div
@@ -1081,6 +1041,9 @@ export default function ProfilePage() {
       >
         <SectionHeader title="Experience" onAdd={addExperience} adding={addingExp} />
         <div className="space-y-3">
+          {profile.experience.length === 0 && (
+            <p className="text-xs text-neutral-400">No experience added yet.</p>
+          )}
           <AnimatePresence>
             {profile.experience.map((e, i) => (
               <motion.div
@@ -1123,6 +1086,9 @@ export default function ProfilePage() {
       >
         <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
         <div className="space-y-3">
+          {profile.skills.length === 0 && (
+            <p className="text-xs text-neutral-400">No skills added yet.</p>
+          )}
           <AnimatePresence>
             {profile.skills.map((s, i) => (
               <motion.div
@@ -1165,6 +1131,9 @@ export default function ProfilePage() {
       >
         <SectionHeader title="Education" />
         <div className="space-y-3">
+          {profile.education.length === 0 && (
+            <p className="text-xs text-neutral-400">No education added yet.</p>
+          )}
           {profile.education.map(e => (
             <div key={e.id} className="py-5" style={itemBorder}>
               <h3 className="text-sm font-semibold text-neutral-800">{e.school}</h3>
@@ -1207,7 +1176,7 @@ export default function ProfilePage() {
             exit={{ opacity: 0, y: 12 }}
             transition={spring.snappy}
             className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-3 rounded-xl text-sm z-50"
-            style={{ background: 'var(--c-ink, #18181B)', color: 'white', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}
+            style={{ background: 'var(--c-accent)', color: 'white', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}
           >
             <span>Deleted &ldquo;{undoToast.label}&rdquo;</span>
             <button onClick={performUndo} className="font-semibold underline underline-offset-2">

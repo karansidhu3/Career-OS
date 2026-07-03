@@ -4,29 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, CredentialStatus } from '@/lib/api'
 import { spring } from '@/lib/motion'
-
-const inputCls = "w-full px-3 py-2 rounded-xl text-sm text-neutral-700 placeholder-neutral-300 focus:outline-none"
-const inputStyle = { background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.07)' }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-neutral-400 mb-1">{label}</label>
-      {children}
-    </div>
-  )
-}
-
-function CancelButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="px-4 py-1.5 rounded-xl text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
-    >
-      Cancel
-    </button>
-  )
-}
+import { Field, inputCls, inputStyle, CancelButton, SaveButton } from '@/components/FormControls'
 
 function SavedFlash() {
   return (
@@ -133,14 +111,9 @@ export function ApiKeySettings({ onSaved }: { onSaved?: (status: CredentialStatu
               {editing && (
                 <CancelButton onClick={() => { setEditing(false); setError(null); setKeyInput('') }} />
               )}
-              <button
-                onClick={save}
-                disabled={saving || keyInput.trim().length < 10}
-                className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-50 transition-all"
-                style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-              >
-                {saving ? 'Verifying…' : 'Save key'}
-              </button>
+              <SaveButton saving={saving} onClick={save} disabled={keyInput.trim().length < 10} savingLabel="Verifying…">
+                Save key
+              </SaveButton>
             </div>
           </motion.div>
         ) : (
