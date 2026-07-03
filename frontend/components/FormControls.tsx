@@ -13,7 +13,7 @@ export const inputStyle = { background: 'rgba(0,0,0,0.03)', border: '1px solid r
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-neutral-400 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-neutral-600 mb-1">{label}</label>
       {children}
     </div>
   )
@@ -102,7 +102,7 @@ export function CancelButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="px-4 py-1.5 rounded-xl text-xs font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+      className="px-4 py-1.5 rounded-xl text-xs font-medium text-neutral-600 hover:text-neutral-700 transition-colors"
     >
       Cancel
     </button>

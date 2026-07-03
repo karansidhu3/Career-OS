@@ -66,7 +66,7 @@ export function AccountDataExport() {
   return (
     <div>
       <p className="text-sm font-semibold text-neutral-800 mb-1">Export your data</p>
-      <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
+      <p className="text-xs text-neutral-600 mb-4 leading-relaxed">
         A zip of your profile, every generated resume and cover letter, and your application history.
       </p>
 
@@ -91,7 +91,7 @@ export function AccountDataExport() {
           </motion.div>
         ) : exportState.status === 'processing' ? (
           <motion.div key="processing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={spring.snappy}>
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-neutral-600">
               Building your export — you&apos;ll get an email when it&apos;s ready. This page also updates automatically.
             </p>
           </motion.div>
@@ -104,7 +104,7 @@ export function AccountDataExport() {
             >
               Download export
             </button>
-            <span className="text-xs text-neutral-400">Ready</span>
+            <span className="text-xs text-neutral-600">Ready</span>
           </motion.div>
         )}
       </AnimatePresence>

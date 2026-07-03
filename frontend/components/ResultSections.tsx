@@ -33,7 +33,7 @@ export function SelectedProjectsBar({ projects }: { projects: string[] }) {
   if (!projects.length) return null
   return (
     <div className="flex items-center gap-2 flex-wrap mb-6">
-      <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-400 shrink-0">Emphasized</span>
+      <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-600 shrink-0">Emphasized</span>
       {projects.map(p => (
         <span
           key={p}
@@ -54,7 +54,7 @@ export function LatexSection({ latex }: { latex: string }) {
       <div className="flex items-center justify-between">
         <button
           onClick={() => setExpanded(v => !v)}
-          className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+          className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
         >
           {expanded ? 'Hide LaTeX source ↑' : 'LaTeX source ↓'}
         </button>
@@ -70,7 +70,7 @@ export function LatexSection({ latex }: { latex: string }) {
             className="overflow-hidden"
           >
             <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl p-4" style={{ background: 'var(--c-surface)' }}>
-              <pre className="text-xs font-mono text-neutral-500 leading-relaxed whitespace-pre-wrap break-all">
+              <pre className="text-xs font-mono text-neutral-600 leading-relaxed whitespace-pre-wrap break-all">
                 {latex}
               </pre>
             </div>
@@ -157,19 +157,22 @@ export function ResumePreview({
     >
       {failed ? (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
-          <p className="text-xs text-neutral-400">PDF preview unavailable — download to view</p>
+          <p className="text-xs text-neutral-600">PDF preview unavailable — download to view</p>
         </div>
       ) : !loaded && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
           <div className="flex flex-col items-center gap-3">
             <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
-            <p className="text-xs text-neutral-400">Compiling PDF…</p>
+            <p className="text-xs text-neutral-600">Compiling PDF…</p>
           </div>
         </div>
       )}
       {blobUrl && (
         <iframe
-          src={blobUrl}
+          // #toolbar=0&navpanes=0 suppresses Chrome's own native PDF viewer chrome —
+          // without it, the browser renders its own toolbar (zoom, page count, its
+          // own download button) directly on top of ResumeDownloadOverlay below.
+          src={`${blobUrl}#toolbar=0&navpanes=0`}
           onLoad={handleLoad}
           onError={handleError}
           title="Resume"

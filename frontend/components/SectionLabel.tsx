@@ -16,7 +16,7 @@ export function SectionLabel({
 }) {
   return (
     <p
-      className={`text-[11px] font-medium uppercase tracking-[0.07em] text-neutral-400 ${className ?? ''}`}
+      className={`text-[11px] font-medium uppercase tracking-[0.07em] text-neutral-600 ${className ?? ''}`}
       style={style}
     >
       {children}

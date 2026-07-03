@@ -68,7 +68,7 @@ function JdSection({ description }: { description: string }) {
     >
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full px-5 py-3.5 flex items-center justify-between text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
+        className="w-full px-5 py-3.5 flex items-center justify-between text-xs font-medium text-neutral-600 hover:text-neutral-700 transition-colors"
       >
         <span>View original job description</span>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -85,7 +85,7 @@ function JdSection({ description }: { description: string }) {
             className="overflow-hidden"
           >
             <div className="px-5 pb-5 max-h-[400px] overflow-y-auto">
-              <pre className="text-xs text-neutral-500 leading-relaxed whitespace-pre-wrap">
+              <pre className="text-xs text-neutral-600 leading-relaxed whitespace-pre-wrap">
                 {description}
               </pre>
             </div>
@@ -200,7 +200,7 @@ export default function JobPage() {
         <div className="pt-8 mb-10">
           <button
             onClick={() => router.push('/')}
-            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
+            className="text-sm text-neutral-600 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -235,7 +235,7 @@ export default function JobPage() {
         <div className="pt-8 mb-10">
           <button
             onClick={() => router.push('/')}
-            className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
+            className="text-sm text-neutral-600 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -251,7 +251,7 @@ export default function JobPage() {
           </div>
           <div className="text-center">
             <p className="text-neutral-700 font-medium">Generation failed</p>
-            <p className="text-sm text-neutral-500 mt-1">Claude didn't respond in time. Try again.</p>
+            <p className="text-sm text-neutral-600 mt-1">Claude didn't respond in time. Try again.</p>
           </div>
           <motion.button
             onClick={handleRegenerate} disabled={regenerating} whileTap={{ scale: 0.97 }}
@@ -280,7 +280,7 @@ export default function JobPage() {
       >
         <button
           onClick={() => router.back()}
-          className="text-sm text-neutral-500 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
+          className="text-sm text-neutral-600 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -319,7 +319,7 @@ export default function JobPage() {
               Mark applied
             </button>
             <button onClick={() => handleStatus('skipped')} disabled={updating}
-              className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors">
+              className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors">
               Skip
             </button>
           </>
@@ -332,7 +332,7 @@ export default function JobPage() {
               Got interview
             </button>
             <button onClick={() => handleStatus('generated')} disabled={updating}
-              className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+              className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors">
               ← Unmark
             </button>
           </>
@@ -345,20 +345,20 @@ export default function JobPage() {
               Got offer
             </button>
             <button onClick={() => handleStatus('applied')} disabled={updating}
-              className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+              className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors">
               ← Applied
             </button>
           </>
         )}
         {job.status === 'offer' && (
           <button onClick={() => handleStatus('interview')} disabled={updating}
-            className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+            className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors">
             ← Interview
           </button>
         )}
         {job.status === 'skipped' && (
           <button onClick={() => handleStatus('generated')} disabled={updating}
-            className="text-xs text-neutral-400 hover:text-neutral-600 disabled:opacity-40 transition-colors">
+            className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors">
             ← Reopen
           </button>
         )}
@@ -372,14 +372,14 @@ export default function JobPage() {
                 setUndoPrev(null)
                 handleStatus(undoPrev)
               }}
-              className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors underline decoration-neutral-300"
+              className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors underline decoration-neutral-300"
             >
               Undo
             </motion.button>
           )}
         </AnimatePresence>
         <button onClick={handleRegenerate} disabled={regenerating || updating}
-          className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+          className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
           {regenerating && (
             <span className="w-3 h-3 rounded-full animate-spin" style={{ border: '1.5px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
           )}
@@ -425,7 +425,7 @@ export default function JobPage() {
               <SelectedProjectsBar projects={job.selected_projects} />
             )}
             {(job.compression_attempts ?? 0) > 0 && (
-              <p className="text-xs text-neutral-400 font-mono -mt-1 mb-3">
+              <p className="text-xs text-neutral-600 font-mono -mt-1 mb-3">
                 compressed to 1 page · {job.compression_attempts} {job.compression_attempts === 1 ? 'pass' : 'passes'}
               </p>
             )}
@@ -461,7 +461,7 @@ export default function JobPage() {
                 {(job.compression_attempts ?? 0) >= 2 && (
                   <button
                     onClick={() => api.downloadResumePdfPage1(job.id, job.company)}
-                    className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+                    className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
                     title="Resume may exceed 1 page — download only the first page with links intact"
                   >
                     Page 1 only ↓

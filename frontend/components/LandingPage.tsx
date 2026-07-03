@@ -46,13 +46,13 @@ export function LandingPage() {
         </div>
 
         <h1 className="text-2xl font-semibold text-neutral-900 mb-3 text-center">CareerOS</h1>
-        <p className="text-sm text-neutral-500 text-center mb-10 leading-relaxed">
+        <p className="text-sm text-neutral-600 text-center mb-10 leading-relaxed">
           Paste a job description. Get a tailored resume and cover letter in 20 seconds.
         </p>
 
         <div className="rounded-2xl p-6 mb-6" style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
           <p className="text-[13px] font-medium text-neutral-800 mb-1.5">You bring your own AI key.</p>
-          <p className="text-[13px] text-neutral-500 leading-relaxed">
+          <p className="text-[13px] text-neutral-600 leading-relaxed">
             Every generation is billed to your own Anthropic account — CareerOS never sees or pays
             for your usage, and never has visibility into your generation costs.
           </p>
@@ -68,7 +68,7 @@ export function LandingPage() {
               className="text-center py-3"
             >
               <p className="text-sm font-medium" style={{ color: 'var(--c-success)' }}>You&rsquo;re on the list.</p>
-              <p className="text-xs text-neutral-400 mt-1">We&rsquo;ll email you when it&rsquo;s your turn.</p>
+              <p className="text-xs text-neutral-600 mt-1">We&rsquo;ll email you when it&rsquo;s your turn.</p>
             </motion.div>
           ) : (
             <motion.form
@@ -99,14 +99,14 @@ export function LandingPage() {
           )}
         </AnimatePresence>
 
-        <p className="text-xs text-neutral-400 text-center mt-8">
+        <p className="text-xs text-neutral-600 text-center mt-8">
           Already invited?{' '}
           <a href="/sign-in" className="text-neutral-600 hover:text-neutral-800 underline underline-offset-2">
             Sign in
           </a>
         </p>
 
-        <p className="text-xs text-neutral-400 text-center mt-3">
+        <p className="text-xs text-neutral-600 text-center mt-3">
           <a href="/terms" className="text-neutral-600 hover:text-neutral-800 underline underline-offset-2">Terms</a>
           {' · '}
           <a href="/privacy" className="text-neutral-600 hover:text-neutral-800 underline underline-offset-2">Privacy</a>

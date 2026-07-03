@@ -5,7 +5,7 @@ export const metadata = { title: 'Terms of Service — CareerOS' }
 export default function TermsPage() {
   return (
     <LegalPageShell title="Terms of Service" lastUpdated="July 2026">
-      <p className="text-xs italic text-neutral-400 border-l-2 pl-3" style={{ borderColor: 'var(--c-warn)' }}>
+      <p className="text-xs italic text-neutral-600 border-l-2 pl-3" style={{ borderColor: 'var(--c-warn)' }}>
         This is a starting draft, not a substitute for legal advice. It has not been reviewed by a
         lawyer. Do not rely on it as final before opening CareerOS to the public.
       </p>

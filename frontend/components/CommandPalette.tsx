@@ -14,7 +14,7 @@ type CommandPaletteProps = {
 }
 
 function scoreColor(score: number | null): string {
-  if (score == null) return 'var(--c-border)'
+  if (score == null) return 'var(--color-neutral-500)'
   if (score >= 8) return 'var(--c-success)'
   if (score >= 6) return 'var(--c-warn)'
   return 'var(--c-danger)'
@@ -163,7 +163,7 @@ export function CommandPalette({ open, onOpen, onClose }: CommandPaletteProps) {
               {/* Results */}
               <div className="py-1.5 max-h-64 overflow-y-auto">
                 {filtered.length === 0 ? (
-                  <p className="text-xs text-neutral-400 text-center py-8">
+                  <p className="text-xs text-neutral-600 text-center py-8">
                     {query ? 'No results' : 'No applications yet'}
                   </p>
                 ) : (
@@ -189,7 +189,7 @@ export function CommandPalette({ open, onOpen, onClose }: CommandPaletteProps) {
                             {job.title || 'Untitled'}
                           </p>
                           {job.company && (
-                            <p className="text-xs text-neutral-400 truncate mt-0.5">{job.company}</p>
+                            <p className="text-xs text-neutral-600 truncate mt-0.5">{job.company}</p>
                           )}
                         </div>
                         <div className="shrink-0 text-right">
@@ -201,7 +201,7 @@ export function CommandPalette({ open, onOpen, onClose }: CommandPaletteProps) {
                               {job.fit_score}/10
                             </p>
                           )}
-                          <p className="text-[11px] text-neutral-400 mt-0.5">
+                          <p className="text-[11px] text-neutral-600 mt-0.5">
                             {job.created_at ? relativeDate(job.created_at) : ''}
                           </p>
                         </div>
@@ -219,7 +219,7 @@ export function CommandPalette({ open, onOpen, onClose }: CommandPaletteProps) {
                 <span className="text-[11px] text-neutral-400">↑↓ navigate · ↵ open</span>
                 <button
                   onClick={() => { onClose(); router.push('/applications') }}
-                  className="text-[11px] text-neutral-400 hover:text-neutral-600 transition-colors"
+                  className="text-[11px] text-neutral-600 hover:text-neutral-700 transition-colors"
                 >
                   View all →
                 </button>

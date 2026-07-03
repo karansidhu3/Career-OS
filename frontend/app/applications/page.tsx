@@ -24,13 +24,13 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_TEXT: Record<string, string> = {
   generated: 'var(--c-accent)',
   applied:   'var(--c-success)',
-  skipped:   'var(--c-border)',
+  skipped:   'var(--color-neutral-500)',
   interview: 'var(--c-warn)',
   offer:     'var(--c-warn)',
 }
 
 function scoreColor(score: number | null): string {
-  if (score == null) return 'var(--c-border)'
+  if (score == null) return 'var(--color-neutral-500)'
   if (score >= 8) return 'var(--c-success)'
   if (score >= 6) return 'var(--c-warn)'
   return 'var(--c-danger)'
@@ -73,7 +73,7 @@ function groupJobs(jobs: Job[]) {
 function AppRow({ job, i }: { job: Job; i: number }) {
   const router = useRouter()
   const isSpecial = job.status === 'interview' || job.status === 'offer'
-  const statusColor = STATUS_TEXT[job.status] ?? 'var(--c-border)'
+  const statusColor = STATUS_TEXT[job.status] ?? 'var(--color-neutral-500)'
 
   // Signal: first gap bullet from structured analysis, or first sentence of prose fallback
   const signal = (() => {
@@ -102,11 +102,11 @@ function AppRow({ job, i }: { job: Job; i: number }) {
         <p className="text-[13.5px] font-medium text-neutral-700 group-hover:text-neutral-900 truncate transition-colors leading-snug">
           {job.title}
           {job.company && (
-            <span className="font-normal text-neutral-500"> · {job.company}</span>
+            <span className="font-normal text-neutral-600"> · {job.company}</span>
           )}
         </p>
         {signal && (
-          <p className="text-xs text-neutral-500 truncate mt-0.5 group-hover:text-neutral-600 transition-colors">
+          <p className="text-xs text-neutral-600 truncate mt-0.5 group-hover:text-neutral-700 transition-colors">
             {signal}
           </p>
         )}
@@ -128,7 +128,7 @@ function AppRow({ job, i }: { job: Job; i: number }) {
       </span>
 
       {/* Date */}
-      <span className="text-xs text-neutral-500 font-mono tabular-nums shrink-0">
+      <span className="text-xs text-neutral-600 font-mono tabular-nums shrink-0">
         {job.created_at ? relativeDate(job.created_at) : ''}
       </span>
     </motion.button>
@@ -150,15 +150,46 @@ function Rows({ jobs, startIndex = 0 }: { jobs: Job[]; startIndex?: number }) {
   )
 }
 
+// ─── Loading skeleton — mirrors the real layout so nothing reflows on arrival ──
+
+function ApplicationsSkeleton() {
+  return (
+    <div className="pointer-events-none" aria-hidden>
+      <div className="flex gap-1 mb-8 mt-5">
+        <div className="h-7 w-14 rounded-xl skeleton-shimmer" />
+        <div className="h-7 w-20 rounded-xl skeleton-shimmer" />
+        <div className="h-7 w-16 rounded-xl skeleton-shimmer" />
+      </div>
+      <div className="h-3 w-16 rounded skeleton-shimmer mb-4" />
+      {[68, 52, 61, 45].map((w, i) => (
+        <div key={i} className="flex items-center justify-between py-3.5" style={i < 3 ? { borderBottom: '1px solid var(--c-border)' } : undefined}>
+          <div className="flex-1 min-w-0">
+            <div className="h-3.5 rounded skeleton-shimmer mb-2" style={{ width: `${w}%` }} />
+            <div className="h-3 w-1/3 rounded skeleton-shimmer" />
+          </div>
+          <div className="shrink-0 flex items-center gap-4 ml-4">
+            <div className="h-3 w-8 rounded skeleton-shimmer" />
+            <div className="h-3 w-12 rounded skeleton-shimmer" />
+            <div className="h-3 w-10 rounded skeleton-shimmer" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function ApplicationsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [showStale, setShowStale] = useState(false)
 
   const load = useCallback(async () => {
-    try { setJobs(await api.listJobs()) } catch { /* offline */ }
+    try { setJobs(await api.listJobs()) }
+    catch { /* offline */ }
+    finally { setLoaded(true) }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -184,10 +215,14 @@ export default function ApplicationsPage() {
           <BrandMark size={28} physicalStroke={1.5} />
         </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Applications</h1>
-        <p className="text-neutral-600 mt-1 text-sm">{jobs.length} total</p>
+        {loaded ? (
+          <p className="text-neutral-600 mt-1 text-sm">{jobs.length} total</p>
+        ) : (
+          <div className="h-4 w-16 rounded skeleton-shimmer mt-2" aria-hidden />
+        )}
 
         {/* Filter tabs — only show tabs with items */}
-        {jobs.length > 0 && (
+        {loaded && jobs.length > 0 && (
           <div className="flex gap-1 mt-5 p-1 rounded-2xl w-fit" style={{ background: 'var(--c-surface)' }}>
             {FILTERS.map(f => {
               const count = f === 'all' ? jobs.length : jobs.filter(j => j.status === f).length
@@ -197,7 +232,7 @@ export default function ApplicationsPage() {
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 capitalize ${
-                    filter === f ? 'text-neutral-900' : 'text-neutral-500'
+                    filter === f ? 'text-neutral-900' : 'text-neutral-600'
                   }`}
                   style={filter === f
                     ? { background: 'var(--c-surface-raised)', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }
@@ -212,11 +247,13 @@ export default function ApplicationsPage() {
         )}
       </motion.div>
 
-      {filtered.length === 0 ? (
+      {!loaded ? (
+        <ApplicationsSkeleton />
+      ) : filtered.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-center py-24 text-neutral-500 text-sm"
+          className="text-center py-24 text-neutral-600 text-sm"
         >
           {jobs.length === 0
             ? 'No applications yet. Go to Home and paste a job description.'
@@ -270,7 +307,7 @@ export default function ApplicationsPage() {
                     <SectionLabel>Older applied</SectionLabel>
                     <button
                       onClick={() => setShowStale(false)}
-                      className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                      className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
                     >
                       hide
                     </button>
@@ -280,7 +317,7 @@ export default function ApplicationsPage() {
               ) : (
                 <button
                   onClick={() => setShowStale(true)}
-                  className="w-full text-left py-2 text-xs text-neutral-400 hover:text-neutral-500 transition-colors"
+                  className="w-full text-left py-2 text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
                 >
                   {stale.length} older applied {stale.length === 1 ? 'application' : 'applications'} — likely no response
                 </button>

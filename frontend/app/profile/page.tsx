@@ -26,7 +26,7 @@ function SectionHeader({
         <button
           onClick={onAdd}
           disabled={adding}
-          className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors disabled:opacity-40"
+          className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors disabled:opacity-40"
         >
           {adding ? 'Adding…' : '+ Add'}
         </button>
@@ -71,7 +71,7 @@ function TechTags({ tags }: { tags: string[] }) {
 function DescriptionText({ text }: { text: string }) {
   if (!text) return null
   return (
-    <p className="text-sm text-neutral-500 leading-relaxed mt-2 whitespace-pre-wrap">{text}</p>
+    <p className="text-sm text-neutral-600 leading-relaxed mt-2 whitespace-pre-wrap">{text}</p>
   )
 }
 
@@ -208,7 +208,7 @@ function ProjectCard({
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     transition={{ duration: 0.1 }}
                     onClick={() => setConfirmDelete(true)}
-                    className="text-xs text-neutral-400 hover:text-red-400 transition-colors"
+                    className="text-xs text-neutral-600 hover:text-red-400 transition-colors"
                   >
                     Delete project
                   </motion.button>
@@ -227,7 +227,7 @@ function ProjectCard({
                     </button>
                     <button
                       onClick={() => setConfirmDelete(false)}
-                      className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                      className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
                     >
                       Cancel
                     </button>
@@ -254,7 +254,7 @@ function ProjectCard({
                 <div className="flex items-center gap-2.5 mb-1">
                   <h3 className="text-sm font-semibold text-neutral-800">{project.name}</h3>
                   {(project.start_date || project.end_date) && (
-                    <span className="text-xs text-neutral-400">
+                    <span className="text-xs text-neutral-600">
                       {project.start_date} – {project.end_date || 'Present'}
                     </span>
                   )}
@@ -280,7 +280,7 @@ function ProjectCard({
               <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
                 <button onClick={() => setEditing(true)}
-                  className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors">
+                  className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">
                   Edit
                 </button>
               </div>
@@ -381,7 +381,7 @@ function ExperienceCard({
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     transition={{ duration: 0.1 }}
                     onClick={() => setConfirmDelete(true)}
-                    className="text-xs text-neutral-400 hover:text-red-400 transition-colors"
+                    className="text-xs text-neutral-600 hover:text-red-400 transition-colors"
                   >
                     Delete
                   </motion.button>
@@ -400,7 +400,7 @@ function ExperienceCard({
                     </button>
                     <button
                       onClick={() => setConfirmDelete(false)}
-                      className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                      className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
                     >
                       Cancel
                     </button>
@@ -426,10 +426,10 @@ function ExperienceCard({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <h3 className="text-sm font-semibold text-neutral-800">{exp.role}</h3>
-                  <span className="text-neutral-400 text-sm">at {exp.company}</span>
+                  <span className="text-neutral-600 text-sm">at {exp.company}</span>
                   <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
                 </div>
-                <p className="text-xs text-neutral-400 mb-1">
+                <p className="text-xs text-neutral-600 mb-1">
                   {exp.start_date} – {exp.end_date || 'Present'}
                   {exp.location && <span className="ml-2 text-neutral-300">· {exp.location}</span>}
                 </p>
@@ -438,7 +438,7 @@ function ExperienceCard({
               <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
                 <button onClick={() => setEditing(true)}
-                  className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors">
+                  className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">
                   Edit
                 </button>
               </div>
@@ -462,7 +462,7 @@ function SkillDeleteButton({ onDelete }: { onDelete: () => void }) {
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: 0.1 }}
           onClick={() => setConfirmDelete(true)}
-          className="text-xs text-neutral-400 hover:text-red-400 transition-colors"
+          className="text-xs text-neutral-600 hover:text-red-400 transition-colors"
         >
           Delete
         </motion.button>
@@ -481,7 +481,7 @@ function SkillDeleteButton({ onDelete }: { onDelete: () => void }) {
           </button>
           <button
             onClick={() => setConfirmDelete(false)}
-            className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+            className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
           >
             Cancel
           </button>
@@ -562,14 +562,14 @@ function SkillCard({
           <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <p className="text-xs text-neutral-400 mb-2">{skill.category}</p>
+                <p className="text-xs text-neutral-600 mb-2">{skill.category}</p>
                 <TechTags tags={skill.items} />
               </div>
               <div className="shrink-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
                 <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
                 <button onClick={() => setEditing(true)}
-                  className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors">
+                  className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">
                   Edit
                 </button>
               </div>
@@ -615,7 +615,7 @@ function VoiceEditor({ personal, onSave }: { personal: import('@/lib/api').Perso
           {savedFlash && <SavedFlash />}
         </AnimatePresence>
       </div>
-      <p className="text-xs text-neutral-400 mb-3 leading-relaxed">
+      <p className="text-xs text-neutral-600 mb-3 leading-relaxed">
         How you write. Paste a sentence or two from something you've written that sounds like you,
         or describe your tone. Fed into every cover letter generation.
       </p>
@@ -727,7 +727,7 @@ export default function ProfilePage() {
   if (loadError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <p className="text-neutral-400 text-sm">Could not reach the backend.</p>
+        <p className="text-neutral-600 text-sm">Could not reach the backend.</p>
         <button
           onClick={load}
           className="px-4 py-2 rounded-xl text-sm font-medium text-white"
@@ -948,7 +948,7 @@ export default function ProfilePage() {
           <BrandMark size={28} physicalStroke={1.5} />
         </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Background</h1>
-        <p className="text-sm text-neutral-400 mt-1">
+        <p className="text-sm text-neutral-600 mt-1">
           What CareerOS knows about you — read by every generation. Account and billing live separately, under Account.
         </p>
       </motion.div>
@@ -963,7 +963,7 @@ export default function ProfilePage() {
         <SectionHeader title="Projects" onAdd={addProject} adding={addingProject} />
         <div className="space-y-3">
           {profile.projects.length === 0 && (
-            <p className="text-xs text-neutral-400">No projects added yet.</p>
+            <p className="text-xs text-neutral-600">No projects added yet.</p>
           )}
           <AnimatePresence>
             {profile.projects.map((p, i) => (
@@ -1008,7 +1008,7 @@ export default function ProfilePage() {
         <SectionHeader title="Experience" onAdd={addExperience} adding={addingExp} />
         <div className="space-y-3">
           {profile.experience.length === 0 && (
-            <p className="text-xs text-neutral-400">No experience added yet.</p>
+            <p className="text-xs text-neutral-600">No experience added yet.</p>
           )}
           <AnimatePresence>
             {profile.experience.map((e, i) => (
@@ -1053,7 +1053,7 @@ export default function ProfilePage() {
         <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
         <div className="space-y-3">
           {profile.skills.length === 0 && (
-            <p className="text-xs text-neutral-400">No skills added yet.</p>
+            <p className="text-xs text-neutral-600">No skills added yet.</p>
           )}
           <AnimatePresence>
             {profile.skills.map((s, i) => (
@@ -1098,13 +1098,13 @@ export default function ProfilePage() {
         <SectionHeader title="Education" />
         <div className="space-y-3">
           {profile.education.length === 0 && (
-            <p className="text-xs text-neutral-400">No education added yet.</p>
+            <p className="text-xs text-neutral-600">No education added yet.</p>
           )}
           {profile.education.map(e => (
             <div key={e.id} className="py-5" style={itemBorder}>
               <h3 className="text-sm font-semibold text-neutral-800">{e.school}</h3>
-              <p className="text-sm text-neutral-500 mt-0.5">{e.degree}{e.minor ? `, Minor in ${e.minor}` : ''}</p>
-              <p className="text-xs text-neutral-400 mt-1">{e.start_date} – {e.end_date}</p>
+              <p className="text-sm text-neutral-600 mt-0.5">{e.degree}{e.minor ? `, Minor in ${e.minor}` : ''}</p>
+              <p className="text-xs text-neutral-600 mt-1">{e.start_date} – {e.end_date}</p>
             </div>
           ))}
         </div>

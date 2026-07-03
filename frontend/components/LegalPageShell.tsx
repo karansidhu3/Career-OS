@@ -13,11 +13,11 @@ export function LegalPageShell({
 }) {
   return (
     <div className="max-w-2xl mx-auto px-6 pb-24 pt-4">
-      <Link href="/" className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors">
+      <Link href="/" className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">
         ← CareerOS
       </Link>
       <h1 className="text-2xl font-semibold text-neutral-900 mt-6 mb-1">{title}</h1>
-      <p className="text-xs text-neutral-400 mb-10">Last updated {lastUpdated}</p>
+      <p className="text-xs text-neutral-600 mb-10">Last updated {lastUpdated}</p>
       <div className="prose-legal text-[14px] text-neutral-700 leading-relaxed space-y-6">
         {children}
       </div>

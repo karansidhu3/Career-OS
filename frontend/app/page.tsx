@@ -64,7 +64,7 @@ function StatusActions({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       <button
         onClick={() => mark('interview')}
         disabled={!!updating}
-        className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
+        className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors"
       >
         {updating === 'interview' ? 'Saving…' : 'Got interview'}
       </button>
@@ -85,7 +85,7 @@ function StatusActions({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       <button
         onClick={() => mark('interview')}
         disabled={!!updating}
-        className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
+        className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors"
       >
         {updating === 'interview' ? 'Saving…' : 'Got interview'}
       </button>
@@ -163,7 +163,7 @@ function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) =
           <button
             onClick={save}
             disabled={saving}
-            className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-40 transition-colors"
+            className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors"
           >
             {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save edits'}
           </button>
@@ -521,7 +521,7 @@ export default function Home() {
           <motion.div key="needs-key" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
             <div className="pt-16 max-w-md mx-auto">
               <h1 className="text-2xl font-semibold text-neutral-900 mb-2 text-center">Add your Anthropic API key</h1>
-              <p className="text-sm text-neutral-500 text-center mb-10 leading-relaxed">
+              <p className="text-sm text-neutral-600 text-center mb-10 leading-relaxed">
                 One last thing — CareerOS runs on your own key. Every generation is billed to you, never to us.
               </p>
               <ApiKeySettings onSaved={() => setAppState({ mode: 'idle' })} />
@@ -610,7 +610,7 @@ export default function Home() {
               {/* ── Output hint — what arrives, or setup nudge if profile is empty ── */}
               <div className="mt-3 text-center">
                 {profileEmpty ? (
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-neutral-600">
                     <Link
                       href="/profile"
                       className="underline decoration-neutral-300 hover:text-neutral-600 transition-colors"
@@ -620,7 +620,7 @@ export default function Home() {
                     {' '}for a tailored resume
                   </p>
                 ) : (
-                  <p className="text-xs text-neutral-400 tracking-wide">
+                  <p className="text-xs text-neutral-600 tracking-wide">
                     Resume · Cover letter · Fit analysis
                   </p>
                 )}
@@ -649,7 +649,7 @@ export default function Home() {
                           <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-tight mb-2">
                             {insights.count} application{insights.count === 1 ? '' : 's'}
                           </p>
-                          <p className="text-sm text-neutral-500 leading-relaxed">
+                          <p className="text-sm text-neutral-600 leading-relaxed">
                             Apply to {3 - insights.count} more for a candidacy read.
                           </p>
                         </>
@@ -727,7 +727,7 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={spring.gentle}
-                  className="text-[14px] text-neutral-500 text-center"
+                  className="text-[14px] text-neutral-600 text-center"
                 >
                   {getGenMessage(genElapsed)}
                 </motion.p>
@@ -758,7 +758,7 @@ export default function Home() {
                 className={`text-sm transition-colors flex items-center gap-1.5 ${
                   resumeDownloaded
                     ? 'text-neutral-700 hover:text-neutral-900 font-medium'
-                    : 'text-neutral-500 hover:text-neutral-800'
+                    : 'text-neutral-600 hover:text-neutral-800'
                 }`}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -841,7 +841,7 @@ export default function Home() {
                   <SelectedProjectsBar projects={appState.job.selected_projects} />
                 )}
                 {(appState.job.compression_attempts ?? 0) > 0 && (
-                  <p className="text-xs text-neutral-400 font-mono -mt-1 mb-3">
+                  <p className="text-xs text-neutral-600 font-mono -mt-1 mb-3">
                     compressed to 1 page · {appState.job.compression_attempts} {appState.job.compression_attempts === 1 ? 'pass' : 'passes'}
                   </p>
                 )}
@@ -900,7 +900,7 @@ export default function Home() {
                   {(appState.job.compression_attempts ?? 0) >= 2 && (
                     <button
                       onClick={() => api.downloadResumePdfPage1(appState.job.id, appState.job.company)}
-                      className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+                      className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
                       title="Resume may exceed 1 page — download only the first page with links intact"
                     >
                       Page 1 only ↓
@@ -984,7 +984,7 @@ export default function Home() {
                 )}
                 <button
                   onClick={resetToIdle}
-                  className="px-4 py-2.5 rounded-2xl text-sm font-medium text-neutral-500 transition-colors hover:text-neutral-700"
+                  className="px-4 py-2.5 rounded-2xl text-sm font-medium text-neutral-600 transition-colors hover:text-neutral-700"
                   style={{ background: 'rgba(0,0,0,0.04)' }}
                 >
                   Start over

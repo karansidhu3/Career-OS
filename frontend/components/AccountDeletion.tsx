@@ -63,7 +63,7 @@ export function AccountDeletion() {
 
       {scheduledDate ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={spring.snappy}>
-          <p className="text-xs text-neutral-500 mb-3 leading-relaxed">
+          <p className="text-xs text-neutral-600 mb-3 leading-relaxed">
             Your account and all data will be permanently deleted on <strong>{scheduledDate}</strong>.
           </p>
           {error && <p className="text-xs mb-3" style={{ color: 'var(--c-danger)' }}>{error}</p>}
@@ -78,7 +78,7 @@ export function AccountDeletion() {
         </motion.div>
       ) : (
         <>
-          <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
+          <p className="text-xs text-neutral-600 mb-4 leading-relaxed">
             Permanently deletes your profile, every generated resume and cover letter, and your
             application history, after a 7-day grace period. You can cancel any time before then.
           </p>
@@ -101,7 +101,7 @@ export function AccountDeletion() {
                 initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.snappy}
                 className="space-y-3"
               >
-                <label className="block text-xs text-neutral-500">
+                <label className="block text-xs text-neutral-600">
                   Type <span className="font-mono font-semibold text-neutral-700">DELETE</span> to confirm
                 </label>
                 <input

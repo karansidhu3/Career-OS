@@ -41,7 +41,7 @@ function ReviewEducation({ items, onChange }: { items: ImportedEducation[]; onCh
             <Input value={e.school} onChange={v => onChange(items.map((x, j) => j === i ? { ...x, school: v } : x))} placeholder="School" />
             <Input value={e.degree} onChange={v => onChange(items.map((x, j) => j === i ? { ...x, degree: v } : x))} placeholder="Degree" />
           </div>
-          <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-xs text-neutral-400 hover:text-red-400 mt-2 transition-colors">Remove</button>
+          <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-xs text-neutral-600 hover:text-red-400 mt-2 transition-colors">Remove</button>
         </div>
       ))}
     </div>
@@ -59,7 +59,7 @@ function ReviewExperience({ items, onChange }: { items: ImportedExperience[]; on
             <Input value={e.role} onChange={v => onChange(items.map((x, j) => j === i ? { ...x, role: v } : x))} placeholder="Role" />
             <Input value={e.company} onChange={v => onChange(items.map((x, j) => j === i ? { ...x, company: v } : x))} placeholder="Company" />
           </div>
-          <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-xs text-neutral-400 hover:text-red-400 mt-2 transition-colors">Remove</button>
+          <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-xs text-neutral-600 hover:text-red-400 mt-2 transition-colors">Remove</button>
         </div>
       ))}
     </div>
@@ -76,7 +76,7 @@ function ReviewProjects({ items, onChange }: { items: ImportedProject[]; onChang
           <div className="flex-1">
             <Input value={p.name} onChange={v => onChange(items.map((x, j) => j === i ? { ...x, name: v } : x))} placeholder="Project name" />
           </div>
-          <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-xs text-neutral-400 hover:text-red-400 mt-2 transition-colors">Remove</button>
+          <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-xs text-neutral-600 hover:text-red-400 mt-2 transition-colors">Remove</button>
         </div>
       ))}
     </div>
@@ -100,7 +100,7 @@ function ReviewSkills({ items, onChange }: { items: ImportedSkillCategory[]; onC
               />
             </div>
           </div>
-          <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-xs text-neutral-400 hover:text-red-400 mt-2 transition-colors">Remove</button>
+          <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-xs text-neutral-600 hover:text-red-400 mt-2 transition-colors">Remove</button>
         </div>
       ))}
     </div>
@@ -185,7 +185,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
         {stage.kind === 'choose' && (
           <motion.div key="choose" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
             <h1 className="text-2xl font-semibold text-neutral-900 mb-2 text-center">Set up your profile</h1>
-            <p className="text-sm text-neutral-500 text-center mb-10 leading-relaxed">
+            <p className="text-sm text-neutral-600 text-center mb-10 leading-relaxed">
               CareerOS reads this to write tailored resumes and cover letters.
             </p>
             <div className="space-y-3">
@@ -195,7 +195,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
                 style={{ border: '1px solid var(--c-border)' }}
               >
                 <p className="text-sm font-semibold text-neutral-800">Upload existing resume</p>
-                <p className="text-xs text-neutral-400 mt-0.5">PDF or DOCX — we&apos;ll extract your info for review</p>
+                <p className="text-xs text-neutral-600 mt-0.5">PDF or DOCX — we&apos;ll extract your info for review</p>
               </button>
               <input ref={fileInputRef} type="file" accept=".pdf,.docx" className="hidden" onChange={handleFileChange} />
 
@@ -205,7 +205,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
                 style={{ border: '1px solid var(--c-border)' }}
               >
                 <p className="text-sm font-semibold text-neutral-800">Paste resume text</p>
-                <p className="text-xs text-neutral-400 mt-0.5">Copy from anywhere — no file needed</p>
+                <p className="text-xs text-neutral-600 mt-0.5">Copy from anywhere — no file needed</p>
               </button>
 
               <button
@@ -214,7 +214,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
                 style={{ border: '1px solid var(--c-border)' }}
               >
                 <p className="text-sm font-semibold text-neutral-800">Start from scratch</p>
-                <p className="text-xs text-neutral-400 mt-0.5">Add your name and fill in the rest later</p>
+                <p className="text-xs text-neutral-600 mt-0.5">Add your name and fill in the rest later</p>
               </button>
             </div>
           </motion.div>
@@ -232,7 +232,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
               style={inputStyle}
             />
             <div className="flex items-center justify-between mt-4">
-              <button onClick={() => setStage({ kind: 'choose' })} className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors">Back</button>
+              <button onClick={() => setStage({ kind: 'choose' })} className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">Back</button>
               <PrimaryButton onClick={() => runExtraction({ text: pasteText })} disabled={pasteText.trim().length < 20}>
                 Extract profile
               </PrimaryButton>
@@ -243,7 +243,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
         {stage.kind === 'extracting' && (
           <motion.div key="extracting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-4 pt-12">
             <div className="w-8 h-8 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
-            <p className="text-sm text-neutral-500">Reading your resume…</p>
+            <p className="text-sm text-neutral-600">Reading your resume…</p>
           </motion.div>
         )}
 
@@ -251,8 +251,8 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
           <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center pt-12">
             <p className="text-sm text-neutral-700 font-medium mb-2">{stage.message}</p>
             <div className="flex items-center justify-center gap-4 mt-4">
-              <button onClick={() => setStage({ kind: 'paste' })} className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors">Paste text instead</button>
-              <button onClick={() => setStage({ kind: 'choose' })} className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors">Start over</button>
+              <button onClick={() => setStage({ kind: 'paste' })} className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">Paste text instead</button>
+              <button onClick={() => setStage({ kind: 'choose' })} className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">Start over</button>
             </div>
           </motion.div>
         )}
@@ -264,11 +264,11 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
               <Field label="Name"><Input value={name} onChange={setName} placeholder="Jane Doe" /></Field>
               <Field label="Email"><Input value={email} onChange={setEmail} placeholder="jane@example.com" /></Field>
             </div>
-            <p className="text-xs text-neutral-400 mt-4 leading-relaxed">
+            <p className="text-xs text-neutral-600 mt-4 leading-relaxed">
               Add education, experience, projects, and skills on the Profile page whenever you&apos;re ready.
             </p>
             <div className="flex items-center justify-between mt-6">
-              <button onClick={() => setStage({ kind: 'choose' })} className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors">Back</button>
+              <button onClick={() => setStage({ kind: 'choose' })} className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">Back</button>
               <PrimaryButton onClick={saveScratch} disabled={busy || !name.trim() || !email.trim()}>
                 {busy ? 'Saving…' : 'Continue'}
               </PrimaryButton>
@@ -279,7 +279,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
         {stage.kind === 'review' && (
           <motion.div key="review" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle} className="max-w-xl">
             <h1 className="text-2xl font-semibold text-neutral-900 mb-2 text-center">Review what we found</h1>
-            <p className="text-xs text-neutral-400 text-center mb-8 leading-relaxed">
+            <p className="text-xs text-neutral-600 text-center mb-8 leading-relaxed">
               Edit anything that&apos;s wrong, remove anything you don&apos;t want. Nothing is saved until you confirm.
             </p>
 
@@ -308,7 +308,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
             </div>
 
             <div className="flex items-center justify-between mt-8">
-              <button onClick={() => setStage({ kind: 'choose' })} className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors">Start over</button>
+              <button onClick={() => setStage({ kind: 'choose' })} className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">Start over</button>
               <PrimaryButton onClick={() => saveReviewedDraft(stage.draft)} disabled={busy || !name.trim() || !email.trim()}>
                 {busy ? 'Saving…' : 'Looks good — save my profile'}
               </PrimaryButton>
