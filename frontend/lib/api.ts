@@ -127,21 +127,6 @@ export interface AccountDeletionStatus {
   scheduled_deletion_at: string | null
 }
 
-// ---- Session management (Phase 6) ----
-
-export interface AccountSession {
-  id: string
-  status: string
-  last_active_at: string | null
-  created_at: string | null
-  browser: string | null
-  device_type: string | null
-  ip_address: string | null
-  city: string | null
-  country: string | null
-  is_current: boolean
-}
-
 // ---- Resume import (Phase 4) ----
 
 export interface ImportedPersonal {
@@ -327,13 +312,6 @@ export const api = {
   getDeletionStatus: () => request<AccountDeletionStatus>('/admin/account/delete'),
   requestDeletion: () => request<AccountDeletionStatus>('/admin/account/delete', { method: 'POST' }),
   cancelDeletion: () => request<AccountDeletionStatus>('/admin/account/delete', { method: 'DELETE' }),
-
-  // Session management (Phase 6)
-  listSessions: () => request<AccountSession[]>('/admin/account/sessions'),
-  revokeSession: (id: string) =>
-    request<{ status: string }>(`/admin/account/sessions/${id}/revoke`, { method: 'POST' }),
-  revokeOtherSessions: () =>
-    request<{ revoked: string[] }>('/admin/account/sessions/revoke-others', { method: 'POST' }),
 
   // Resume import — draft only, never written to the profile until the caller
   // saves each reviewed item via the CRUD methods above.

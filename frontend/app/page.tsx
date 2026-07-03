@@ -15,7 +15,7 @@ import { SectionLabel } from '@/components/SectionLabel'
 import { ScoreRing } from '@/components/ScoreRing'
 import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, ResumeDownloadOverlay } from '@/components/ResultSections'
 import { spring } from '@/lib/motion'
-import { relativeDate, parseStrategicNote } from '@/lib/utils'
+import { parseStrategicNote } from '@/lib/utils'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -34,13 +34,6 @@ function getGenMessage(elapsed: number): string {
   if (elapsed < 14) return 'Generating your application…'
   if (elapsed < 32) return 'Matching your background to this role…'
   return 'Finishing your resume…'
-}
-
-function scoreColor(score: number | null): string {
-  if (score == null) return 'var(--c-border)'
-  if (score >= 8) return 'var(--c-success)'
-  if (score >= 6) return 'var(--c-warn)'
-  return 'var(--c-danger)'
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -242,8 +235,6 @@ export default function Home() {
   const [jd, setJd] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [genElapsed, setGenElapsed] = useState(0)
-  const [recentJobs, setRecentJobs] = useState<Job[]>([])
-  const [recentJobsLoaded, setRecentJobsLoaded] = useState(false)
   // Download state — completion signals loop has ended; loading shows compile progress
   const [resumeDownloaded, setResumeDownloaded] = useState(false)
   const [resumeDownloading, setResumeDownloading] = useState(false)
@@ -287,15 +278,6 @@ export default function Home() {
     sessionStorage.setItem('careeros-jd', value)
   }
 
-  // ── Load recent jobs for the idle list ──
-  const loadRecent = useCallback(async () => {
-    try {
-      const jobs = await api.listJobs()
-      setRecentJobs(jobs.slice(0, 4))
-    } catch { /* offline */ }
-    finally { setRecentJobsLoaded(true) }
-  }, [])
-
   // ── Load candidacy insights — with localStorage cache ──
   const loadInsights = useCallback(async (force = false) => {
     const CACHE_KEY = 'careeros-insights-v2'
@@ -334,7 +316,6 @@ export default function Home() {
     }
   }, [appState])
 
-  useEffect(() => { loadRecent() }, [loadRecent])
   useEffect(() => { loadInsights() }, [loadInsights])
 
   // Fetch PDF once per result job — shared between mobile and desktop ResumePreview renders
@@ -364,20 +345,24 @@ export default function Home() {
     }
   }, [resultJobId])
 
-  // ── Onboarding gate — enforced order: API key → profile → idle. Runs once on
-  // mount; any check failing (offline, etc.) fails open to idle rather than
-  // blocking a returning user on a transient network hiccup. ──
+  // ── Onboarding gate — enforced order: profile → API key → idle. Profile
+  // setup is free, low-risk, and shows the product learning about the user
+  // before asking for a billing credential — asking for the API key first
+  // (the old order) meant a brand-new signup's very first action was handing
+  // over a credential before the product had shown anything of value. Runs
+  // once on mount; any check failing (offline, etc.) fails open to idle
+  // rather than blocking a returning user on a transient network hiccup. ──
   useEffect(() => {
     (async () => {
       try {
-        const keyStatus = await api.getApiKeyStatus()
-        if (!keyStatus.has_key) {
-          setAppState({ mode: 'needs-key' })
-          return
-        }
         const p = await api.getProfile()
         if (!p.personal) {
           setAppState({ mode: 'needs-profile' })
+          return
+        }
+        const keyStatus = await api.getApiKeyStatus()
+        if (!keyStatus.has_key) {
+          setAppState({ mode: 'needs-key' })
           return
         }
         const hasContent = (p.experience && p.experience.length > 0) ||
@@ -410,7 +395,6 @@ export default function Home() {
         const job = await api.getJob(pollingJobId)
         if (job.status === 'generated') {
           setAppState({ mode: 'result', job })
-          loadRecent()
           loadInsights(true) // force-refresh after new generation
         } else if (job.status === 'failed') {
           setAppState({
@@ -422,7 +406,7 @@ export default function Home() {
       } catch { /* keep polling on network error */ }
     }, 2500)
     return () => clearInterval(poll)
-  }, [pollingJobId, loadRecent])
+  }, [pollingJobId, loadInsights])
 
   // ── Generate ──
   const handleGenerate = async () => {
@@ -432,6 +416,9 @@ export default function Home() {
       const job = await api.generate({ description: jd.trim() })
       sessionStorage.removeItem('careeros-jd')
       setAppState({ mode: 'generating', jobId: job.id })
+      // Shallow URL sync — no visible navigation, but refresh/bookmark/share now
+      // land on /jobs/[id] instead of losing the job back to a blank idle screen.
+      window.history.replaceState(null, '', `/jobs/${job.id}`)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (e) {
       setAppState({
@@ -449,6 +436,7 @@ export default function Home() {
     try {
       await api.regenerate(jobId)
       setAppState({ mode: 'generating', jobId })
+      window.history.replaceState(null, '', `/jobs/${jobId}`)
     } catch (e) {
       setAppState({
         mode: 'error',
@@ -466,6 +454,7 @@ export default function Home() {
     setResumeDownloaded(false)
     sessionStorage.removeItem('careeros-jd')
     setAppState({ mode: 'idle' })
+    window.history.replaceState(null, '', '/')
     // Re-focus textarea after state settles
     setTimeout(() => textareaRef.current?.focus(), 50)
   }
@@ -510,32 +499,33 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* ── NEEDS-KEY STATE — enforced order: account → API key → profile ── */}
+        {/* ── NEEDS-PROFILE STATE — three entry paths, review before saving.
+             Comes before the API key ask: free, low-friction, shows value first. ── */}
+        {appState.mode === 'needs-profile' && (
+          <motion.div key="needs-profile" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
+            <ProfileSetupGate
+              onComplete={async () => {
+                try {
+                  const keyStatus = await api.getApiKeyStatus()
+                  setAppState({ mode: keyStatus.has_key ? 'idle' : 'needs-key' })
+                } catch {
+                  setAppState({ mode: 'needs-key' })
+                }
+              }}
+            />
+          </motion.div>
+        )}
+
+        {/* ── NEEDS-KEY STATE — enforced order: profile → API key → idle ── */}
         {appState.mode === 'needs-key' && (
           <motion.div key="needs-key" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
             <div className="pt-16 max-w-md mx-auto">
               <h1 className="text-2xl font-semibold text-neutral-900 mb-2 text-center">Add your Anthropic API key</h1>
               <p className="text-sm text-neutral-500 text-center mb-10 leading-relaxed">
-                CareerOS runs on your own key — every generation is billed to you, never to us.
+                One last thing — CareerOS runs on your own key. Every generation is billed to you, never to us.
               </p>
-              <ApiKeySettings
-                onSaved={async () => {
-                  try {
-                    const p = await api.getProfile()
-                    setAppState({ mode: p.personal ? 'idle' : 'needs-profile' })
-                  } catch {
-                    setAppState({ mode: 'needs-profile' })
-                  }
-                }}
-              />
+              <ApiKeySettings onSaved={() => setAppState({ mode: 'idle' })} />
             </div>
-          </motion.div>
-        )}
-
-        {/* ── NEEDS-PROFILE STATE — three entry paths, review before saving ── */}
-        {appState.mode === 'needs-profile' && (
-          <motion.div key="needs-profile" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
-            <ProfileSetupGate onComplete={() => setAppState({ mode: 'idle' })} />
           </motion.div>
         )}
 
@@ -695,52 +685,6 @@ export default function Home() {
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* ── Recent applications ── */}
-              {recentJobsLoaded && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ ...spring.gentle, delay: 0.3 }}
-                  className="mt-12 pt-6"
-                  style={{ borderTop: '1px solid var(--c-border)' }}
-                >
-                  <SectionLabel className="mb-3">Recent</SectionLabel>
-                  {recentJobs.length === 0 && (
-                    <p className="text-xs text-neutral-400 py-1">Your applications will show up here.</p>
-                  )}
-                  {recentJobs.map(job => (
-                    <Link
-                      key={job.id}
-                      href={`/jobs/${job.id}`}
-                      className="flex items-center justify-between py-2.5 group"
-                    >
-                      <span className="flex items-center gap-1.5 min-w-0 mr-4">
-                        <span className="text-sm text-neutral-600 group-hover:text-neutral-800 transition-colors truncate">
-                          {job.title || 'Untitled'}
-                          {job.company ? ` — ${job.company}` : ''}
-                        </span>
-                        {(job.status === 'interview' || job.status === 'offer') && (
-                          <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--c-warn)' }} />
-                        )}
-                      </span>
-                      <span className="flex items-center gap-3 shrink-0">
-                        {job.fit_score != null && (
-                          <span
-                            className="text-xs font-mono font-semibold tabular-nums"
-                            style={{ color: scoreColor(job.fit_score) }}
-                          >
-                            {job.fit_score}/10
-                          </span>
-                        )}
-                        <span className="text-xs text-neutral-500 font-mono tabular-nums">
-                          {job.created_at ? relativeDate(job.created_at) : ''}
-                        </span>
-                      </span>
-                    </Link>
-                  ))}
-                </motion.div>
-              )}
             </div>
           </motion.div>
         )}
@@ -1039,7 +983,7 @@ export default function Home() {
                   </motion.button>
                 )}
                 <button
-                  onClick={() => setAppState({ mode: 'idle' })}
+                  onClick={resetToIdle}
                   className="px-4 py-2.5 rounded-2xl text-sm font-medium text-neutral-500 transition-colors hover:text-neutral-700"
                   style={{ background: 'rgba(0,0,0,0.04)' }}
                 >

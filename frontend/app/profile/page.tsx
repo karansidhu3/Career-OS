@@ -3,10 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, FullProfile, Project, Experience, SkillCategory } from '@/lib/api'
-import { AccountDataExport } from '@/components/AccountDataExport'
-import { AccountDeletion } from '@/components/AccountDeletion'
-import { ApiKeySettings } from '@/components/ApiKeySettings'
-import { SessionManagement } from '@/components/SessionManagement'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
@@ -951,48 +947,18 @@ export default function ProfilePage() {
         >
           <BrandMark size={28} physicalStroke={1.5} />
         </motion.div>
-        <h1 className="text-3xl font-semibold text-neutral-900">Profile</h1>
+        <h1 className="text-3xl font-semibold text-neutral-900">Background</h1>
+        <p className="text-sm text-neutral-400 mt-1">
+          What CareerOS knows about you — read by every generation. Account and billing live separately, under Account.
+        </p>
       </motion.div>
-
-      {/* API key — required before anything else works */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.02 }}
-        className="mb-10 pb-10"
-        style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
-      >
-        <ApiKeySettings />
-      </motion.section>
-
-      {/* Account data export — rare, deliberate action */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.04 }}
-        className="mb-10 pb-10"
-        style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
-      >
-        <AccountDataExport />
-      </motion.section>
-
-      {/* Session management — rare, deliberate action */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.05 }}
-        className="mb-10"
-      >
-        <SessionManagement />
-      </motion.section>
 
       {/* Projects — most important, first */}
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.06 }}
-        className="mb-10 pt-10"
-        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
+        className="mb-10"
       >
         <SectionHeader title="Projects" onAdd={addProject} adding={addingProject} />
         <div className="space-y-3">
@@ -1156,17 +1122,6 @@ export default function ProfilePage() {
           <VoiceEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
         </motion.section>
       )}
-
-      {/* Danger zone — deliberately last, visually separated from everyday editing */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.26 }}
-        className="mb-10 pt-10"
-        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
-      >
-        <AccountDeletion />
-      </motion.section>
 
       <AnimatePresence>
         {undoToast && (

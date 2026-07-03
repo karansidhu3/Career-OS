@@ -72,9 +72,13 @@ No navigation. No page transitions. One surface.
 PRIMARY SURFACE: /
   idle       → textarea focused, JD persisted in sessionStorage and restored on load
                candidacy insights (headline/observed/gap/action) shown after 3+ applications
-               faint recent list (≤4 bare text rows)
                setup nudge if profile is empty
+               no recent-applications list here — that's the Command Palette's job (see below),
+               kept off this screen so it stays a single-action surface
   generating → cycling messages + elapsed timer, no navigation
+               URL is shallow-synced to /jobs/{id} the moment the job is created (no visible
+               transition) so refresh/bookmark/share land on the real archive page instead of
+               losing the job back to a blank idle screen
   result     → strategic analysis (GOOD FIT / GAPS / IMPROVEMENT PLAN)
                selected projects bar (which projects the AI chose — "Emphasized" pills)
                inline PDF preview (iframe, compiled on demand)
@@ -85,8 +89,10 @@ PRIMARY SURFACE: /
   error      → message + retry/reset inline
 
 ARCHIVE: /jobs/[id]
-  → Deep-link to a specific past result
+  → Deep-link to a specific past result — renders the same shared result-view components as
+    the home page's result state (frontend/components/ResultSections.tsx)
   → Single-scroll layout, no tabs
+  → This is also where a freshly generated job's URL points once generation starts (see above)
 
 APPLICATIONS: /applications
   → Full history browser
@@ -94,19 +100,28 @@ APPLICATIONS: /applications
   → Grouped timeline (Active pinned at top, This week, Earlier)
   → Each row shows gap signal from strategic_note
 
-HISTORY DRAWER
-  → Archive icon in navbar → slides in from right
-  → Bare list: title, company, date
-  → Interview/offer items highlighted with amber dot
+COMMAND PALETTE (⌘K, search icon in navbar)
+  → The one quick-access surface for "find a past application" — recent jobs when the query
+    is empty, searchable by title/company otherwise
+  → "View all →" links to /applications for full browsing/filtering
 
-PROFILE: /profile
-  → Person icon in navbar
-  → Full profile editor: personal info, education, experience, projects, skills
-  → cover_letter_voice field — how Karan writes, injected into cover letter prompt
+BACKGROUND: /profile
+  → Person icon in navbar ("Background")
+  → Career content only — personal info, education, experience, projects, skills,
+    cover_letter_voice (how Karan writes, injected into the cover letter prompt)
+  → This is content the AI reads, not account administration — deliberately separate from
+    Account (below)
   → Rare interaction — configure once, update when new work lands
+
+ACCOUNT: /account
+  → Gear icon in navbar ("Account")
+  → Administrative, not content: Anthropic API key, account data export, account deletion
+  → Session/device management is NOT duplicated here — Clerk's own UserButton → "Manage
+    account" modal already lists active sessions and lets you revoke them; building a second,
+    custom version of that was redundant (removed; see roadmap.md)
 ```
 
-Navbar: wordmark left, two icons right (archive/history drawer, profile). No labels. Amber dot on archive icon when interview/offer jobs exist.
+Navbar: wordmark left, three icons + Clerk's UserButton on the right (search/⌘K, Background, Account). No labels beyond tooltips. Amber dot next to the wordmark when any job is in interview/offer status.
 
 ---
 
@@ -230,6 +245,8 @@ The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generati
 **ADR-009** — Tectonic package cache warmed at startup. First real PDF request is fast; warmup happens in a background asyncio task so it doesn't block server startup.
 
 **ADR-010** — Migrated hosting from Railway to Fly.io + Vercel + Neon + Upstash (2026-07-01), cost-driven (see ADR-003). Backend and worker are separate Fly apps (`careeros-backend`, `careeros-worker`) sharing one Dockerfile/image via `backend/fly.toml` and `backend/fly.worker.toml` — the worker's config overrides the start command (`arq app.worker.WorkerSettings`) and has no `[http_service]` block, since it has no HTTP server. Both run on `shared-cpu-1x:512mb` — 256mb OOM-killed both the backend (Tectonic's warmup compile alone uses ~150MB on top of ~100MB baseline) and the worker (same Tectonic cost, plus the Anthropic response handling, during a real generation job) under real load, even though idle health checks looked fine at 256mb. Fly defaults to provisioning 2 machines per app (HA); both are intentionally scaled to 1 (`fly scale count 1`) since redundancy isn't worth doubling compute cost for this app's traffic — **be careful when scaling down while a machine is actively processing a job**: `fly scale count` can destroy the machine mid-work rather than the idle one, requiring `fly machine start` on whatever's left. Postgres connection strings from non-Railway providers (Neon included) include `?sslmode=require`, which asyncpg's `connect()` rejects outright (`TypeError: unexpected keyword argument 'sslmode'` — it wants `ssl=` instead); `app.database._normalize()` now rewrites this automatically. The Neon `careeros_app` restricted role (mirroring Railway's, per migration 006) was created manually with a fresh generated password — never reuse a role/credential across providers, and never let a provider's "suggested variables" autofill a security-relevant secret across services (same lesson as Phase 5's Redis setup, this time against Neon's own owner role auto-suggestion habits).
+
+**ADR-011** — Product architecture restructuring (2026-07-03), following a first-principles structure review (independent of visual design — information architecture, workflow, navigation only). Four changes: (1) `/profile` split into `/profile` ("Background" — career content that feeds generation: personal/education/experience/projects/skills/voice) and `/account` (administrative: API key, data export, deletion) — these were previously one page conflating "content you maintain" with "account you administer," discoverable only by accident. (2) Removed the custom `SessionManagement` component and its backend endpoints (`GET/POST /admin/account/sessions*`, `app/services/clerk_sessions.py`) entirely — Clerk's own `<UserButton>` → "Manage account" modal already lists active sessions and revokes them via `UserProfile`'s native Security tab, so the custom implementation was a straight duplicate, not a gap-filler. (3) Deleted `HistoryDrawer.tsx`, a fully-built archive-browsing drawer that had been superseded by the Command Palette (⌘K) at some earlier point but was never removed — it was imported nowhere and completely unreachable. (4) The idle home screen's home-grown "Recent" list (last 4 jobs) was removed in favor of the Command Palette, which already does the same job with search — the core-loop screen went from three "browse my past applications" surfaces (idle list + palette + `/applications`) down to two, with the palette and `/applications` covering quick-jump and full-browse respectively. Separately, the generation flow's URL is now shallow-synced to `/jobs/{id}` via `window.history.replaceState` the moment a job starts (no visible navigation, no change to the "no navigation during the core loop" feel) — previously the entire idle→generating→result sequence lived in React state with zero URL involvement, meaning a refresh at any point during or after generation silently lost the job back to a blank idle screen even though it was fully persisted server-side.
 
 ---
 

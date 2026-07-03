@@ -1,18 +1,16 @@
 import logging
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clerk_auth import get_current_session_id, get_current_user
+from app.clerk_auth import get_current_user
 from app.database import get_db
 from app.models.account_export import AccountExport
 from app.models.user import User
-from app.schemas.account import AccountDeletionStatus, AccountExportRead, SessionRead
+from app.schemas.account import AccountDeletionStatus, AccountExportRead
 from app.services.account_deletion import deletion_deadline
-from app.services.clerk_sessions import get_session as clerk_get_session, list_sessions as clerk_list_sessions, revoke_session as clerk_revoke_session
 from app.services.email_client import get_email_client
 from app.services.pdf_storage import account_export_key, get_pdf_storage
 
@@ -130,63 +128,3 @@ async def cancel_deletion(
     current_user.scheduled_deletion_at = None
     await db.commit()
     return AccountDeletionStatus(scheduled_deletion_at=None)
-
-
-def _ms_to_dt(ms) -> datetime | None:
-    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc) if ms else None
-
-
-def _to_session_read(raw: dict, current_session_id: str | None) -> SessionRead:
-    activity = raw.get("latest_activity") or {}
-    return SessionRead(
-        id=raw["id"],
-        status=raw.get("status", "unknown"),
-        last_active_at=_ms_to_dt(raw.get("last_active_at")),
-        created_at=_ms_to_dt(raw.get("created_at")),
-        browser=activity.get("browser_name"),
-        device_type=activity.get("device_type"),
-        ip_address=activity.get("ip_address"),
-        city=activity.get("city"),
-        country=activity.get("country"),
-        is_current=raw.get("id") == current_session_id,
-    )
-
-
-@router.get("/sessions", response_model=list[SessionRead])
-async def list_sessions_endpoint(
-    current_user: User = Depends(get_current_user),
-    current_session_id: str | None = Depends(get_current_session_id),
-):
-    raw_sessions = await clerk_list_sessions(current_user.clerk_user_id)
-    return [_to_session_read(s, current_session_id) for s in raw_sessions]
-
-
-@router.post("/sessions/{session_id}/revoke")
-async def revoke_session_endpoint(
-    session_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    # A Clerk session id isn't scoped to our app — without this ownership check,
-    # any authenticated user could revoke an arbitrary other user's session by
-    # guessing/sending its id (a real IDOR risk).
-    session = await clerk_get_session(session_id)
-    if session.get("user_id") != current_user.clerk_user_id:
-        raise HTTPException(status_code=404, detail="Session not found")
-    await clerk_revoke_session(session_id)
-    return {"status": "revoked"}
-
-
-@router.post("/sessions/revoke-others")
-async def revoke_other_sessions_endpoint(
-    current_user: User = Depends(get_current_user),
-    current_session_id: str | None = Depends(get_current_session_id),
-):
-    """"Sign out everywhere else" — revokes every session for this user except
-    the one making the request."""
-    raw_sessions = await clerk_list_sessions(current_user.clerk_user_id)
-    revoked = []
-    for s in raw_sessions:
-        if s.get("id") != current_session_id:
-            await clerk_revoke_session(s["id"])
-            revoked.append(s["id"])
-    return {"revoked": revoked}

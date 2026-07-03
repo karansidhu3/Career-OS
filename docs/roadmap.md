@@ -843,6 +843,44 @@ Pydantic validation).
 
 ---
 
+### Phase 9 — Design consistency + product architecture restructuring — ✅ DONE (2026-07-03)
+
+Two passes, deliberately kept separate: a visual design-consistency audit first, then a
+structural (information architecture / workflow / navigation) review that explicitly ignored
+colors, typography, spacing, and animation.
+
+**Design consistency** (all 17 ranked findings from the design audit fixed):
+Clerk `<SignIn>`/`<SignUp>` themed via a shared `appearance` config (previously rendered with
+zero customization — stock Clerk styling next to a fully custom-designed app); duplicated
+input/button styling across 5 files consolidated into `components/FormControls.tsx`; the
+result-view (`AnalysisSection`, `LatexSection`, `Divider`, `SelectedProjectsBar`,
+`ResumePreview`, `ResumeDownloadOverlay`) extracted into `components/ResultSections.tsx` so `/`
+and `/jobs/[id]` render the same components instead of two independently-drifting copies; plus
+a batch of smaller fixes (missing hover/focus states, inconsistent disabled opacity and icon
+sizing, a hardcoded status color, dead CSS tokens, mismatched springs, missing empty states, an
+inconsistent section divider on `/profile`).
+
+**Product architecture** (see ADR-011 in CLAUDE.md for full rationale): `/profile` split into
+`/profile` ("Background" — career content) and `/account` (billing key, data export, deletion);
+the custom `SessionManagement` component and its backend endpoints
+(`app/services/clerk_sessions.py`, `GET/POST /admin/account/sessions*`) removed in favor of
+Clerk's own native session UI (`<UserButton>` → "Manage account"); `HistoryDrawer.tsx` deleted
+(fully built, imported nowhere — superseded by the Command Palette at some earlier point and
+never removed); the idle home screen's own "Recent" list removed in favor of the Command
+Palette, which already did the same job; the generation flow's URL is now shallow-synced to
+`/jobs/{id}` via `window.history.replaceState` the moment a job starts, fixing a real gap where
+refreshing during or immediately after generation silently lost the result back to a blank idle
+screen even though the job was fully persisted server-side; onboarding reordered to profile
+setup before the API key ask, so a new signup's first action is free/low-friction rather than
+handing over a billing credential before seeing any value.
+
+**Verified**: `tsc --noEmit` clean, `eslint` clean (no unused/undefined), `vitest` 37/37 passing,
+`next build` succeeds with `/account` as a new static route, backend unit suite 182/182 passing
+after the session-management removal (integration tests require `TEST_DATABASE_URL`, not set in
+this environment — confirmed they at least import/collect cleanly, i.e. no broken references).
+
+---
+
 ## Deliberately out of scope
 
 - Automated job ingestion (Adzuna, Indeed, scraping)
