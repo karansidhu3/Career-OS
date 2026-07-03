@@ -241,13 +241,16 @@ export default function Home() {
   // Profile readiness — show setup prompt if profile is empty
   const [profileEmpty, setProfileEmpty] = useState(false)
   const [insights, setInsights] = useState<CandidacyInsights | null>(() => {
-    // Populate from cache synchronously so layout is stable on first render
+    // Populate from cache synchronously so layout is stable on first render.
+    // No age check — insights only change when a new generation happens (see
+    // loadInsights below), so a cached value is never "stale" from the passage
+    // of time, only from the passage of new applications.
     if (typeof window === 'undefined') return null
     try {
       const raw = localStorage.getItem('careeros-insights-v2')
       if (raw) {
-        const { data, ts } = JSON.parse(raw) as { data: CandidacyInsights; ts: number }
-        if (Date.now() - ts < 60 * 60 * 1000) return data
+        const { data } = JSON.parse(raw) as { data: CandidacyInsights; ts: number }
+        return data
       }
     } catch {}
     return null
@@ -278,22 +281,41 @@ export default function Home() {
     sessionStorage.setItem('careeros-jd', value)
   }
 
-  // ── Load candidacy insights — with localStorage cache ──
+  // ── Load candidacy insights — cached until the next real generation ──
+  // No time-based expiry on ordinary loads: the underlying data (your
+  // application history) only changes when you generate something new, so a
+  // cached headline is never "stale" just because time passed with the page
+  // open or refreshed.
+  //
+  // The force-refresh after a completed generation also has its own cooldown
+  // (INSIGHTS_REFRESH_COOLDOWN, below) — one more application ten minutes
+  // after the last one barely shifts "the dominant pattern across your whole
+  // history," especially once you have a couple dozen behind you. Without
+  // this, a batch of applications done in one sitting would each trigger a
+  // full re-send of the profile + up to 20 strategic notes for a headline
+  // that hadn't meaningfully changed since the previous one in the same
+  // sitting. Two sessions genuinely far apart in the same day each still
+  // get their own fresh read once the cooldown clears.
   const loadInsights = useCallback(async (force = false) => {
     const CACHE_KEY = 'careeros-insights-v2'
-    const CACHE_TTL = 60 * 60 * 1000 // 1 hour
+    const INSIGHTS_REFRESH_COOLDOWN = 30 * 60 * 1000 // 30 minutes
+
+    let cached: { data: CandidacyInsights; ts: number } | null = null
+    try {
+      const raw = localStorage.getItem(CACHE_KEY)
+      if (raw) cached = JSON.parse(raw)
+    } catch { /* corrupt cache — treat as absent */ }
 
     if (!force) {
-      try {
-        const raw = localStorage.getItem(CACHE_KEY)
-        if (raw) {
-          const { data, ts } = JSON.parse(raw) as { data: CandidacyInsights; ts: number }
-          if (Date.now() - ts < CACHE_TTL) {
-            setInsights(data)
-            return
-          }
-        }
-      } catch { /* corrupt cache — fall through to fetch */ }
+      if (cached) {
+        setInsights(cached.data)
+        return
+      }
+      // No cache yet at all — fall through and fetch once to populate it.
+    } else if (cached && Date.now() - cached.ts < INSIGHTS_REFRESH_COOLDOWN) {
+      // Just generated something, but we already refreshed within the
+      // cooldown window (same sitting) — keep showing what's cached.
+      return
     }
 
     try {
