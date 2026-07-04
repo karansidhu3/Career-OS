@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api, FullProfile, Project, Experience, SkillCategory } from '@/lib/api'
+import { api, FullProfile, Project, Experience, SkillCategory, Education, PersonalInfo } from '@/lib/api'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
@@ -21,7 +21,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <p className="text-sm font-semibold text-neutral-800">{title}</p>
+      <SectionLabel>{title}</SectionLabel>
       {onAdd && (
         <button
           onClick={onAdd}
@@ -68,10 +68,28 @@ function TechTags({ tags }: { tags: string[] }) {
   )
 }
 
+// Source descriptions are often multiple long paragraphs (raw notes for the
+// AI to read, not resume-ready prose) — collapsed by default so the page is
+// scannable, with the full text one click away.
 function DescriptionText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
   if (!text) return null
+  const isLong = text.length > 260
   return (
-    <p className="text-sm text-neutral-600 leading-relaxed mt-2 whitespace-pre-wrap">{text}</p>
+    <div className="mt-2">
+      <p className={`text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap ${!expanded && isLong ? 'line-clamp-3' : ''}`}>
+        {text}
+      </p>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="text-xs mt-1.5 font-medium transition-colors"
+          style={{ color: 'var(--c-accent)' }}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -277,7 +295,7 @@ function ProjectCard({
                 )}
                 <DescriptionText text={project.description} />
               </div>
-              <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="shrink-0 flex items-center gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
                 <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
                 <button onClick={() => setEditing(true)}
                   className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">
@@ -435,7 +453,7 @@ function ExperienceCard({
                 </p>
                 <DescriptionText text={exp.description} />
               </div>
-              <div className="shrink-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="shrink-0 flex items-center gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
                 <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
                 <button onClick={() => setEditing(true)}
                   className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">
@@ -565,7 +583,7 @@ function SkillCard({
                 <p className="text-xs text-neutral-600 mb-2">{skill.category}</p>
                 <TechTags tags={skill.items} />
               </div>
-              <div className="shrink-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="shrink-0 flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                 <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
                 <ReorderButtons onUp={onMoveUp} onDown={onMoveDown} canUp={canMoveUp} canDown={canMoveDown} />
                 <button onClick={() => setEditing(true)}
@@ -581,9 +599,245 @@ function SkillCard({
   )
 }
 
+// ---- Education section ----
+
+function EducationCard({
+  education,
+  onSave,
+  onDelete,
+  startEditing,
+  isNew,
+}: {
+  education: Education
+  onSave: (data: Omit<Education, 'id'>) => Promise<void>
+  onDelete: () => void
+  startEditing?: boolean
+  isNew?: boolean
+}) {
+  const [editing, setEditing] = useState(startEditing ?? false)
+  const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+  const [school, setSchool] = useState(education.school)
+  const [degree, setDegree] = useState(education.degree)
+  const [minor, setMinor] = useState(education.minor ?? '')
+  const [startDate, setStartDate] = useState(education.start_date ?? '')
+  const [endDate, setEndDate] = useState(education.end_date ?? '')
+
+  useEffect(() => {
+    if (!savedFlash) return
+    const t = setTimeout(() => setSavedFlash(false), 2000)
+    return () => clearTimeout(t)
+  }, [savedFlash])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await onSave({
+        school,
+        degree,
+        field: education.field,
+        minor: minor || null,
+        start_date: startDate || null,
+        end_date: endDate || null,
+      })
+      setEditing(false)
+      setSavedFlash(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <motion.div layout className="py-5 group" style={itemBorder}>
+      <AnimatePresence mode="wait">
+        {editing ? (
+          <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="School"><Input value={school} onChange={setSchool} placeholder="University of British Columbia" /></Field>
+              <Field label="Degree"><Input value={degree} onChange={setDegree} placeholder="BSc Computer Science" /></Field>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Minor (optional)"><Input value={minor} onChange={setMinor} placeholder="Data Science" /></Field>
+              <Field label="Start date"><Input value={startDate} onChange={setStartDate} placeholder="Sep 2022" /></Field>
+              <Field label="End date"><Input value={endDate} onChange={setEndDate} placeholder="Jun 2026" /></Field>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <AnimatePresence mode="wait" initial={false}>
+                {!confirmDelete ? (
+                  <motion.button
+                    key="del"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    transition={{ duration: 0.1 }}
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-xs text-neutral-600 hover:text-red-400 transition-colors"
+                  >
+                    Delete education
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="confirm"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    transition={{ duration: 0.1 }}
+                    className="flex items-center gap-3"
+                  >
+                    <button
+                      onClick={() => { setConfirmDelete(false); onDelete() }}
+                      className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                    >
+                      Confirm delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div className="flex gap-2">
+                <CancelButton onClick={() => {
+                  if (isNew) {
+                    onDelete()
+                  } else {
+                    setEditing(false)
+                    setConfirmDelete(false)
+                  }
+                }} />
+                <SaveButton saving={saving} onClick={save} />
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="flex items-start gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-sm font-semibold text-neutral-800">{education.school}</h3>
+                  <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
+                </div>
+                <p className="text-sm text-neutral-600 mt-0.5">
+                  {education.degree}{education.minor ? `, Minor in ${education.minor}` : ''}
+                </p>
+                <p className="text-xs text-neutral-600 mt-1">{education.start_date} – {education.end_date}</p>
+              </div>
+              <div className="shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => setEditing(true)}
+                  className="text-xs text-neutral-600 hover:text-neutral-700 transition-colors">
+                  Edit
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+// ---- Personal info ----
+
+function PersonalInfoEditor({ personal, onSave }: { personal: PersonalInfo; onSave: (p: PersonalInfo) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+  const [name, setName] = useState(personal.name)
+  const [email, setEmail] = useState(personal.email)
+  const [phone, setPhone] = useState(personal.phone ?? '')
+  const [location, setLocation] = useState(personal.location ?? '')
+  const [linkedin, setLinkedin] = useState(personal.linkedin ?? '')
+  const [github, setGithub] = useState(personal.github ?? '')
+
+  useEffect(() => {
+    if (!savedFlash) return
+    const t = setTimeout(() => setSavedFlash(false), 2000)
+    return () => clearTimeout(t)
+  }, [savedFlash])
+
+  const resetFields = () => {
+    setName(personal.name)
+    setEmail(personal.email)
+    setPhone(personal.phone ?? '')
+    setLocation(personal.location ?? '')
+    setLinkedin(personal.linkedin ?? '')
+    setGithub(personal.github ?? '')
+  }
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const { id, ...rest } = personal
+      const updated = await api.updatePersonal({
+        ...rest,
+        name,
+        email,
+        phone: phone || null,
+        location: location || null,
+        linkedin: linkedin || null,
+        github: github || null,
+      })
+      onSave(updated)
+      setEditing(false)
+      setSavedFlash(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const contactLine = [personal.location, personal.linkedin, personal.github].filter(Boolean).join(' · ')
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <SectionLabel>Personal info</SectionLabel>
+        <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
+      </div>
+      <AnimatePresence mode="wait">
+        {editing ? (
+          <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Name"><Input value={name} onChange={setName} placeholder="Karanveer Sidhu" /></Field>
+              <Field label="Email"><Input value={email} onChange={setEmail} placeholder="you@example.com" /></Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Phone (optional)"><Input value={phone} onChange={setPhone} placeholder="+1 (250) 509-2500" /></Field>
+              <Field label="Location (optional)"><Input value={location} onChange={setLocation} placeholder="Kelowna, BC" /></Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="LinkedIn (optional)"><Input value={linkedin} onChange={setLinkedin} placeholder="linkedin.com/in/…" /></Field>
+              <Field label="GitHub (optional)"><Input value={github} onChange={setGithub} placeholder="github.com/…" /></Field>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <CancelButton onClick={() => { resetFields(); setEditing(false) }} />
+              <SaveButton saving={saving} onClick={save} />
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-start justify-between gap-4 group">
+            <div className="text-sm leading-relaxed">
+              <p className="text-neutral-800 font-medium">{personal.name}</p>
+              <p className="text-neutral-600">
+                {personal.email}{personal.phone ? ` · ${personal.phone}` : ''}
+              </p>
+              {contactLine && <p className="text-neutral-600">{contactLine}</p>}
+            </div>
+            <button
+              onClick={() => setEditing(true)}
+              className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors shrink-0 pt-0.5"
+            >
+              Edit
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ---- Voice editor ----
 
-function VoiceEditor({ personal, onSave }: { personal: import('@/lib/api').PersonalInfo; onSave: (p: import('@/lib/api').PersonalInfo) => void }) {
+function VoiceEditor({ personal, onSave }: { personal: PersonalInfo; onSave: (p: PersonalInfo) => void }) {
   const [voice, setVoice] = useState(personal.cover_letter_voice ?? '')
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
@@ -610,7 +864,7 @@ function VoiceEditor({ personal, onSave }: { personal: import('@/lib/api').Perso
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm font-semibold text-neutral-800">Cover letter voice</p>
+        <SectionLabel>Cover letter voice</SectionLabel>
         <AnimatePresence>
           {savedFlash && <SavedFlash />}
         </AnimatePresence>
@@ -643,9 +897,11 @@ export default function ProfilePage() {
   const [newProjectId, setNewProjectId] = useState<number | null>(null)
   const [newExpId, setNewExpId] = useState<number | null>(null)
   const [newSkillId, setNewSkillId] = useState<number | null>(null)
+  const [newEducationId, setNewEducationId] = useState<number | null>(null)
   const [addingProject, setAddingProject] = useState(false)
   const [addingExp, setAddingExp] = useState(false)
   const [addingSkill, setAddingSkill] = useState(false)
+  const [addingEducation, setAddingEducation] = useState(false)
 
   // Undo (Phase 6) — profile-section deletes are soft-deletes server-side now;
   // this toast is the immediate-window UX for it. The row stays recoverable
@@ -655,10 +911,10 @@ export default function ProfilePage() {
   // intent). Ordinary field saves use the inline SavedFlash checkmark instead —
   // don't blur the two; the toast's weight should stay tied to "you just
   // removed something."
-  const [undoToast, setUndoToast] = useState<{ kind: 'project' | 'experience' | 'skill'; id: number; label: string } | null>(null)
+  const [undoToast, setUndoToast] = useState<{ kind: 'project' | 'experience' | 'skill' | 'education'; id: number; label: string } | null>(null)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showUndo = useCallback((kind: 'project' | 'experience' | 'skill', id: number, label: string) => {
+  const showUndo = useCallback((kind: 'project' | 'experience' | 'skill' | 'education', id: number, label: string) => {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     setUndoToast({ kind, id, label })
     undoTimerRef.current = setTimeout(() => setUndoToast(null), 6000)
@@ -676,9 +932,12 @@ export default function ProfilePage() {
       } else if (kind === 'experience') {
         const restored = await api.restoreExperience(id)
         setProfile(prev => prev ? { ...prev, experience: [...prev.experience, restored].sort((a, b) => a.sort_order - b.sort_order) } : prev)
-      } else {
+      } else if (kind === 'skill') {
         const restored = await api.restoreSkillCategory(id)
         setProfile(prev => prev ? { ...prev, skills: [...prev.skills, restored].sort((a, b) => a.sort_order - b.sort_order) } : prev)
+      } else {
+        const restored = await api.restoreEducation(id)
+        setProfile(prev => prev ? { ...prev, education: [...prev.education, restored] } : prev)
       }
     } catch {
       // best-effort — if restore fails, the item just stays deleted
@@ -723,6 +982,15 @@ export default function ProfilePage() {
     }, 60)
     return () => clearTimeout(t)
   }, [newSkillId])
+
+  useEffect(() => {
+    if (!newEducationId) return
+    const t = setTimeout(() => {
+      document.querySelector(`[data-education="${newEducationId}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 60)
+    return () => clearTimeout(t)
+  }, [newEducationId])
 
   if (loadError) {
     return (
@@ -930,6 +1198,47 @@ export default function ProfilePage() {
     })
   }
 
+  // ---- Education handlers ----
+
+  const addEducation = async () => {
+    if (addingEducation) return
+    setAddingEducation(true)
+    try {
+      const ed = await api.createEducation({
+        school: 'School',
+        degree: 'Degree',
+        field: null,
+        minor: null,
+        start_date: null,
+        end_date: null,
+      })
+      setProfile(prev => prev ? { ...prev, education: [...prev.education, ed] } : prev)
+      setNewEducationId(ed.id)
+    } finally {
+      setAddingEducation(false)
+    }
+  }
+
+  const saveEducation = async (id: number, data: Omit<Education, 'id'>) => {
+    const updated = await api.updateEducation(id, data)
+    setNewEducationId(null)
+    setProfile(prev => prev ? { ...prev, education: prev.education.map(ed => ed.id === id ? updated : ed) } : prev)
+  }
+
+  const deleteEducation = (id: number) => {
+    if (newEducationId === id) setNewEducationId(null)
+    const removed = profile!.education.find(ed => ed.id === id)
+    setProfile(prev => prev ? { ...prev, education: prev.education.filter(ed => ed.id !== id) } : prev)
+    if (removed) showUndo('education', id, removed.school)
+
+    api.deleteEducation(id).catch(() => {
+      setUndoToast(null)
+      if (removed) {
+        setProfile(prev => prev ? { ...prev, education: [...prev.education, removed] } : prev)
+      }
+    })
+  }
+
   return (
     <div className="px-6 pb-24 max-w-3xl xl:max-w-5xl mx-auto">
       <motion.div
@@ -952,6 +1261,21 @@ export default function ProfilePage() {
           What CareerOS knows about you — read by every generation. Account and billing live separately, under Account.
         </p>
       </motion.div>
+
+      {/* Personal info — who this resume belongs to */}
+      {profile.personal && (
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring.gentle, delay: 0.04 }}
+          className="mb-10"
+        >
+          <PersonalInfoEditor
+            personal={profile.personal}
+            onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)}
+          />
+        </motion.section>
+      )}
 
       {/* Projects — most important, first */}
       <motion.section
@@ -1003,7 +1327,7 @@ export default function ProfilePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.1 }}
         className="mb-10 pt-10"
-        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
         <SectionHeader title="Experience" onAdd={addExperience} adding={addingExp} />
         <div className="space-y-3">
@@ -1048,7 +1372,7 @@ export default function ProfilePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.14 }}
         className="mb-10 pt-10"
-        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
         <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
         <div className="space-y-3">
@@ -1093,20 +1417,38 @@ export default function ProfilePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.18 }}
         className="mb-10 pt-10"
-        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
-        <SectionHeader title="Education" />
+        <SectionHeader title="Education" onAdd={addEducation} adding={addingEducation} />
         <div className="space-y-3">
           {profile.education.length === 0 && (
             <p className="text-xs text-neutral-600">No education added yet.</p>
           )}
-          {profile.education.map(e => (
-            <div key={e.id} className="py-5" style={itemBorder}>
-              <h3 className="text-sm font-semibold text-neutral-800">{e.school}</h3>
-              <p className="text-sm text-neutral-600 mt-0.5">{e.degree}{e.minor ? `, Minor in ${e.minor}` : ''}</p>
-              <p className="text-xs text-neutral-600 mt-1">{e.start_date} – {e.end_date}</p>
-            </div>
-          ))}
+          <AnimatePresence>
+            {profile.education.map(ed => (
+              <motion.div
+                key={ed.id}
+                data-education={ed.id}
+                layout
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{
+                  opacity: { duration: 0.15, ease: 'easeOut' },
+                  height: { duration: 0.2, ease: [0.25, 0, 0, 1] },
+                }}
+                className="overflow-hidden"
+              >
+                <EducationCard
+                  education={ed}
+                  startEditing={ed.id === newEducationId}
+                  isNew={ed.id === newEducationId}
+                  onSave={data => saveEducation(ed.id, data)}
+                  onDelete={() => deleteEducation(ed.id)}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       </motion.section>
 
@@ -1117,7 +1459,7 @@ export default function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring.gentle, delay: 0.22 }}
           className="mb-10 pt-10"
-          style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
+          style={{ borderTop: '1px solid var(--c-border)' }}
         >
           <VoiceEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
         </motion.section>
