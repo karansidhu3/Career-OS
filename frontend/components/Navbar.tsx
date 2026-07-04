@@ -8,30 +8,27 @@ import { spring } from '@/lib/motion'
 import { BrandMark } from './BrandMark'
 import { UserMenu } from './UserMenu'
 
-// Applications — a briefcase. Reads unambiguously as "jobs" at a glance,
-// unlike a generic list glyph. Search now lives on the Applications page
-// itself rather than behind a navbar icon.
+// Applications — stacked layers. Reads as "a pile of submitted things,"
+// which fits a history/archive better than a single flat glyph would.
 function ApplicationsIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-    </svg>
-  )
-}
-
-// Resume — stacked layers. Previously titled "Background" with a document
-// glyph; "Background" nudged toward reading as "your resumes/applications"
-// (the actual output of this product) and "Profile" collides with account
-// identity, which lives separately under Settings. "Resume" is the literal,
-// concrete noun for what's actually inside — personal, education, experience,
-// projects, skills. Layers reads as multiple distinct pieces, not one document.
-function ResumeIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2 2 7l10 5 10-5-10-5z" />
       <path d="M2 17l10 5 10-5" />
       <path d="M2 12l10 5 10-5" />
+    </svg>
+  )
+}
+
+// Resume — a closed book, spine-view. Distinct silhouette from the layers
+// icon now used for Applications, and reads as "your compiled content"
+// rather than a single flat document (which risked looking like generated
+// output — the actual product of this app — rather than its source material).
+function ResumeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
     </svg>
   )
 }
