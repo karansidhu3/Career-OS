@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useClerk, useUser } from '@clerk/nextjs'
@@ -13,6 +14,15 @@ import { spring } from '@/lib/motion'
 // (components/AccountDeletion.tsx) entirely — deleting the Clerk identity
 // directly without cleaning up app data first. This is a single-user tool;
 // the only thing that needs to live behind the avatar is identity + sign out.
+function SettingsIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  )
+}
+
 function SignOutIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -93,9 +103,21 @@ export function UserMenu() {
               )}
             </div>
 
+            <Link
+              href="/account"
+              onClick={() => setOpen(false)}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-neutral-700 hover:text-neutral-900 transition-colors"
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <SettingsIcon />
+              Settings
+            </Link>
+
             <button
               onClick={() => { setOpen(false); signOut(() => router.push('/')) }}
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-neutral-700 hover:text-neutral-900 transition-colors"
+              style={{ borderTop: '1px solid var(--c-border)' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
