@@ -3,10 +3,10 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { UserButton } from '@clerk/nextjs'
 import { api } from '@/lib/api'
 import { spring } from '@/lib/motion'
 import { BrandMark } from './BrandMark'
+import { UserMenu } from './UserMenu'
 
 // Applications — a briefcase. Reads unambiguously as "jobs" at a glance,
 // unlike a generic list glyph. Search now lives on the Applications page
@@ -137,9 +137,7 @@ export function Navbar() {
             <AccountIcon />
           </Link>
 
-          <div className="w-8 h-8 flex items-center justify-center">
-            <UserButton />
-          </div>
+          <UserMenu />
         </div>
       </div>
     </motion.div>
