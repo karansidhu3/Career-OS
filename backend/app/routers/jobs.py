@@ -8,7 +8,7 @@ from pypdf import PdfReader, PdfWriter
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from slowapi import Limiter
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clerk_auth import get_current_user
@@ -437,16 +437,17 @@ async def get_candidacy_insights(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return a synthesized candidacy observation derived from all past applications."""
+    """Return a synthesized candidacy observation derived from recent applications."""
     completed_statuses = ("generated", "applied", "interview", "offer", "skipped")
-    jobs = (await db.execute(
-        select(Job)
-        .where(Job.user_id == current_user.id, Job.status.in_(completed_statuses))
-        .order_by(Job.created_at.desc())
-        .limit(20)
-    )).scalars().all()
 
-    count = len(jobs)
+    # True total drives the "3+ applications" gate and the count shown to the user —
+    # kept separate from how many notes actually get sent to the model below, so
+    # someone with 30+ applications still sees their real total, not the capped
+    # sample size.
+    count = (await db.execute(
+        select(func.count()).select_from(Job)
+        .where(Job.user_id == current_user.id, Job.status.in_(completed_statuses))
+    )).scalar_one()
     if count < 3:
         return CandidacyInsightsRead(observation=None, count=count)
 
@@ -456,6 +457,16 @@ async def get_candidacy_insights(
         # fail quietly the same way "not enough applications yet" does, rather than
         # surfacing a hard error for something the user didn't explicitly trigger.
         return CandidacyInsightsRead(observation=None, count=count)
+
+    # A genuinely repeated gap shows up just as reliably in the most recent dozen
+    # applications as in the full history — capped here to limit how much of the
+    # per-note text (see _extract_gaps) gets sent, not to change what the user sees.
+    jobs = (await db.execute(
+        select(Job)
+        .where(Job.user_id == current_user.id, Job.status.in_(completed_statuses))
+        .order_by(Job.created_at.desc())
+        .limit(12)
+    )).scalars().all()
 
     summaries = [
         {

@@ -948,6 +948,22 @@ _INSIGHTS_TOOL = {
 }
 
 
+def _extract_gaps(note: str) -> str:
+    """Pull just the GAPS section out of a structured strategic note (see the
+    GOOD FIT / GAPS / IMPROVEMENT PLAN format in the generation system prompt
+    above). The insights synthesis only cares about the gap pattern — sending
+    the Good Fit and Improvement Plan sections too was roughly two-thirds of
+    each note's tokens spent on text irrelevant to "what gap keeps repeating."
+    Falls back to the full note for older, unstructured (prose) notes that
+    predate this format.
+    """
+    match = re.search(r"GAPS\n([\s\S]*?)(?=\n\nIMPROVEMENT PLAN|$)", note)
+    if not match:
+        return note
+    gaps = match.group(1).strip()
+    return gaps or note
+
+
 async def generate_insights(
     job_summaries: list[dict],
     api_key: str,
@@ -971,7 +987,7 @@ async def generate_insights(
             entry += f" at {s['company']}"
         lines.append(entry)
         if s.get("strategic_note"):
-            lines.append(f"  Analysis: {s['strategic_note']}")
+            lines.append(f"  Gaps: {_extract_gaps(s['strategic_note'])}")
         elif s.get("description_snippet"):
             lines.append(f"  JD excerpt: {s['description_snippet']}")
 

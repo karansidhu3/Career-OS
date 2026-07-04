@@ -281,24 +281,23 @@ export default function Home() {
     sessionStorage.setItem('careeros-jd', value)
   }
 
-  // ── Load candidacy insights — cached until the next real generation ──
+  // ── Load candidacy insights — refreshed once per calendar day, on the
+  // first generation of that day ──
   // No time-based expiry on ordinary loads: the underlying data (your
   // application history) only changes when you generate something new, so a
   // cached headline is never "stale" just because time passed with the page
   // open or refreshed.
   //
-  // The force-refresh after a completed generation also has its own cooldown
-  // (INSIGHTS_REFRESH_COOLDOWN, below) — one more application ten minutes
-  // after the last one barely shifts "the dominant pattern across your whole
-  // history," especially once you have a couple dozen behind you. Without
-  // this, a batch of applications done in one sitting would each trigger a
-  // full re-send of the profile + up to 20 strategic notes for a headline
-  // that hadn't meaningfully changed since the previous one in the same
-  // sitting. Two sessions genuinely far apart in the same day each still
-  // get their own fresh read once the cooldown clears.
+  // The force-refresh after a completed generation is gated to once per local
+  // calendar day. This is deliberately coarser than "once per session" —
+  // "the dominant repeated gap across your whole history" essentially never
+  // changes between your 2nd and 4th application of the same day, so a
+  // second same-day refresh would mostly just be re-confirming the same
+  // answer at full cost. It's also a better match for what this feature
+  // actually is: a considered daily read on your search, not a live metric
+  // that should visibly react within a single day.
   const loadInsights = useCallback(async (force = false) => {
     const CACHE_KEY = 'careeros-insights-v2'
-    const INSIGHTS_REFRESH_COOLDOWN = 30 * 60 * 1000 // 30 minutes
 
     let cached: { data: CandidacyInsights; ts: number } | null = null
     try {
@@ -312,9 +311,9 @@ export default function Home() {
         return
       }
       // No cache yet at all — fall through and fetch once to populate it.
-    } else if (cached && Date.now() - cached.ts < INSIGHTS_REFRESH_COOLDOWN) {
-      // Just generated something, but we already refreshed within the
-      // cooldown window (same sitting) — keep showing what's cached.
+    } else if (cached && new Date(cached.ts).toDateString() === new Date().toDateString()) {
+      // Already refreshed today — keep showing what's cached until tomorrow's
+      // first generation.
       return
     }
 

@@ -10,6 +10,7 @@ import pytest
 from app.services.generation import (
     LATEX_PREAMBLE,
     _assemble_resume_latex,
+    _extract_gaps,
     _extract_resume_body,
     _format_profile,
     _preprocess_jd,
@@ -274,3 +275,43 @@ def test_assemble_produces_compilable_document_structure():
     result = _assemble_resume_latex(BODY_SECTION)
     assert "\\begin{document}" in result
     assert "\\end{document}" in result
+
+
+# ── _extract_gaps (candidacy insights token optimization) ─────────────────────
+
+def test_extract_gaps_pulls_only_gaps_section():
+    note = (
+        "GOOD FIT\n"
+        "- Strong Python and FastAPI overlap\n"
+        "- Docker experience matches\n"
+        "\n"
+        "GAPS\n"
+        "- No Kubernetes experience\n"
+        "- No Go experience\n"
+        "\n"
+        "IMPROVEMENT PLAN\n"
+        "- Add a Kubernetes deployment to Relay\n"
+    )
+    result = _extract_gaps(note)
+    assert "No Kubernetes experience" in result
+    assert "No Go experience" in result
+    assert "Strong Python" not in result
+    assert "Add a Kubernetes deployment" not in result
+
+
+def test_extract_gaps_handles_gaps_as_last_section():
+    # No IMPROVEMENT PLAN section at all — GAPS runs to the end of the string.
+    note = "GOOD FIT\n- Strong match\n\nGAPS\n- No Rust experience\n"
+    result = _extract_gaps(note)
+    assert "No Rust experience" in result
+    assert "Strong match" not in result
+
+
+def test_extract_gaps_falls_back_to_full_note_when_unstructured():
+    # Older, pre-format notes are a single prose paragraph with no section headers.
+    note = "This role wants five years of Rust which the candidate doesn't have."
+    assert _extract_gaps(note) == note
+
+
+def test_extract_gaps_handles_empty_string():
+    assert _extract_gaps("") == ""
