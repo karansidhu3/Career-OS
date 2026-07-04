@@ -61,14 +61,25 @@ export function UserMenu() {
       <button
         onClick={() => setOpen(o => !o)}
         title="Account menu"
-        className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-semibold text-neutral-700"
-        style={{ background: 'var(--c-surface-raised)', border: '1px solid var(--c-border)' }}
+        className="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150"
+        onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         {isLoaded && user?.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.imageUrl} alt="" className="w-full h-full object-cover" />
+          <img
+            src={user.imageUrl}
+            alt=""
+            className="w-6 h-6 rounded-full object-cover"
+            style={{ border: '1px solid var(--c-border)' }}
+          />
         ) : (
-          initial
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold text-neutral-700"
+            style={{ background: 'var(--c-surface-raised)', border: '1px solid var(--c-border)' }}
+          >
+            {initial}
+          </div>
         )}
       </button>
 
