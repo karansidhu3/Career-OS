@@ -100,13 +100,12 @@ APPLICATIONS: /applications
   → Grouped timeline (Active pinned at top, This week, Earlier)
   → Each row shows gap signal from strategic_note
 
-COMMAND PALETTE (⌘K, search icon in navbar)
-  → The one quick-access surface for "find a past application" — recent jobs when the query
-    is empty, searchable by title/company otherwise
-  → "View all →" links to /applications for full browsing/filtering
-
-BACKGROUND: /profile
-  → Person icon in navbar ("Background")
+RESUME: /profile
+  → Layers icon in navbar ("Resume") — previously titled "Background" with a document/folder
+    icon; renamed because a page glyph read as "your generated resumes/applications" (the
+    actual output of this product) rather than "the structured data that feeds generation,"
+    and "Profile" was considered and rejected since it collides with account identity, which
+    lives separately under Settings
   → Career content only — personal info, education, experience, projects, skills,
     cover_letter_voice (how Karan writes, injected into the cover letter prompt)
   → This is content the AI reads, not account administration — deliberately separate from
@@ -114,14 +113,23 @@ BACKGROUND: /profile
   → Rare interaction — configure once, update when new work lands
 
 ACCOUNT: /account
-  → Gear icon in navbar ("Account")
+  → Reached via the avatar's dropdown → "Settings" (no standalone navbar icon — removed once
+    Settings had a path through the avatar menu, to avoid two navbar routes to the same page)
   → Administrative, not content: Anthropic API key, account data export, account deletion
-  → Session/device management is NOT duplicated here — Clerk's own UserButton → "Manage
-    account" modal already lists active sessions and lets you revoke them; building a second,
-    custom version of that was redundant (removed; see roadmap.md)
+  → No session/device management UI — see note on UserMenu below
 ```
 
-Navbar: wordmark left, three icons + Clerk's UserButton on the right (search/⌘K, Background, Account). No labels beyond tooltips. Amber dot next to the wordmark when any job is in interview/offer status.
+Navbar: wordmark left, two icons + a custom avatar menu on the right (Applications, Resume, then
+the avatar). No labels beyond tooltips. Amber dot next to the wordmark when any job is in
+interview/offer status. Search lives inline on /applications now, not behind a navbar icon or a
+command-palette overlay — the Command Palette component was deleted (see ADR-012).
+
+The avatar opens a custom `UserMenu` (name, email, Settings, Sign out) instead of Clerk's stock
+`<UserButton>` — its "Manage account" modal exposed a native "Delete account" action that bypassed
+this app's own grace-period deletion flow (`components/AccountDeletion.tsx`) entirely, deleting
+the Clerk identity directly without cleaning up app data first. Session/device management is
+consequently not exposed in-app at all; use the Clerk dashboard if a session ever needs a manual
+revoke. See ADR-012.
 
 ---
 
@@ -247,6 +255,8 @@ The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generati
 **ADR-010** — Migrated hosting from Railway to Fly.io + Vercel + Neon + Upstash (2026-07-01), cost-driven (see ADR-003). Backend and worker are separate Fly apps (`careeros-backend`, `careeros-worker`) sharing one Dockerfile/image via `backend/fly.toml` and `backend/fly.worker.toml` — the worker's config overrides the start command (`arq app.worker.WorkerSettings`) and has no `[http_service]` block, since it has no HTTP server. Both run on `shared-cpu-1x:512mb` — 256mb OOM-killed both the backend (Tectonic's warmup compile alone uses ~150MB on top of ~100MB baseline) and the worker (same Tectonic cost, plus the Anthropic response handling, during a real generation job) under real load, even though idle health checks looked fine at 256mb. Fly defaults to provisioning 2 machines per app (HA); both are intentionally scaled to 1 (`fly scale count 1`) since redundancy isn't worth doubling compute cost for this app's traffic — **be careful when scaling down while a machine is actively processing a job**: `fly scale count` can destroy the machine mid-work rather than the idle one, requiring `fly machine start` on whatever's left. Postgres connection strings from non-Railway providers (Neon included) include `?sslmode=require`, which asyncpg's `connect()` rejects outright (`TypeError: unexpected keyword argument 'sslmode'` — it wants `ssl=` instead); `app.database._normalize()` now rewrites this automatically. The Neon `careeros_app` restricted role (mirroring Railway's, per migration 006) was created manually with a fresh generated password — never reuse a role/credential across providers, and never let a provider's "suggested variables" autofill a security-relevant secret across services (same lesson as Phase 5's Redis setup, this time against Neon's own owner role auto-suggestion habits).
 
 **ADR-011** — Product architecture restructuring (2026-07-03), following a first-principles structure review (independent of visual design — information architecture, workflow, navigation only). Four changes: (1) `/profile` split into `/profile` ("Background" — career content that feeds generation: personal/education/experience/projects/skills/voice) and `/account` (administrative: API key, data export, deletion) — these were previously one page conflating "content you maintain" with "account you administer," discoverable only by accident. (2) Removed the custom `SessionManagement` component and its backend endpoints (`GET/POST /admin/account/sessions*`, `app/services/clerk_sessions.py`) entirely — Clerk's own `<UserButton>` → "Manage account" modal already lists active sessions and revokes them via `UserProfile`'s native Security tab, so the custom implementation was a straight duplicate, not a gap-filler. (3) Deleted `HistoryDrawer.tsx`, a fully-built archive-browsing drawer that had been superseded by the Command Palette (⌘K) at some earlier point but was never removed — it was imported nowhere and completely unreachable. (4) The idle home screen's home-grown "Recent" list (last 4 jobs) was removed in favor of the Command Palette, which already does the same job with search — the core-loop screen went from three "browse my past applications" surfaces (idle list + palette + `/applications`) down to two, with the palette and `/applications` covering quick-jump and full-browse respectively. Separately, the generation flow's URL is now shallow-synced to `/jobs/{id}` via `window.history.replaceState` the moment a job starts (no visible navigation, no change to the "no navigation during the core loop" feel) — previously the entire idle→generating→result sequence lived in React state with zero URL involvement, meaning a refresh at any point during or after generation silently lost the job back to a blank idle screen even though it was fully persisted server-side.
+
+**ADR-012** — Navbar and account-menu overhaul (2026-07-03), dark-mode-only pass. (1) App is now dark-mode-only — `globals.css`'s `@media (prefers-color-scheme: dark)` block was removed and its values promoted to the permanent `:root` defaults; there was never a real light mode meant to be seen, just an unstyled fallback. (2) Clerk's `appearance` config moved to the `ClerkProvider` level (`lib/clerkAppearance.ts`) so it covers every Clerk component uniformly. Root-caused a dark-mode contrast bug that looked like a single broken icon but wasn't: Clerk computes several element text colors (`headerTitle`, `profileSectionTitleText`, `navbarButtonText`, and others) via automatic contrast against the `colorBackground` variable, and a literal `'transparent'` value read as "light" to that calculation — producing solid near-black text across every Clerk screen regardless of `colorText`/`colorNeutral`. Fixed by giving `colorBackground` a real dark hex value used only for Clerk's internal contrast math (the actual visible glass background still comes from the `card` element's own `backgroundColor` override); also layered `@clerk/themes`' `baseTheme: dark` underneath as a foundation, since some sub-components (modal close button, inactive nav tabs, device-session icons) don't derive from theme variables at all. (3) Replaced Clerk's stock `<UserButton>` dropdown + "Manage account" modal with a custom `UserMenu` component (name, email, Settings, Sign out) — beyond the contrast bugs, Clerk's Security tab exposes a native "Delete account" action that bypasses this app's own grace-period deletion flow (`components/AccountDeletion.tsx`) entirely, deleting the Clerk identity directly without cleaning up app data first; removing the modal removes that landmine along with the theming burden. Session/device management is consequently not exposed in-app — use the Clerk dashboard directly if a manual revoke is ever needed. (4) Deleted `CommandPalette.tsx` (⌘K) as dead code — search moved to a plain inline input on `/applications` itself, filtering the existing list by title/company alongside the status tabs; the navbar's search icon and the standalone Account gear icon were both removed, since Settings is now reachable via the avatar dropdown and reintroducing a second nav path to the same page added clutter without adding capability. (5) Navbar icons redesigned: Applications is a briefcase, and the former "Background" page — previously a document/folder icon — is now titled "Resume" with a stacked-layers icon; a plain document glyph risked reading as "your generated resumes/applications" (this product's actual output) rather than "the structured data that feeds generation," and "Profile" was considered and rejected as a title since it collides with account identity, which lives separately under Settings.
 
 ---
 

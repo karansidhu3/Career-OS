@@ -20,12 +20,13 @@ function ApplicationsIcon() {
   )
 }
 
-// Background — stacked layers. Previously a document glyph, which risked
-// reading as "your resumes/applications" (the actual output of this product)
-// rather than "the structured data that feeds generation." Layers reads as
-// multiple distinct pieces (personal, education, experience, skills) instead
-// of a single flat document.
-function BackgroundIcon() {
+// Resume — stacked layers. Previously titled "Background" with a document
+// glyph; "Background" nudged toward reading as "your resumes/applications"
+// (the actual output of this product) and "Profile" collides with account
+// identity, which lives separately under Settings. "Resume" is the literal,
+// concrete noun for what's actually inside — personal, education, experience,
+// projects, skills. Layers reads as multiple distinct pieces, not one document.
+function ResumeIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2 2 7l10 5 10-5-10-5z" />
@@ -87,7 +88,7 @@ export function Navbar() {
           )}
         </Link>
 
-        {/* Right icons — applications, background, then you (avatar). */}
+        {/* Right icons — applications, resume, then you (avatar). */}
         <div className="flex items-center gap-1">
           {/* Applications — browse/filter/search the full history */}
           <Link
@@ -100,15 +101,15 @@ export function Navbar() {
             <ApplicationsIcon />
           </Link>
 
-          {/* Background — career content that feeds every generation */}
+          {/* Resume — career content that feeds every generation */}
           <Link
             href="/profile"
-            title="Background"
+            title="Resume"
             className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-600 hover:text-neutral-700 transition-all duration-150"
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
-            <BackgroundIcon />
+            <ResumeIcon />
           </Link>
 
           {/* Account — moved into UserMenu's "Settings" entry, avatar click */}

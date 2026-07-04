@@ -947,7 +947,7 @@ export default function ProfilePage() {
         >
           <BrandMark size={28} physicalStroke={1.5} />
         </motion.div>
-        <h1 className="text-3xl font-semibold text-neutral-900">Background</h1>
+        <h1 className="text-3xl font-semibold text-neutral-900">Resume</h1>
         <p className="text-sm text-neutral-600 mt-1">
           What CareerOS knows about you — read by every generation. Account and billing live separately, under Account.
         </p>
