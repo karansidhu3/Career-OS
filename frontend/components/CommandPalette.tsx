@@ -161,7 +161,7 @@ export function CommandPalette({ open, onOpen, onClose }: CommandPaletteProps) {
               </div>
 
               {/* Results */}
-              <div className="py-1.5 max-h-64 overflow-y-auto">
+              <div className="py-1.5 max-h-[420px] overflow-y-auto">
                 {filtered.length === 0 ? (
                   <p className="text-xs text-neutral-600 text-center py-8">
                     {query ? 'No results' : 'No applications yet'}

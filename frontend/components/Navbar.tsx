@@ -9,19 +9,31 @@ import { spring } from '@/lib/motion'
 import { BrandMark } from './BrandMark'
 import { CommandPalette } from './CommandPalette'
 
-function ProfileIcon() {
+function SearchIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
     </svg>
   )
 }
 
+// Applications — a stacked-list glyph, distinct from the search icon it sits
+// next to. This one navigates straight to /applications; search opens ⌘K.
 function ApplicationsIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+      <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  )
+}
+
+// Background — a folder glyph. Previously a person silhouette, which sat right
+// next to the actual avatar and read as a second, competing "identity" icon.
+function BackgroundIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   )
 }
@@ -33,6 +45,10 @@ function AccountIcon() {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   )
+}
+
+function IconGroupDivider() {
+  return <div className="w-px h-4 mx-1 shrink-0" style={{ background: 'var(--c-border)' }} />
 }
 
 export function Navbar() {
@@ -89,18 +105,39 @@ export function Navbar() {
             )}
           </Link>
 
-          {/* Right icons */}
+          {/* Right icons — grouped by purpose: your job search (search, applications),
+              then a divider, then you (background, account, avatar). */}
           <div className="flex items-center gap-1">
-            {/* Applications search — opens command palette */}
+            {/* Quick search — opens the ⌘K palette. The kbd badge makes the shortcut
+                visible on its own instead of only surfacing on hover. */}
             <button
               onClick={() => setPaletteOpen(true)}
-              title="Search applications (⌘K)"
+              title="Search applications"
+              className="h-8 pl-2.5 pr-2 flex items-center gap-1.5 rounded-xl text-neutral-600 hover:text-neutral-700 transition-all duration-150"
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <SearchIcon />
+              <kbd
+                className="text-[10px] font-sans px-1.5 py-0.5 rounded-md border text-neutral-500 leading-none"
+                style={{ background: 'var(--c-kbd-bg)', borderColor: 'var(--c-kbd-border)' }}
+              >
+                ⌘K
+              </kbd>
+            </button>
+
+            {/* Applications — browse/filter the full history */}
+            <Link
+              href="/applications"
+              title="Applications"
               className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-600 hover:text-neutral-700 transition-all duration-150"
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <ApplicationsIcon />
-            </button>
+            </Link>
+
+            <IconGroupDivider />
 
             {/* Background — career content that feeds every generation */}
             <Link
@@ -110,7 +147,7 @@ export function Navbar() {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-icon-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <ProfileIcon />
+              <BackgroundIcon />
             </Link>
 
             {/* Account — billing key, data export, deletion. Deliberately

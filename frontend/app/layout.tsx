@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Blobs } from "@/components/Blobs";
+import { clerkAppearance } from "@/lib/clerkAppearance";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider appearance={clerkAppearance}>
       <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
         <body>
           <div className="relative min-h-screen">

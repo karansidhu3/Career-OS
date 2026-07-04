@@ -1,10 +1,10 @@
 import { SignUp } from '@clerk/nextjs'
-import { clerkAppearance } from '@/lib/clerkAppearance'
 
+// See app/sign-in — appearance now lives once at the ClerkProvider level.
 export default function SignUpPage() {
   return (
     <div className="flex justify-center pt-12">
-      <SignUp appearance={clerkAppearance} />
+      <SignUp />
     </div>
   )
 }

@@ -1,16 +1,16 @@
-// Shared Clerk appearance config — without this, <SignIn>/<SignUp> render with
-// Clerk's stock theme (generic blue, default radii) instead of the app's ink
-// accent and warm-neutral surfaces. CSS custom property references (var(--c-*))
-// resolve against the same :root as the rest of the app, so this also picks up
-// the existing light/dark redefinitions in globals.css for free.
+// Shared Clerk appearance config — without this, <SignIn>/<SignUp>/<UserButton>
+// render with Clerk's stock light theme (generic blue, white cards) instead of
+// the app's ink accent and dark surfaces. Applied once at the ClerkProvider
+// level so it covers every Clerk component, including UserButton's dropdown
+// and "Manage account" modal.
 export const clerkAppearance = {
   variables: {
     colorPrimary: 'var(--c-accent)',
     colorBackground: 'transparent',
-    colorInputBackground: 'rgba(0,0,0,0.03)',
-    colorInputText: '#1C1C1E',
-    colorText: '#1C1C1E',
-    colorTextSecondary: '#71717A',
+    colorInputBackground: 'rgba(255,255,255,0.06)',
+    colorInputText: '#EDEDE8',
+    colorText: '#EDEDE8',
+    colorTextSecondary: 'rgba(255,255,255,0.5)',
     colorDanger: 'var(--c-danger)',
     colorSuccess: 'var(--c-success)',
     colorWarning: 'var(--c-warn)',
