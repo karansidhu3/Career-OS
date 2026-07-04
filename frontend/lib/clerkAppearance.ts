@@ -11,6 +11,7 @@ export const clerkAppearance = {
     colorInputText: '#EDEDE8',
     colorText: '#EDEDE8',
     colorTextSecondary: 'rgba(255,255,255,0.5)',
+    colorNeutral: '#EDEDE8',
     colorDanger: 'var(--c-danger)',
     colorSuccess: 'var(--c-success)',
     colorWarning: 'var(--c-warn)',

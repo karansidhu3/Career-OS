@@ -185,6 +185,7 @@ export default function ApplicationsPage() {
   const [loaded, setLoaded] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [showStale, setShowStale] = useState(false)
+  const [query, setQuery] = useState('')
 
   const load = useCallback(async () => {
     try { setJobs(await api.listJobs()) }
@@ -194,7 +195,12 @@ export default function ApplicationsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const filtered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter)
+  const q = query.trim().toLowerCase()
+  const statusFiltered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter)
+  const filtered = q
+    ? statusFiltered.filter(j => j.title?.toLowerCase().includes(q) || j.company?.toLowerCase().includes(q))
+    : statusFiltered
+  const isNarrowed = filter !== 'all' || q.length > 0
   const { active, recent, older, stale } = groupJobs(jobs)
 
   return (
@@ -221,28 +227,58 @@ export default function ApplicationsPage() {
           <div className="h-4 w-16 rounded skeleton-shimmer mt-2" aria-hidden />
         )}
 
-        {/* Filter tabs — only show tabs with items */}
+        {/* Filter tabs + search — only once there's something to filter/search */}
         {loaded && jobs.length > 0 && (
-          <div className="flex gap-1 mt-5 p-1 rounded-2xl w-fit" style={{ background: 'var(--c-surface)' }}>
-            {FILTERS.map(f => {
-              const count = f === 'all' ? jobs.length : jobs.filter(j => j.status === f).length
-              if (count === 0 && f !== 'all') return null
-              return (
+          <div className="flex flex-wrap items-center justify-between gap-3 mt-5">
+            <div className="flex gap-1 p-1 rounded-2xl w-fit" style={{ background: 'var(--c-surface)' }}>
+              {FILTERS.map(f => {
+                const count = f === 'all' ? jobs.length : jobs.filter(j => j.status === f).length
+                if (count === 0 && f !== 'all') return null
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 capitalize ${
+                      filter === f ? 'text-neutral-900' : 'text-neutral-600'
+                    }`}
+                    style={filter === f
+                      ? { background: 'var(--c-surface-raised)', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }
+                      : undefined
+                    }
+                  >
+                    {f} <span className="opacity-50">{count}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="relative w-full sm:w-56">
+              <svg
+                width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
+              >
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search applications…"
+                className="h-8 w-full pl-8 pr-7 rounded-xl text-xs text-neutral-700 placeholder-neutral-400 focus:outline-none"
+                style={{ background: 'var(--c-surface)' }}
+              />
+              {query && (
                 <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 capitalize ${
-                    filter === f ? 'text-neutral-900' : 'text-neutral-600'
-                  }`}
-                  style={filter === f
-                    ? { background: 'var(--c-surface-raised)', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }
-                    : undefined
-                  }
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700 transition-colors"
                 >
-                  {f} <span className="opacity-50">{count}</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
                 </button>
-              )
-            })}
+              )}
+            </div>
           </div>
         )}
       </motion.div>
@@ -257,10 +293,12 @@ export default function ApplicationsPage() {
         >
           {jobs.length === 0
             ? 'No applications yet. Go to Home and paste a job description.'
+            : q
+            ? `No results for "${query.trim()}".`
             : `No ${filter} applications.`}
         </motion.div>
-      ) : filter !== 'all' ? (
-        // Flat filtered list
+      ) : isNarrowed ? (
+        // Flat filtered/searched list
         <Rows jobs={filtered} />
       ) : (
         // Grouped timeline
