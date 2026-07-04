@@ -1258,7 +1258,7 @@ export default function ProfilePage() {
         </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Resume</h1>
         <p className="text-sm text-neutral-600 mt-1">
-          What CareerOS knows about you — read by every generation. Account and billing live separately, under Account.
+          What every generation reads from. Account settings live separately, under Settings.
         </p>
       </motion.div>
 
@@ -1282,7 +1282,8 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.06 }}
-        className="mb-10"
+        className="mb-10 pt-10"
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
         <SectionHeader title="Projects" onAdd={addProject} adding={addingProject} />
         <div className="space-y-3">

@@ -31,7 +31,7 @@ export default function AccountPage() {
         >
           <BrandMark size={28} physicalStroke={1.5} />
         </motion.div>
-        <h1 className="text-3xl font-semibold text-neutral-900">Account</h1>
+        <h1 className="text-3xl font-semibold text-neutral-900">Settings</h1>
       </motion.div>
 
       {/* API key — required before anything else works */}
