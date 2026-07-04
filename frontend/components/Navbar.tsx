@@ -20,21 +20,19 @@ function ApplicationsIcon() {
   )
 }
 
-// Background — a resume/document glyph. Previously a folder, which read as a
-// generic container rather than "the career content you maintain."
+// Background — stacked layers. Previously a document glyph, which risked
+// reading as "your resumes/applications" (the actual output of this product)
+// rather than "the structured data that feeds generation." Layers reads as
+// multiple distinct pieces (personal, education, experience, skills) instead
+// of a single flat document.
 function BackgroundIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="8" y1="13" x2="16" y2="13" />
-      <line x1="8" y1="17" x2="16" y2="17" />
+      <path d="M12 2 2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
     </svg>
   )
-}
-
-function IconGroupDivider() {
-  return <div className="w-px h-4 mx-1 shrink-0" style={{ background: 'var(--c-border)' }} />
 }
 
 export function Navbar() {
@@ -51,7 +49,7 @@ export function Navbar() {
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring.standard}
-      className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-48px)] max-w-4xl"
+      className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-48px)] max-w-2xl"
     >
       <div
         style={{
@@ -89,8 +87,7 @@ export function Navbar() {
           )}
         </Link>
 
-        {/* Right icons — grouped by purpose: your job search (applications),
-            then a divider, then you (background, account, avatar). */}
+        {/* Right icons — applications, background, then you (avatar). */}
         <div className="flex items-center gap-1">
           {/* Applications — browse/filter/search the full history */}
           <Link
@@ -102,8 +99,6 @@ export function Navbar() {
           >
             <ApplicationsIcon />
           </Link>
-
-          <IconGroupDivider />
 
           {/* Background — career content that feeds every generation */}
           <Link
