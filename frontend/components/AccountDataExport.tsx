@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, AccountExport } from '@/lib/api'
 import { spring } from '@/lib/motion'
+import { SectionLabel } from '@/components/SectionLabel'
 
 // ---- Account data export (Phase 6) ----
 // One-shot async export: request → poll until ready → download. Lives on /profile
@@ -65,7 +66,7 @@ export function AccountDataExport() {
 
   return (
     <div>
-      <p className="text-sm font-semibold text-neutral-800 mb-1">Export your data</p>
+      <SectionLabel className="mb-4">Export your data</SectionLabel>
       <p className="text-xs text-neutral-600 mb-4 leading-relaxed">
         A zip of your profile, every generated resume and cover letter, and your application history.
       </p>

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api, AccountDeletionStatus } from '@/lib/api'
 import { spring } from '@/lib/motion'
 import { inputCls, inputStyle, CancelButton } from '@/components/FormControls'
+import { SectionLabel } from '@/components/SectionLabel'
 
 // ---- Account deletion (Phase 6) ----
 // A "danger zone" pattern — deliberately placed at the bottom of /profile,
@@ -56,9 +57,7 @@ export function AccountDeletion() {
 
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--c-danger)' }}>
-        Danger zone
-      </p>
+      <SectionLabel className="mb-1" style={{ color: 'var(--c-danger)' }}>Danger zone</SectionLabel>
       <p className="text-sm font-semibold text-neutral-800 mb-1">Delete account</p>
 
       {scheduledDate ? (

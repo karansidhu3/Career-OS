@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api, CredentialStatus } from '@/lib/api'
 import { spring } from '@/lib/motion'
 import { Field, inputCls, inputStyle, CancelButton, SaveButton } from '@/components/FormControls'
+import { SectionLabel } from '@/components/SectionLabel'
 
 function SavedFlash() {
   return (
@@ -87,8 +88,8 @@ export function ApiKeySettings({ onSaved }: { onSaved?: (status: CredentialStatu
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-sm font-semibold text-neutral-800">Anthropic API key</p>
+      <div className="flex items-center justify-between mb-4">
+        <SectionLabel>Anthropic API key</SectionLabel>
         <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
       </div>
       <p className="text-xs text-neutral-600 mb-4 leading-relaxed">

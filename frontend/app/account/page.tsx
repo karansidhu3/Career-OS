@@ -32,6 +32,9 @@ export default function AccountPage() {
           <BrandMark size={28} physicalStroke={1.5} />
         </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Settings</h1>
+        <p className="text-sm text-neutral-600 mt-1">
+          Billing key, data export, and account deletion. Career content lives separately, under Resume.
+        </p>
       </motion.div>
 
       {/* API key — required before anything else works */}
@@ -39,8 +42,7 @@ export default function AccountPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.02 }}
-        className="mb-10 pb-10"
-        style={{ borderBottom: '1px solid rgba(0,0,0,0.13)' }}
+        className="mb-10"
       >
         <ApiKeySettings />
       </motion.section>
@@ -51,7 +53,7 @@ export default function AccountPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.04 }}
         className="mb-10 pt-10"
-        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
         <AccountDataExport />
       </motion.section>
@@ -62,7 +64,7 @@ export default function AccountPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.gentle, delay: 0.06 }}
         className="pt-10"
-        style={{ borderTop: '1px solid rgba(0,0,0,0.13)' }}
+        style={{ borderTop: '1px solid var(--c-border)' }}
       >
         <AccountDeletion />
       </motion.section>

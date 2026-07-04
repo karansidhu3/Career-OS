@@ -204,7 +204,7 @@ export default function ApplicationsPage() {
   const { active, recent, older, stale } = groupJobs(jobs)
 
   return (
-    <div className="px-6 pb-24 max-w-4xl mx-auto">
+    <div className="px-6 pb-24 max-w-3xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
