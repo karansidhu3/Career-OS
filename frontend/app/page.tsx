@@ -28,6 +28,14 @@ type AppState =
   | { mode: 'result'; job: Job }
   | { mode: 'error'; jobId?: number; message: string }
 
+// Dev-only escape hatch: lets a local checkout skip the "add a billed
+// Anthropic key" gate to look at the idle screen without spending real
+// money. Hard-gated on NODE_ENV so a leaked env var can never activate this
+// on a real deployment — Generate will still fail without a real key, since
+// this only affects which screen renders, not what the backend accepts.
+const DEV_SKIP_KEY_GATE =
+  process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEV_SKIP_KEY_GATE === 'true'
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getGenMessage(elapsed: number): string {
@@ -382,7 +390,7 @@ export default function Home() {
           return
         }
         const keyStatus = await api.getApiKeyStatus()
-        if (!keyStatus.has_key) {
+        if (!keyStatus.has_key && !DEV_SKIP_KEY_GATE) {
           setAppState({ mode: 'needs-key' })
           return
         }
