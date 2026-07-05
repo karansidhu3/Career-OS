@@ -40,7 +40,7 @@ export function LandingPage() {
         className="w-full max-w-md"
       >
         <div className="flex justify-center mb-8">
-          <span className="brand-ring-glow text-neutral-600" style={{ opacity: 0.55 }}>
+          <span className="brand-ring-glow-cool text-neutral-900">
             <BrandMark size={40} physicalStroke={1.5} />
           </span>
         </div>

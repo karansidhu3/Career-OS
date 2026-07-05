@@ -145,35 +145,27 @@ body::before {
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
 
-/* ─── Brand mark glow ────────────────────────────────────────── */
-@keyframes brandRingGlow {
-  0%   { filter: drop-shadow(0 0 7px rgba(251, 191,  36, 0.75)); }
-  20%  { filter: drop-shadow(0 0 7px rgba(249, 115,  22, 0.65)); }
-  40%  { filter: drop-shadow(0 0 7px rgba(205, 127,  50, 0.70)); }
-  60%  { filter: drop-shadow(0 0 7px rgba(244, 114, 182, 0.55)); }
-  80%  { filter: drop-shadow(0 0 7px rgba(234, 179,   8, 0.70)); }
-  100% { filter: drop-shadow(0 0 7px rgba(251, 191,  36, 0.75)); }
+/* ─── Brand mark glow — the one ring, used everywhere ─────────── */
+/* Cool white, tight blur — a wide soft halo reads as smudged, not lit, so
+   this stays close and sharp instead of a diffuse glow. Always breathing:
+   the ring never sits at a flat brightness, dimming and lifting on a slow
+   continuous cycle so the mark reads as alive rather than static chrome.
+   One shared recipe for every instance (navbar, page headers, hero,
+   generating spinner) — size alone is what separates a quiet mark from a
+   hero moment, not a different treatment. */
+@keyframes brandRingBreathe {
+  0%, 100% {
+    opacity: 0.62;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+  }
+  50% {
+    opacity: 0.92;
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.95));
+  }
 }
 
-.brand-ring-glow {
-  animation: brandRingGlow 14s ease-in-out infinite;
-  pointer-events: none;
-}
-
-/* Static amber variant — matches the installed app icon (lib/ringMark.tsx),
-   which can't animate. Used on smaller/quieter ring instances (navbar, page
-   headers) where a full color-cycling glow would be too much motion for a
-   passive UI element. */
-.brand-ring-glow-static {
-  filter: drop-shadow(0 0 7px rgba(251, 191, 36, 0.75));
-  pointer-events: none;
-}
-
-/* Cool white variant — home hero ring only. Tighter blur radius than the
-   amber variants above: a wide soft halo at this larger size reads as
-   smudged rather than lit, so this stays close and sharp instead. */
 .brand-ring-glow-cool {
-  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.9));
+  animation: brandRingBreathe 4.5s ease-in-out infinite;
   pointer-events: none;
 }
 

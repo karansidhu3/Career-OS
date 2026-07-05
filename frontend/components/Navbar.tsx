@@ -64,10 +64,7 @@ export function Navbar() {
           className="flex items-center gap-[7px] group"
           title="Home"
         >
-          <span
-            className="brand-ring-glow-static text-neutral-800 transition-opacity duration-150"
-            style={{ opacity: 0.88 }}
-          >
+          <span className="brand-ring-glow-cool text-neutral-900">
             <BrandMark size={12} physicalStroke={1.8} />
           </span>
           <span className="text-[13px] font-medium text-neutral-800 tracking-[0.02em]">

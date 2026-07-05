@@ -215,8 +215,7 @@ export default function ApplicationsPage() {
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ ...spring.bouncy, delay: 0.04 }}
-          className="brand-ring-glow-static mb-4 text-neutral-600"
-          style={{ opacity: 0.45 }}
+          className="brand-ring-glow-cool mb-4 text-neutral-900"
         >
           <BrandMark size={28} physicalStroke={1.5} />
         </motion.div>

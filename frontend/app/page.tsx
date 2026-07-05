@@ -577,7 +577,7 @@ export default function Home() {
                 transition={{ ...spring.bouncy, delay: 0.05 }}
                 className="flex justify-center mb-8"
               >
-                <span className="brand-ring-glow-cool text-neutral-900" style={{ opacity: 0.9 }}>
+                <span className="brand-ring-glow-cool text-neutral-900">
                   <BrandMark size={56} physicalStroke={1.5} />
                 </span>
               </motion.div>
@@ -734,7 +734,7 @@ export default function Home() {
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
                 style={{ width: 52, height: 52 }}
-                className="brand-ring-glow"
+                className="brand-ring-glow-cool"
               >
                 <svg width={52} height={52} viewBox="0 0 52 52" fill="none">
                   <circle cx={26} cy={26} r={19.5} stroke="var(--c-accent-dim)" strokeWidth={1.5} />
