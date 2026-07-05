@@ -16,8 +16,15 @@ export type AutoTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>
  * Drops the `rows` attribute — use `style.minHeight` for the floor size.
  */
 export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
-  ({ onChange, value, style, ...props }, forwardedRef) => {
+  ({ onChange, onPaste, value, style, ...props }, forwardedRef) => {
     const innerRef = useRef<HTMLTextAreaElement | null>(null)
+    // Pasting moves the caret to the end of the inserted text, and since this
+    // textarea has no internal scrollbar (overflow: hidden), the browser's
+    // "scroll caret into view" behavior scrolls the whole window down to the
+    // now much-taller box. Snapshot scroll position before the browser acts
+    // on the paste, then restore it once the resize settles but before paint,
+    // so the reader stays where they were instead of being dropped at the end.
+    const pastedScrollY = useRef<number | null>(null)
 
     // Merge the forwarded ref with our internal ref
     const setRef = useCallback(
@@ -45,6 +52,10 @@ export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
     // This ensures layout is settled when we measure scrollHeight.
     useLayoutEffect(() => {
       resize()
+      if (pastedScrollY.current !== null) {
+        window.scrollTo(0, pastedScrollY.current)
+        pastedScrollY.current = null
+      }
     }, [value, resize])
 
     return (
@@ -55,6 +66,10 @@ export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
         onChange={e => {
           onChange?.(e)
           resize()
+        }}
+        onPaste={e => {
+          pastedScrollY.current = window.scrollY
+          onPaste?.(e)
         }}
         style={{ resize: 'none', overflow: 'hidden', ...style }}
         {...props}
