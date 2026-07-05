@@ -15,13 +15,14 @@ import { SectionLabel } from '@/components/SectionLabel'
 
 export function AccountDeletion() {
   const [status, setStatus] = useState<AccountDeletionStatus | null>(null)
+  const [loading, setLoading] = useState(true)
   const [confirming, setConfirming] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.getDeletionStatus().then(setStatus).catch(() => {})
+    api.getDeletionStatus().then(setStatus).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const requestDeletion = async () => {
@@ -60,7 +61,13 @@ export function AccountDeletion() {
       <SectionLabel className="mb-1" style={{ color: 'var(--c-danger)' }}>Danger zone</SectionLabel>
       <p className="text-sm font-semibold text-neutral-800 mb-1">Delete account</p>
 
-      {scheduledDate ? (
+      {loading ? (
+        <div aria-hidden>
+          <div className="h-3 w-full rounded skeleton-shimmer mb-1.5" />
+          <div className="h-3 w-2/3 rounded skeleton-shimmer mb-4" />
+          <div className="h-7 w-32 rounded-xl skeleton-shimmer" />
+        </div>
+      ) : scheduledDate ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={spring.snappy}>
           <p className="text-xs text-neutral-600 mb-3 leading-relaxed">
             Your account and all data will be permanently deleted on <strong>{scheduledDate}</strong>.

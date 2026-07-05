@@ -19,6 +19,38 @@ function getGenMessage(elapsed: number): string {
   return 'This is taking a moment…'
 }
 
+// Loading skeleton — mirrors the real title/score/sections layout so nothing
+// reflows on arrival. The back button needs no data, so it renders for real.
+function JobDetailSkeleton({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="max-w-3xl mx-auto px-6 pb-24">
+      <div className="pt-8 mb-8">
+        <button
+          onClick={onBack}
+          className="text-sm text-neutral-600 hover:text-neutral-800 transition-colors flex items-center gap-1.5"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Applications
+        </button>
+      </div>
+      <div className="pointer-events-none" aria-hidden>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex-1">
+            <div className="h-7 w-2/3 rounded skeleton-shimmer mb-2" />
+            <div className="h-4 w-1/3 rounded skeleton-shimmer" />
+          </div>
+          <div className="w-16 h-16 rounded-full skeleton-shimmer shrink-0" />
+        </div>
+        <div className="h-3 w-40 rounded skeleton-shimmer mb-8" />
+        <div className="h-40 rounded-2xl skeleton-shimmer mb-6" />
+        <div className="h-64 rounded-2xl skeleton-shimmer" />
+      </div>
+    </div>
+  )
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function CoverLetterSection({ job }: { job: Job }) {
@@ -184,11 +216,7 @@ export default function JobPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
-      </div>
-    )
+    return <JobDetailSkeleton onBack={() => router.push('/')} />
   }
 
   if (!job) return null

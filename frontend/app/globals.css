@@ -9,6 +9,16 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 
+/* Tailwind's preflight resets <button> to cursor: default — every button in
+   this app is a real action, so restore the pointer everywhere except the
+   disabled state, which gets not-allowed instead. */
+button:not(:disabled), [role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+button:disabled, [role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* ─── Design Token System (dark — this app is dark-mode only) ──── */
 :root {
   /* Accent */

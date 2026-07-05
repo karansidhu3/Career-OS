@@ -889,6 +889,59 @@ function VoiceEditor({ personal, onSave }: { personal: PersonalInfo; onSave: (p:
   )
 }
 
+// ---- Loading skeleton — mirrors the real section layout so nothing reflows on arrival ----
+
+function ResumeSkeleton() {
+  return (
+    <div className="pointer-events-none" aria-hidden>
+      {/* Personal info */}
+      <div className="mb-10 pt-10" style={{ borderTop: '1px solid var(--c-border)' }}>
+        <div className="h-3 w-24 rounded skeleton-shimmer mb-4" />
+        <div className="h-4 w-40 rounded skeleton-shimmer mb-2" />
+        <div className="h-3 w-64 rounded skeleton-shimmer" />
+      </div>
+
+      {/* Projects */}
+      <div className="mb-10 pt-10" style={{ borderTop: '1px solid var(--c-border)' }}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-3 w-16 rounded skeleton-shimmer" />
+          <div className="h-3 w-10 rounded skeleton-shimmer" />
+        </div>
+        {[0, 1].map(i => (
+          <div key={i} className="py-3" style={i === 0 ? { borderBottom: '1px solid var(--c-border)' } : undefined}>
+            <div className="h-3.5 w-1/3 rounded skeleton-shimmer mb-2" />
+            <div className="h-3 w-1/4 rounded skeleton-shimmer mb-2" />
+            <div className="h-3 w-3/4 rounded skeleton-shimmer" />
+          </div>
+        ))}
+      </div>
+
+      {/* Experience */}
+      <div className="mb-10 pt-10" style={{ borderTop: '1px solid var(--c-border)' }}>
+        <div className="h-3 w-20 rounded skeleton-shimmer mb-4" />
+        <div className="py-3">
+          <div className="h-3.5 w-2/5 rounded skeleton-shimmer mb-2" />
+          <div className="h-3 w-1/3 rounded skeleton-shimmer mb-2" />
+          <div className="h-3 w-2/3 rounded skeleton-shimmer" />
+        </div>
+      </div>
+
+      {/* Skills */}
+      <div className="mb-10 pt-10" style={{ borderTop: '1px solid var(--c-border)' }}>
+        <div className="h-3 w-14 rounded skeleton-shimmer mb-4" />
+        <div className="h-3 w-full rounded skeleton-shimmer" />
+      </div>
+
+      {/* Education */}
+      <div className="pt-10" style={{ borderTop: '1px solid var(--c-border)' }}>
+        <div className="h-3 w-20 rounded skeleton-shimmer mb-4" />
+        <div className="h-3.5 w-1/2 rounded skeleton-shimmer mb-2" />
+        <div className="h-3 w-1/3 rounded skeleton-shimmer" />
+      </div>
+    </div>
+  )
+}
+
 // ---- Main page ----
 
 export default function ProfilePage() {
@@ -1009,8 +1062,27 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
+      <div className="px-6 pb-24 max-w-3xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring.gentle}
+          className="pt-10 mb-10"
+        >
+          <motion.div
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ ...spring.bouncy, delay: 0.04 }}
+            className="brand-ring-glow-cool mb-4 text-neutral-900"
+          >
+            <BrandMark size={28} physicalStroke={1.5} />
+          </motion.div>
+          <h1 className="text-3xl font-semibold text-neutral-900">Resume</h1>
+          <p className="text-sm text-neutral-600 mt-1">
+            What every generation reads from. Account settings live separately, under Settings.
+          </p>
+        </motion.div>
+        <ResumeSkeleton />
       </div>
     )
   }
