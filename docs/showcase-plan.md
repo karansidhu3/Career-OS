@@ -378,6 +378,76 @@ Not the emotion.
 
 ---
 
+# Capture Checklist
+
+Four recordings. Nothing else.
+
+Everything outside these four is typography on black, built in post.
+
+## 1. Cold Open
+
+Home screen. Textarea empty. Focused.
+
+Clear sessionStorage first.
+
+No leftover draft.
+
+## 2. The Generation Take
+
+One continuous recording. No cuts.
+
+Covers Act II. Feeds the first half of Act III.
+
+Paste a real job description. Chosen in advance.
+
+The output on screen is the film.
+
+Press Generate.
+
+Let it run at real speed.
+
+Resume appears. Cover letter appears.
+
+Keep rolling.
+
+Scroll into strategic analysis. Selected projects.
+
+Let every panel settle.
+
+## 3. Applications Pipeline
+
+Separate recording.
+
+Navigate to Applications.
+
+Needs real history first.
+
+Several applications. Different statuses.
+
+Not sparse. Not staged.
+
+## 4. Candidacy Insights
+
+Separate recording.
+
+Idle screen. Insights panel.
+
+Requires 3+ completed applications beforehand.
+
+Record fresh. Not from cache.
+
+---
+
+Before recording:
+
+Disable cursor highlights in Screen Studio.
+
+The film bans cursor highlights and animated arrows.
+
+Motion should come from real interaction. Not capture effects.
+
+---
+
 # Editing Philosophy
 
 Remove everything that feels like marketing.
