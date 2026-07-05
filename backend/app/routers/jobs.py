@@ -79,7 +79,7 @@ _COVER_LETTER_LATEX = r"""\documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{charter}
-\usepackage[left=0.85in, right=0.85in, top=0.5in, bottom=0.85in]{geometry}
+\usepackage[left=0.85in, right=0.85in, top=0.3in, bottom=0.85in]{geometry}
 \usepackage{fontawesome}
 \usepackage[hidelinks]{hyperref}
 \usepackage{xcolor}
@@ -96,9 +96,13 @@ _COVER_LETTER_LATEX = r"""\documentclass[11pt]{article}
   \AtPageUpperLeft{\rule[-1.30in]{\paperwidth}{1.30in}}%
 }
 
-\vspace*{0.04in}
+\begin{minipage}[c][1.00in][c]{\textwidth}
+\centering
+{\fontsize{26}{30}\selectfont\scshape <<NAME>>}
+\end{minipage}
+
+\vspace*{-0.22in}
 \begin{center}
-{\fontsize{26}{30}\selectfont\scshape <<NAME>>}\\\vspace{5pt}
 {\small\color[RGB]{80,80,80}
   <<CONTACT>>%
 }
