@@ -569,7 +569,7 @@ export default function Home() {
                 transition={{ ...spring.bouncy, delay: 0.05 }}
                 className="flex justify-center mb-8"
               >
-                <span className="brand-ring-glow text-neutral-600" style={{ opacity: 0.55 }}>
+                <span className="brand-ring-glow-cool text-neutral-900" style={{ opacity: 0.9 }}>
                   <BrandMark size={56} physicalStroke={1.5} />
                 </span>
               </motion.div>

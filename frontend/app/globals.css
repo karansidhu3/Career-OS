@@ -169,6 +169,14 @@ body::before {
   pointer-events: none;
 }
 
+/* Cool white variant — home hero ring only. Tighter blur radius than the
+   amber variants above: a wide soft halo at this larger size reads as
+   smudged rather than lit, so this stays close and sharp instead. */
+.brand-ring-glow-cool {
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.9));
+  pointer-events: none;
+}
+
 /* ─── JD textarea — bare canvas, no focus ring ───────────────── */
 .jd-textarea:focus {
   box-shadow: none !important;
