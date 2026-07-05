@@ -1081,7 +1081,7 @@ export default function ProfilePage() {
           </motion.div>
           <h1 className="text-3xl font-semibold text-neutral-900">Resume</h1>
           <p className="text-sm text-neutral-600 mt-1">
-            What every generation reads from. Account settings live separately, under Settings.
+            What every generation reads from.
           </p>
         </motion.div>
         <ResumeSkeleton />

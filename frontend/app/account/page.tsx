@@ -34,7 +34,7 @@ export default function AccountPage() {
         </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Settings</h1>
         <p className="text-sm text-neutral-600 mt-1">
-          Billing key, data export, and account deletion. Career content lives separately, under Resume.
+          Billing key, data export, and account deletion.
         </p>
       </motion.div>
 
