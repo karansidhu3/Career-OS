@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api, CredentialStatus } from '@/lib/api'
+import { api, extractErrorMessage, CredentialStatus } from '@/lib/api'
 import { spring } from '@/lib/motion'
 import { Field, inputCls, inputStyle, CancelButton, SaveButton } from '@/components/FormControls'
 import { SectionLabel } from '@/components/SectionLabel'
@@ -65,11 +65,7 @@ export function ApiKeySettings({ onSaved }: { onSaved?: (status: CredentialStatu
       setSavedFlash(true)
       onSaved?.(updated)
     } catch (e) {
-      let detail = e instanceof Error ? e.message : 'Could not verify this key.'
-      try {
-        detail = JSON.parse(detail).detail ?? detail
-      } catch { /* not JSON — show raw message */ }
-      setError(detail)
+      setError(extractErrorMessage(e, 'Could not verify this key.'))
     } finally {
       setSaving(false)
     }

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 import anthropic
@@ -16,6 +17,8 @@ from app.services.credentials import DEFAULT_PROVIDER, get_credential
 from app.services.crypto import encrypt
 from app.services.generation import CLAUDE_MODEL
 from app.services.llm_client import get_llm_client
+
+logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=limiter_key)
 
@@ -80,6 +83,9 @@ async def add_api_key(
         raise HTTPException(status_code=400, detail="This API key doesn't have permission to call the Claude API.")
     except (anthropic.APIStatusError, anthropic.APIConnectionError, asyncio.TimeoutError):
         raise HTTPException(status_code=400, detail="Could not verify this key with Anthropic. Check the key and try again.")
+    except Exception:
+        logger.exception("Unexpected error validating API key for user %s", current_user.id)
+        raise HTTPException(status_code=400, detail="Could not verify this key. Check that you pasted the whole key and try again.")
 
     encrypted_key, key_version = encrypt(body.api_key)
     now = datetime.now(timezone.utc)

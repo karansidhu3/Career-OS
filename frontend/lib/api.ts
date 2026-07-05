@@ -194,6 +194,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
+// Turns a thrown error into a displayable string, regardless of shape.
+// FastAPI's error body is usually {"detail": "some message"}, but Pydantic
+// validation failures (422s) instead send {"detail": [{"msg": "...", ...}, ...]}
+// — rendering that array directly as a React child crashes with "Objects are
+// not valid as a React child," which is what "typing garbage into a field"
+// used to produce. Always resolves to a plain string.
+export function extractErrorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : fallback
+  try {
+    const parsed = JSON.parse(raw)
+    const detail = parsed?.detail
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) {
+      return detail.map(d => (typeof d === 'string' ? d : d?.msg)).filter(Boolean).join('; ') || fallback
+    }
+    return fallback
+  } catch {
+    return raw || fallback
+  }
+}
+
 // Fetch a binary endpoint (PDF) and return an object URL.
 // Caller is responsible for revoking with URL.revokeObjectURL when done.
 async function requestBlob(path: string): Promise<string> {

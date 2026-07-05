@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api, AccountExport } from '@/lib/api'
+import { api, extractErrorMessage, AccountExport } from '@/lib/api'
 import { spring } from '@/lib/motion'
 import { SectionLabel } from '@/components/SectionLabel'
 
@@ -45,11 +45,7 @@ export function AccountDataExport() {
       setExportState(created)
       startPolling(created.id)
     } catch (e) {
-      let detail = e instanceof Error ? e.message : 'Could not start export.'
-      try {
-        detail = JSON.parse(detail).detail ?? detail
-      } catch { /* not JSON — show raw message */ }
-      setError(detail)
+      setError(extractErrorMessage(e, 'Could not start export.'))
     } finally {
       setRequesting(false)
     }

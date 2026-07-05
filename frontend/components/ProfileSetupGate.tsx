@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   api,
+  extractErrorMessage,
   ImportedEducation,
   ImportedExperience,
   ImportedProject,
@@ -125,9 +126,7 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
       setEmail(draft.personal.email ?? '')
       setStage({ kind: 'review', draft })
     } catch (e) {
-      let detail = e instanceof Error ? e.message : 'Could not extract profile data.'
-      try { detail = JSON.parse(detail).detail ?? detail } catch { /* not JSON */ }
-      setStage({ kind: 'error', message: detail })
+      setStage({ kind: 'error', message: extractErrorMessage(e, 'Could not extract profile data.') })
     }
   }
 
