@@ -215,9 +215,11 @@ export default function ApplicationsPage() {
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ ...spring.bouncy, delay: 0.04 }}
-          className="brand-ring-glow-cool mb-4 text-neutral-900"
+          className="mb-4"
         >
-          <BrandMark size={28} physicalStroke={1.5} />
+          <span className="brand-ring-glow-cool text-neutral-900">
+            <BrandMark size={28} physicalStroke={1.5} />
+          </span>
         </motion.div>
         <h1 className="text-3xl font-semibold text-neutral-900">Applications</h1>
         {loaded ? (
