@@ -160,6 +160,15 @@ body::before {
   pointer-events: none;
 }
 
+/* Static amber variant — matches the installed app icon (lib/ringMark.tsx),
+   which can't animate. Used on smaller/quieter ring instances (navbar, page
+   headers) where a full color-cycling glow would be too much motion for a
+   passive UI element. */
+.brand-ring-glow-static {
+  filter: drop-shadow(0 0 7px rgba(251, 191, 36, 0.75));
+  pointer-events: none;
+}
+
 /* ─── JD textarea — bare canvas, no focus ring ───────────────── */
 .jd-textarea:focus {
   box-shadow: none !important;

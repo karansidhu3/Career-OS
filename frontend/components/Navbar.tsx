@@ -65,7 +65,7 @@ export function Navbar() {
           title="Home"
         >
           <span
-            className="text-neutral-800 transition-opacity duration-150"
+            className="brand-ring-glow-static text-neutral-800 transition-opacity duration-150"
             style={{ opacity: 0.88 }}
           >
             <BrandMark size={12} physicalStroke={1.8} />

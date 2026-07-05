@@ -1251,7 +1251,7 @@ export default function ProfilePage() {
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ ...spring.bouncy, delay: 0.04 }}
-          className="mb-4 text-neutral-600"
+          className="brand-ring-glow-static mb-4 text-neutral-600"
           style={{ opacity: 0.45 }}
         >
           <BrandMark size={28} physicalStroke={1.5} />
