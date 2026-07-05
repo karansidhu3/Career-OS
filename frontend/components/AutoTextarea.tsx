@@ -18,12 +18,15 @@ export type AutoTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>
 export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
   ({ onChange, onPaste, value, style, ...props }, forwardedRef) => {
     const innerRef = useRef<HTMLTextAreaElement | null>(null)
-    // Pasting moves the caret to the end of the inserted text and leaves the
-    // field focused, so the browser keeps chasing that caret to keep it in
-    // view as the box grows — a one-time scroll restore isn't enough because
-    // the browser can re-assert "keep the focused caret visible" on a later
-    // tick, after our restore already ran. Blurring removes the thing being
-    // chased: no caret is being tracked, so there's nothing to scroll toward.
+    // Pasting moves the caret to the end of the inserted text. That caret is
+    // clipped out of view by overflow: hidden at the old (shorter) height —
+    // resizing is what un-clips it and makes its line geometrically visible
+    // for the first time. If the field is still focused at that instant, the
+    // browser decides right then to scroll that newly-revealed line into
+    // view, which is why it snaps to the last pasted sentence rather than
+    // the true bottom of the page. Blurring after resize is too late — the
+    // decision was already made during the height change. Blur BEFORE
+    // resize instead, so there's no caret to reveal when the box grows.
     const pastedScrollY = useRef<number | null>(null)
     const didPaste = useRef(false)
 
@@ -52,14 +55,16 @@ export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
     // useLayoutEffect fires synchronously after DOM mutations, before paint.
     // This ensures layout is settled when we measure scrollHeight.
     useLayoutEffect(() => {
-      resize()
       if (didPaste.current) {
         didPaste.current = false
         innerRef.current?.blur()
+        resize()
         if (pastedScrollY.current !== null) {
           window.scrollTo(0, pastedScrollY.current)
           pastedScrollY.current = null
         }
+      } else {
+        resize()
       }
     }, [value, resize])
 
