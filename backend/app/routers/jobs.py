@@ -430,6 +430,40 @@ async def download_cover_letter(
     )
 
 
+@router.get("/{id}/cover-letter-preview.pdf")
+async def preview_cover_letter_pdf(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Serve cover letter PDF inline — for browser embedding, not forced download."""
+    job = (
+        await db.execute(select(Job).where(Job.id == id, Job.user_id == current_user.id))
+    ).scalar_one_or_none()
+    if not job or not job.cover_letter:
+        raise HTTPException(status_code=404, detail="Cover letter not found")
+
+    try:
+        pdf_bytes = await get_pdf_storage().load(cover_letter_pdf_key(job.id))
+        if pdf_bytes is None:
+            personal = (
+                await db.execute(select(PersonalInfo).where(PersonalInfo.user_id == current_user.id).limit(1))
+            ).scalar_one_or_none()
+            latex = _build_cover_letter_latex(job, personal)
+            pdf_bytes = await cache_cover_letter_pdf(job.id, latex)
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="PDF compilation not available")
+    except RuntimeError:
+        logger.exception("Cover letter preview compilation failed for job %d", id)
+        raise HTTPException(status_code=500, detail="PDF generation failed")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline"},
+    )
+
+
 @router.get("/insights", response_model=CandidacyInsightsRead)
 @limiter.limit("20/hour")
 async def get_candidacy_insights(

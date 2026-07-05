@@ -8,12 +8,11 @@ import { api, CandidacyInsights, Job } from '@/lib/api'
 import { ApiKeySettings } from '@/components/ApiKeySettings'
 import { LandingPage } from '@/components/LandingPage'
 import { ProfileSetupGate } from '@/components/ProfileSetupGate'
-import { CopyButton } from '@/components/CopyButton'
 import { AutoTextarea } from '@/components/AutoTextarea'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { ScoreRing } from '@/components/ScoreRing'
-import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, ResumeDownloadOverlay } from '@/components/ResultSections'
+import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, DownloadIconButton, CoverLetterSection } from '@/components/ResultSections'
 import { spring } from '@/lib/motion'
 import { parseStrategicNote } from '@/lib/utils'
 
@@ -102,84 +101,6 @@ function StatusActions({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
 }
 
 // ─── Selected projects bar — verify what the AI chose ────────────────────────
-
-// ─── Cover letter editor — editable before download ──────────────────────────
-
-function CoverLetterEditor({ job, onSave }: { job: Job; onSave: (updated: Job) => void }) {
-  const [text, setText] = useState(job.cover_letter ?? '')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [downloaded, setDownloaded] = useState(false)
-  const [downloading, setDownloading] = useState(false)
-
-  const save = async () => {
-    if (!text.trim()) return
-    setSaving(true)
-    try {
-      const updated = await api.updateCoverLetter(job.id, text)
-      onSave(updated)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const isDirty = text !== (job.cover_letter ?? '')
-
-  return (
-    <div>
-      <textarea
-        value={text}
-        onChange={e => { setText(e.target.value); setSaved(false) }}
-        rows={12}
-        className="w-full text-[15px] text-neutral-700 leading-[1.8] resize-none focus:outline-none rounded-xl p-4"
-        style={{
-          background: 'var(--c-glass-bg)',
-          border: '1px solid var(--c-glass-border)',
-        }}
-      />
-      <div className="mt-4 flex items-center gap-4 flex-wrap">
-        <motion.button
-          onClick={async () => {
-            setDownloading(true)
-            try {
-              await api.downloadCoverLetterPdf(job.id, job.company)
-              setDownloaded(true)
-            } finally {
-              setDownloading(false)
-            }
-          }}
-          disabled={downloading}
-          whileTap={{ scale: 0.97 }}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-          style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-        >
-          {downloading ? 'Compiling…' : downloaded ? 'Letter saved' : 'Download Cover Letter'}
-          {downloaded ? (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          ) : (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-          )}
-        </motion.button>
-        <CopyButton text={text} label="Copy" />
-        {isDirty && (
-          <button
-            onClick={save}
-            disabled={saving}
-            className="text-xs text-neutral-600 hover:text-neutral-700 disabled:opacity-40 transition-colors"
-          >
-            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save edits'}
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
 
 // ─── Generating skeleton — ghost of what's being built ──────────────────────
 
@@ -892,11 +813,6 @@ export default function Home() {
                     onLoad={() => setPdfLoaded(true)}
                     onError={() => setPdfFailed(true)}
                   />
-                  <ResumeDownloadOverlay
-                    onDownload={handleDownloadResume}
-                    downloading={resumeDownloading}
-                    downloaded={resumeDownloaded}
-                  />
                 </motion.div>
               )}
 
@@ -906,26 +822,14 @@ export default function Home() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ ...spring.gentle, delay: 0.12 }}
-                  className="mb-8 flex items-center gap-4 flex-wrap"
+                  className="mb-8 flex items-center gap-3"
                 >
-                  <motion.button
+                  <DownloadIconButton
                     onClick={handleDownloadResume}
-                    disabled={resumeDownloading}
-                    whileTap={{ scale: 0.97 }}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-                    style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-                  >
-                    {resumeDownloading ? 'Compiling…' : resumeDownloaded ? 'Resume saved' : 'Download Resume'}
-                    {resumeDownloaded ? (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    ) : (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                      </svg>
-                    )}
-                  </motion.button>
+                    downloading={resumeDownloading}
+                    downloaded={resumeDownloaded}
+                    title="Download resume"
+                  />
                   {(appState.job.compression_attempts ?? 0) >= 2 && (
                     <button
                       onClick={() => api.downloadResumePdfPage1(appState.job.id, appState.job.company)}
@@ -946,7 +850,7 @@ export default function Home() {
                   transition={{ ...spring.gentle, delay: 0.16 }}
                 >
                   <Divider delay={0.14} />
-                  <CoverLetterEditor
+                  <CoverLetterSection
                     job={appState.job}
                     onSave={job => setAppState({ mode: 'result', job })}
                   />

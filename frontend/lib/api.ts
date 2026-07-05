@@ -265,6 +265,7 @@ export const api = {
     downloadBlob(`/admin/jobs/${id}/resume.pdf`, `resume-${(company ?? 'company').toLowerCase().replace(/[^a-z0-9]/g, '-')}.pdf`),
   downloadResumePdfPage1: (id: number, company: string | null) =>
     downloadBlob(`/admin/jobs/${id}/resume.pdf?first_page=true`, `resume-${(company ?? 'company').toLowerCase().replace(/[^a-z0-9]/g, '-')}-p1.pdf`),
+  fetchCoverLetterPdfPreview: (id: number) => requestBlob(`/admin/jobs/${id}/cover-letter-preview.pdf`),
   downloadCoverLetterPdf: (id: number, company: string | null) =>
     downloadBlob(`/admin/jobs/${id}/cover-letter.pdf`, `cover-letter-${(company ?? 'company').toLowerCase().replace(/[^a-z0-9]/g, '-')}.pdf`),
   updateCoverLetter: (id: number, cover_letter: string) =>

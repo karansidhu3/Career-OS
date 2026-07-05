@@ -4,10 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, Job } from '@/lib/api'
-import { CopyButton } from '@/components/CopyButton'
-import { SectionLabel } from '@/components/SectionLabel'
 import { ScoreRing } from '@/components/ScoreRing'
-import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, ResumeDownloadOverlay } from '@/components/ResultSections'
+import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, DownloadIconButton, CoverLetterSection } from '@/components/ResultSections'
 import { spring } from '@/lib/motion'
 import { parseStrategicNote } from '@/lib/utils'
 
@@ -52,44 +50,6 @@ function JobDetailSkeleton({ onBack }: { onBack: () => void }) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function CoverLetterSection({ job }: { job: Job }) {
-  const [downloading, setDownloading] = useState(false)
-  const paragraphs = (job.cover_letter ?? '').split(/\n\n+/).map(p => p.trim()).filter(Boolean)
-  if (!paragraphs.length) return null
-
-  const handleDownload = async () => {
-    setDownloading(true)
-    try { await api.downloadCoverLetterPdf(job.id, job.company) }
-    finally { setDownloading(false) }
-  }
-
-  return (
-    <div>
-      <SectionLabel className="mb-4">Cover letter</SectionLabel>
-      <div style={{ maxWidth: '520px' }}>
-        {paragraphs.map((para, i) => (
-          <p key={i} className="text-[15px] text-neutral-700 leading-[1.8] mb-5 last:mb-0">{para}</p>
-        ))}
-      </div>
-      <div className="mt-5 flex items-center gap-4 flex-wrap">
-        <motion.button
-          onClick={handleDownload}
-          disabled={downloading}
-          whileTap={{ scale: 0.97 }}
-          className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center gap-2 disabled:opacity-40"
-          style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-        >
-          {downloading ? 'Compiling…' : 'Download Cover Letter'}
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-        </motion.button>
-        <CopyButton text={job.cover_letter!} label="Copy" />
-      </div>
-    </div>
-  )
-}
 
 function JdSection({ description }: { description: string }) {
   const [expanded, setExpanded] = useState(false)
@@ -475,17 +435,8 @@ export default function JobPage() {
                 onLoad={() => setPdfLoaded(true)}
                 onError={() => setPdfFailed(true)}
               />
-              <ResumeDownloadOverlay onDownload={handleDownload} downloading={downloading} />
-              <div className="mb-8 flex items-center gap-4 flex-wrap">
-                <motion.button
-                  onClick={handleDownload}
-                  disabled={downloading}
-                  whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-                  style={{ background: 'var(--c-btn-bg)', boxShadow: 'var(--c-btn-shadow)' }}
-                >
-                  {downloading ? 'Compiling…' : 'Download Resume'}
-                </motion.button>
+              <div className="mb-8 flex items-center gap-3">
+                <DownloadIconButton onClick={handleDownload} downloading={downloading} title="Download resume" />
                 {(job.compression_attempts ?? 0) >= 2 && (
                   <button
                     onClick={() => api.downloadResumePdfPage1(job.id, job.company)}
@@ -507,7 +458,7 @@ export default function JobPage() {
               transition={{ ...spring.gentle, delay: 0.12 }}
             >
               <Divider delay={0.1} />
-              <CoverLetterSection job={job} />
+              <CoverLetterSection job={job} onSave={setJob} />
             </motion.div>
           )}
 

@@ -78,6 +78,18 @@ async def test_cover_letter_pdf_caches_and_invalidates_on_edit(client, db_sessio
         assert mock_v2.await_count == 1  # recompiled after the edit invalidated the cache
 
 
+async def test_cover_letter_preview_shares_the_same_cache_as_download(client, db_session, current_test_user):
+    job = await _make_job(db_session, current_test_user.id, cover_letter="Original.\n\nBody.\n\nClose.")
+    mock_compile = AsyncMock(return_value=b"%PDF-shared-cl")
+
+    with patch("app.services.pdf.compile_latex_to_pdf", mock_compile):
+        r1 = await client.get(f"/admin/jobs/{job.id}/cover-letter-preview.pdf")
+        assert r1.status_code == 200
+        assert mock_compile.await_count == 1
+        r2 = await client.get(f"/admin/jobs/{job.id}/cover-letter.pdf")
+        assert mock_compile.await_count == 1  # preview already populated the cache
+
+
 async def test_delete_job_removes_cached_pdfs(client, db_session, current_test_user):
     job = await _make_job(db_session, current_test_user.id, cover_letter="Text.\n\nBody.\n\nClose.")
 
