@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
@@ -12,6 +12,10 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: "CareerOS",
   description: "Tailored resumes and cover letters, instantly.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#111110",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
