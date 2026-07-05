@@ -58,33 +58,45 @@ No navigation. No page transitions. One surface.
 |-------|------------|
 | Backend | FastAPI (Python 3.12), async |
 | Frontend | Next.js 16 (App Router), React 19, Tailwind CSS v4, Framer Motion |
-| Database | PostgreSQL (SQLAlchemy async), hosted on Neon |
-| LLM | Claude API (`claude-sonnet-4-6`) |
+| Database | PostgreSQL (SQLAlchemy async), Row-Level Security, hosted on Neon |
+| Auth | Clerk (session-JWT, verified against Clerk's JWKS) |
+| LLM | Claude API (`claude-sonnet-4-6`), user's own BYO key (see ADR-013) |
 | Job queue | ARQ + Redis (Upstash) |
 | Object storage | Cloudflare R2 (compiled PDFs) |
 | Hosting | Fly.io (backend + worker, Dockerfile-based), Vercel (frontend) |
+| Observability | Structured JSON logging, Sentry |
 
 ---
 
 ## Information architecture
 
 ```
-PRIMARY SURFACE: /
+PUBLIC (signed out): /, /terms, /privacy
+  → `/` renders `components/LandingPage.tsx` instead of the core loop whenever Clerk's
+    useUser() reports signed-out (waitlist gate, ADR-014) — email capture + "sign in" link,
+    leads with the BYO-key trust model. /terms and /privacy (`LegalPageShell.tsx`) are
+    AI-drafted, not legally reviewed, linked from the landing page footer.
+
+PRIMARY SURFACE: / (signed in)
   idle       → textarea focused, JD persisted in sessionStorage and restored on load
                candidacy insights (headline/observed/gap/action) shown after 3+ applications
                setup nudge if profile is empty
-               no recent-applications list here — that's the Command Palette's job (see below),
-               kept off this screen so it stays a single-action surface
+               no recent-applications list here — that's /applications' job (see below), kept
+               off this screen so it stays a single-action surface
   generating → cycling messages + elapsed timer, no navigation
                URL is shallow-synced to /jobs/{id} the moment the job is created (no visible
                transition) so refresh/bookmark/share land on the real archive page instead of
                losing the job back to a blank idle screen
   result     → strategic analysis (GOOD FIT / GAPS / IMPROVEMENT PLAN)
                selected projects bar (which projects the AI chose — "Emphasized" pills)
-               inline PDF preview (iframe, compiled on demand)
-               resume download button + status actions (Mark applied / Got interview)
-               cover letter — editable before download, saved via PATCH
-               cover letter PDF download (compiled via LaTeX, charter font + gray header)
+               inline PDF preview (iframe, compiled on demand) + status actions
+               (Mark applied / Got interview) + one icon-only download button
+               (`DownloadIconButton`, shared with cover letter below — see ADR-015)
+               cover letter — same treatment as the resume: real compiled PDF preview
+               (`/cover-letter-preview.pdf`), its own icon-only download button, editing
+               moved into a collapsible panel below the preview instead of a bare textarea
+               (`CoverLetterSection`/`CoverLetterPreview` in `ResultSections.tsx`, shared by
+               `/` and `/jobs/[id]`) — PATCH still persists edits
                LaTeX source toggle (expandable, copy button)
   error      → message + retry/reset inline
 
@@ -135,7 +147,7 @@ revoke. See ADR-012.
 
 ## Visual identity
 
-Accent: ink (`#18181B`). Chosen for this product; not prescribed by doctrine. More professional, less identifiable as a default palette choice.
+App is dark-mode-only (ADR-012) — the inverted neutral scale (`--color-neutral-900` through `-50`) does most of the structural work, and accent is a warm off-white, not a chromatic color: `--c-accent: #E8E8E4`. The original "ink" (`#18181B`) accent choice predates the dark-mode-only pivot and no longer appears anywhere in the codebase. Semantic colors (success/warn/danger) are the only chromatic notes, per the global doctrine's fixed palette.
 
 ---
 
@@ -244,7 +256,7 @@ The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generati
 
 **ADR-005** — Inline generation flow. The home page (/) handles all states: idle → generating → result. No route change during the core loop. `/jobs/[id]` is the archive deep-link viewer only.
 
-**ADR-006** — All API routes are under `/admin/` prefix with optional API key auth (`X-API-Key` header). Auth is enabled when `API_KEY` env var is set; disabled in local dev. Rate limiting via slowapi: 30/hour on generate/regenerate, 20/hour on insights.
+**ADR-006** — All authenticated routes are under `/admin/` prefix. Auth is a Clerk session JWT (`Authorization: Bearer ...`), verified against Clerk's published JWKS in `app/clerk_auth.py`'s `get_current_user` dependency, with JIT user provisioning on first sign-in — this replaced an earlier static `X-API-Key` scheme entirely during the Phase 1 multi-tenant migration (2026-07-01); there is no shared key left to configure. `/waitlist` is a deliberate exception, *not* under `/admin` — it's hit by pre-auth visitors with no Clerk session, rate-limited 5/hour by IP instead. Rate limiting (slowapi) is centralized in `app/rate_limit.py`: 30/hour generate/regenerate, 20/hour insights, keyed off Fly's `Fly-Client-IP` header rather than `request.client.host` (uvicorn runs without `--proxy-headers` behind Fly's edge, so the raw client address is unreliable — found during the pre-launch security audit, see roadmap).
 
 **ADR-007** — Candidacy insights. After 3+ completed applications, `GET /admin/jobs/insights` synthesizes a pattern across all job strategic_notes and returns headline/observed/gap/action. Cached in localStorage for 1 hour on the frontend.
 
@@ -257,6 +269,12 @@ The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generati
 **ADR-011** — Product architecture restructuring (2026-07-03), following a first-principles structure review (independent of visual design — information architecture, workflow, navigation only). Four changes: (1) `/profile` split into `/profile` ("Background" — career content that feeds generation: personal/education/experience/projects/skills/voice) and `/account` (administrative: API key, data export, deletion) — these were previously one page conflating "content you maintain" with "account you administer," discoverable only by accident. (2) Removed the custom `SessionManagement` component and its backend endpoints (`GET/POST /admin/account/sessions*`, `app/services/clerk_sessions.py`) entirely — Clerk's own `<UserButton>` → "Manage account" modal already lists active sessions and revokes them via `UserProfile`'s native Security tab, so the custom implementation was a straight duplicate, not a gap-filler. (3) Deleted `HistoryDrawer.tsx`, a fully-built archive-browsing drawer that had been superseded by the Command Palette (⌘K) at some earlier point but was never removed — it was imported nowhere and completely unreachable. (4) The idle home screen's home-grown "Recent" list (last 4 jobs) was removed in favor of the Command Palette, which already does the same job with search — the core-loop screen went from three "browse my past applications" surfaces (idle list + palette + `/applications`) down to two, with the palette and `/applications` covering quick-jump and full-browse respectively. Separately, the generation flow's URL is now shallow-synced to `/jobs/{id}` via `window.history.replaceState` the moment a job starts (no visible navigation, no change to the "no navigation during the core loop" feel) — previously the entire idle→generating→result sequence lived in React state with zero URL involvement, meaning a refresh at any point during or after generation silently lost the job back to a blank idle screen even though it was fully persisted server-side.
 
 **ADR-012** — Navbar and account-menu overhaul (2026-07-03), dark-mode-only pass. (1) App is now dark-mode-only — `globals.css`'s `@media (prefers-color-scheme: dark)` block was removed and its values promoted to the permanent `:root` defaults; there was never a real light mode meant to be seen, just an unstyled fallback. (2) Clerk's `appearance` config moved to the `ClerkProvider` level (`lib/clerkAppearance.ts`) so it covers every Clerk component uniformly. Root-caused a dark-mode contrast bug that looked like a single broken icon but wasn't: Clerk computes several element text colors (`headerTitle`, `profileSectionTitleText`, `navbarButtonText`, and others) via automatic contrast against the `colorBackground` variable, and a literal `'transparent'` value read as "light" to that calculation — producing solid near-black text across every Clerk screen regardless of `colorText`/`colorNeutral`. Fixed by giving `colorBackground` a real dark hex value used only for Clerk's internal contrast math (the actual visible glass background still comes from the `card` element's own `backgroundColor` override); also layered `@clerk/themes`' `baseTheme: dark` underneath as a foundation, since some sub-components (modal close button, inactive nav tabs, device-session icons) don't derive from theme variables at all. (3) Replaced Clerk's stock `<UserButton>` dropdown + "Manage account" modal with a custom `UserMenu` component (name, email, Settings, Sign out) — beyond the contrast bugs, Clerk's Security tab exposes a native "Delete account" action that bypasses this app's own grace-period deletion flow (`components/AccountDeletion.tsx`) entirely, deleting the Clerk identity directly without cleaning up app data first; removing the modal removes that landmine along with the theming burden. Session/device management is consequently not exposed in-app — use the Clerk dashboard directly if a manual revoke is ever needed. (4) Deleted `CommandPalette.tsx` (⌘K) as dead code — search moved to a plain inline input on `/applications` itself, filtering the existing list by title/company alongside the status tabs; the navbar's search icon and the standalone Account gear icon were both removed, since Settings is now reachable via the avatar dropdown and reintroducing a second nav path to the same page added clutter without adding capability. (5) Navbar icons redesigned: Applications is now stacked layers ("a pile of submitted things" — briefcase was the first pass but layers reads more like a history/archive), and the former "Background" page — previously a document/folder icon — is now titled "Resume" with a closed-book icon; a plain document glyph risked reading as "your generated resumes/applications" (this product's actual output) rather than "the structured data that feeds generation," and "Profile" was considered and rejected as a title since it collides with account identity, which lives separately under Settings.
+
+**ADR-013** — Encrypted BYO Anthropic API key, no shared fallback (Phase 3, 2026-07-01). Every generation/insights call requires the requesting user's own stored key or fails with a clear 400 — `settings.anthropic_api_key` was removed entirely, this is a hard cutover, not an optional path. Keys live in `ai_credentials` (`user_id`, `provider`, `encrypted_key`, `key_hint`), encrypted via `app/services/crypto.py`'s envelope encryption (`cryptography`'s `Fernet`/`MultiFernet`, so rotating `ENCRYPTION_MASTER_KEY` doesn't break decryption of rows encrypted under a previous key — `ENCRYPTION_MASTER_KEY_PREVIOUS` holds prior keys comma-separated). `POST /admin/settings/api-key` validates the submitted key with one real tiny forced-tool-call to Anthropic, billed to the submitter's own key, before storing it. This is the actual mechanism behind "CareerOS owns the workflow, users own their AI usage" — see README's "why it isn't just a resume generator."
+
+**ADR-014** — Public waitlist landing page + legal pages (Phase 8, 2026-07-02). `/` is a public route; `app/page.tsx` renders `components/LandingPage.tsx` instead of the core loop whenever Clerk's `useUser()` reports signed-out, gating open signup behind an invite (Karan chose waitlist over open signup deliberately — buys time to prove the reliability/abuse guardrails from Phases 5–7 hold under real concurrent load before opening the door, which is irreversible). Waitlist entries (`app/models/waitlist.py`) are a plain signup list, not a mailing list — no automated invite-email flow, consistent with the "no email digests/marketing" constraint above; `invited_at` is set manually by Karan. `/terms` and `/privacy` are public, AI-drafted and explicitly marked as not legally reviewed — real legal review is still outstanding before a genuine public launch (see roadmap Phase 8 "Remaining").
+
+**ADR-015** — Resume/cover-letter download and preview unification (2026-07-05). The result view previously had two separate resume-download affordances (one in the PDF preview overlay, one below it) and a cover letter that was a plain editable textarea with no visual relationship to the typeset resume next to it. Replaced with one shared pattern in `components/ResultSections.tsx`: a single icon-only `DownloadIconButton` (rounded-square, spinner → checkmark states) per document, and a `CoverLetterSection`/`CoverLetterPreview` pair that gives the cover letter the exact same real-compiled-PDF-preview treatment the resume already had, via a new `GET /admin/jobs/{id}/cover-letter-preview.pdf` endpoint (mirrors the existing resume preview endpoint, shares the same `PDFStorage` cache the download endpoint reads from). Editing moved into a collapsible panel below the preview instead of always-visible; saving remounts the preview via a changed `key` (not an effect-driven state reset, to avoid `react-hooks/set-state-in-effect`) so it recompiles from the edited text. Both `/` and `/jobs/[id]` share these components — the archive page gained cover-letter editing it never had before. Also reworked the cover letter LaTeX header (`_COVER_LETTER_LATEX` in `backend/app/services/generation.py`): name vertically centered in the shaded band via `\AddToShipoutPictureBG*`, contact/links line pulled tight against the band's bottom edge — tuned entirely through real Tectonic compiles, not source inspection alone.
 
 ---
 

@@ -881,6 +881,56 @@ this environment — confirmed they at least import/collect cleanly, i.e. no bro
 
 ---
 
+### Resume/cover-letter download + preview unification — ✅ DONE (2026-07-05)
+
+The result view had two separate resume-download affordances (one inside the PDF preview
+overlay, one below it) and a cover letter that was a plain editable textarea with no visual
+relationship to the typeset resume sitting next to it — a real inconsistency once both
+documents are meant to read as the same product's output. Unified in `frontend/components/
+ResultSections.tsx`:
+
+- **One icon-only download button per document** (`DownloadIconButton` — rounded-square,
+  spinner → checkmark states) replacing the old labeled-button-plus-overlay pattern for the
+  resume, and the plain "download" link for the cover letter.
+- **Cover letter now gets the resume's exact treatment**: a real compiled-PDF preview
+  (`CoverLetterPreview`, self-fetching) instead of a bare textarea, backed by a new
+  `GET /admin/jobs/{id}/cover-letter-preview.pdf` endpoint that mirrors the existing resume
+  preview endpoint and reads/writes the same `PDFStorage` cache the download endpoint uses.
+  Editing moved into a collapsible panel below the preview rather than being always-visible;
+  saving remounts the preview via a changed `key` prop (not an effect-driven state reset,
+  which trips `react-hooks/set-state-in-effect`) so the next render recompiles from the edited
+  text.
+- Both `/` and `/jobs/[id]` share these components — `/jobs/[id]` previously had **no** cover
+  letter editing at all and now does.
+- `ResumeDownloadOverlay`, listed as one of the components extracted into `ResultSections.tsx`
+  during Phase 9's design-consistency pass, is now deleted as dead code — this rework replaced
+  it rather than reusing it.
+- Fixed a local-dev-only bug along the way: the cover letter preview 404'd because the local
+  backend process predated the new route (no `--reload`) and, separately, the local
+  `careeros-redis` Docker container had stopped (blocks backend startup via the ARQ pool in
+  `main.py`'s lifespan) — both are environment issues, not product bugs, but worth remembering
+  per the recurring "confirm which process is actually serving a port" lesson from Phase 6/7.
+- Verified the displayed `$X.XXXX generation cost` figure is real Anthropic token telemetry
+  (`usage.input_tokens`/`output_tokens`/cache tokens) times the current Sonnet 4.6 pricing
+  constants in `Job.cost_usd` — not a placeholder or estimate.
+
+**Cover letter LaTeX header rework** (`_COVER_LETTER_LATEX` in `backend/app/services/
+generation.py`): name is now vertically centered inside the shaded header band (via
+`\AddToShipoutPictureBG*` + a fixed-height centered `minipage`, independent of document
+margins), with the contact/links line pulled tight against the band's bottom edge. Tuned
+entirely through real Tectonic compiles + rendered-PDF inspection, not source-only guessing.
+
+Also: the Generate button's keyboard-shortcut hint is now OS-accurate (`⌘↵` on Mac,
+`Ctrl ↵` elsewhere, detected client-side via `navigator.platform`) — the underlying handler
+already accepted both Cmd and Ctrl, only the displayed glyph was hardcoded to Mac.
+
+**Not verified via full test suite this session** — per standing instruction, routine UI edits
+lean on CI to catch regressions instead of a local `tsc`/`vitest`/`pytest` run per change;
+verification here was via real LaTeX compiles, `curl` against the new endpoint, and reading the
+actual `cost_usd`/token-usage code paths.
+
+---
+
 ## Deliberately out of scope
 
 - Automated job ingestion (Adzuna, Indeed, scraping)

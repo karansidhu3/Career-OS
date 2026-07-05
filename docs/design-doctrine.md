@@ -3,7 +3,7 @@
 A reusable product identity and design language.
 Applies to CareerOS, MarketMind, Folio, and all future products.
 
-Last updated: 2026-05-28
+Last updated: 2026-07-05 (Loading States / skeleton-loader guidance revised to match shipped CareerOS practice)
 
 ---
 
@@ -229,10 +229,8 @@ The two-step pattern communicates gravity without interrupting the workspace.
 Loading states communicate what is happening, not just that something is happening.
 
 - **Under 300ms**: No indicator. Show the result.
-- **300ms – 2s**: A spinner. Use the accent-colored ring pattern.
-- **Over 2s**: A purposeful loading state with contextual messages that communicate the process (e.g., "Reading the job description… Scoring fit… Writing your resume…").
-
-Do not use skeleton loaders. They predict content shape without communicating progress.
+- **300ms – 2s**: A skeleton layout matching the shape of the incoming content (CareerOS uses this on `/`, `/applications`, `/profile`, `/jobs/[id]`, and account/API-key sections — see `.skeleton-shimmer` in `globals.css`) — preserves the spatial layout so the eye doesn't re-learn the composition when content arrives. Reserve the bare accent-colored ring spinner for moments where content shape is genuinely unknown.
+- **Over 2s, and the process itself has distinct phases**: A purposeful loading state with contextual messages that communicate the process (e.g., "Reading the job description… Scoring fit… Writing your resume…") — this is the core-generation loading state, not a general-purpose one.
 
 ---
 
@@ -313,9 +311,9 @@ Showing system states (processing, generated, queued) in user-facing filter or s
 
 Interrupts the product's visual language with the OS's visual language. Communicates a lack of craft. Better: inline confirmation states that use the product's own typography and spacing.
 
-### Skeleton Loaders
+### Spinner-Only Loading on Known Content Shapes
 
-Predict content shape rather than communicating progress. Often wrong. Communicate "I don't know when this will be ready" rather than "this is what's happening." Better: purposeful loading states with contextual messages.
+Showing a bare spinner when the shape of the incoming content is already known (a list, a card grid, a form) wastes an opportunity to preserve the user's spatial model. Better: a skeleton matching the real layout (see Loading States above). Reserve bare spinners for content whose shape is genuinely unknown or for sub-2s waits.
 
 ### Decorative Motion
 

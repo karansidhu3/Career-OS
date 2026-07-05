@@ -190,6 +190,15 @@ export default function Home() {
   const [pdfLoaded, setPdfLoaded] = useState(false)
   const [pdfFailed, setPdfFailed] = useState(false)
 
+  // Generate shortcut hint — the handler already accepts either modifier
+  // (e.metaKey || e.ctrlKey), so only the displayed glyph needs to match the
+  // platform. Defaults to the Ctrl form for a safe SSR render, then upgrades
+  // after mount once navigator is available.
+  const [shortcutHint, setShortcutHint] = useState('Ctrl ↵')
+  useEffect(() => {
+    if (/Mac|iPod|iPhone|iPad/.test(navigator.platform)) setShortcutHint('⌘↵')
+  }, [])
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // ── Restore JD from sessionStorage on mount ──
@@ -549,7 +558,7 @@ export default function Home() {
                             color: 'var(--c-kbd-text)',
                           }}
                         >
-                          ⌘↵
+                          {shortcutHint}
                         </kbd>
                       </>
                     )}
