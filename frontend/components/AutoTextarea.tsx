@@ -18,13 +18,14 @@ export type AutoTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>
 export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
   ({ onChange, onPaste, value, style, ...props }, forwardedRef) => {
     const innerRef = useRef<HTMLTextAreaElement | null>(null)
-    // Pasting moves the caret to the end of the inserted text, and since this
-    // textarea has no internal scrollbar (overflow: hidden), the browser's
-    // "scroll caret into view" behavior scrolls the whole window down to the
-    // now much-taller box. Snapshot scroll position before the browser acts
-    // on the paste, then restore it once the resize settles but before paint,
-    // so the reader stays where they were instead of being dropped at the end.
+    // Pasting moves the caret to the end of the inserted text and leaves the
+    // field focused, so the browser keeps chasing that caret to keep it in
+    // view as the box grows — a one-time scroll restore isn't enough because
+    // the browser can re-assert "keep the focused caret visible" on a later
+    // tick, after our restore already ran. Blurring removes the thing being
+    // chased: no caret is being tracked, so there's nothing to scroll toward.
     const pastedScrollY = useRef<number | null>(null)
+    const didPaste = useRef(false)
 
     // Merge the forwarded ref with our internal ref
     const setRef = useCallback(
@@ -52,9 +53,13 @@ export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
     // This ensures layout is settled when we measure scrollHeight.
     useLayoutEffect(() => {
       resize()
-      if (pastedScrollY.current !== null) {
-        window.scrollTo(0, pastedScrollY.current)
-        pastedScrollY.current = null
+      if (didPaste.current) {
+        didPaste.current = false
+        innerRef.current?.blur()
+        if (pastedScrollY.current !== null) {
+          window.scrollTo(0, pastedScrollY.current)
+          pastedScrollY.current = null
+        }
       }
     }, [value, resize])
 
@@ -69,6 +74,7 @@ export const AutoTextarea = forwardRef<HTMLTextAreaElement, AutoTextareaProps>(
         }}
         onPaste={e => {
           pastedScrollY.current = window.scrollY
+          didPaste.current = true
           onPaste?.(e)
         }}
         style={{ resize: 'none', overflow: 'hidden', ...style }}
