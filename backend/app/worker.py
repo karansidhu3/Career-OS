@@ -196,4 +196,11 @@ class WorkerSettings:
     functions = [run_generation_job, run_export_job]
     cron_jobs = [cron(run_account_deletion_sweep, hour=None, minute=0)]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
+    # ARQ's default poll_delay (0.5s) issues one Redis command per cycle even
+    # when idle -- roughly 5M commands/month on Upstash's metered pricing for
+    # a worker that's simply always on, which is most of a 500k/month free-tier
+    # quota gone before a single real generation job runs. 8s trades a worse-case
+    # ~8s delay before an enqueued job starts (negligible next to the ~20s
+    # generation itself) for keeping idle-baseline usage comfortably under quota.
+    poll_delay = 8
     on_startup = _on_startup
