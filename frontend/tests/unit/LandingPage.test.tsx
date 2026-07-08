@@ -1,60 +1,43 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { LandingPage } from '@/components/LandingPage'
-import { api } from '@/lib/api'
 
-vi.mock('@/lib/api', () => ({
-  api: { joinWaitlist: vi.fn() },
+const push = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push }),
 }))
 
 describe('LandingPage', () => {
   beforeEach(() => {
-    vi.mocked(api.joinWaitlist).mockReset()
+    push.mockReset()
   })
 
-  it('renders the BYO-key trust message', () => {
-    render(<LandingPage />)
-    expect(screen.getByText(/you bring your own ai key/i)).toBeInTheDocument()
-    expect(screen.getByText(/never sees or pays for your usage/i)).toBeInTheDocument()
-  })
-
-  it('renders an email input and a sign-in link for already-invited users', () => {
+  it('renders an email input and a sign-in link for returning users', () => {
     render(<LandingPage />)
     expect(screen.getByPlaceholderText('you@example.com')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute('href', '/sign-in')
   })
 
-  it('submits the entered email and shows the joined state on success', async () => {
-    vi.mocked(api.joinWaitlist).mockResolvedValue({ status: 'joined' })
+  it('renders Terms and Privacy links', () => {
     render(<LandingPage />)
-
-    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'friend@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: /join the waitlist/i }))
-
-    await waitFor(() => expect(screen.getByText(/you.re on the list/i)).toBeInTheDocument())
-    expect(api.joinWaitlist).toHaveBeenCalledWith('friend@example.com')
+    expect(screen.getByRole('link', { name: /terms/i })).toHaveAttribute('href', '/terms')
+    expect(screen.getByRole('link', { name: /privacy/i })).toHaveAttribute('href', '/privacy')
   })
 
-  it('shows an error message and stays on the form if the request fails', async () => {
-    vi.mocked(api.joinWaitlist).mockRejectedValue(new Error('network error'))
+  it('routes to sign-up with the entered email on submit, instead of hitting a waitlist API', () => {
     render(<LandingPage />)
 
     fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'friend@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: /join the waitlist/i }))
+    fireEvent.click(screen.getByRole('button', { name: /get started/i }))
 
-    await waitFor(() => expect(screen.getByText(/couldn.t join the waitlist/i)).toBeInTheDocument())
-    expect(screen.getByPlaceholderText('you@example.com')).toBeInTheDocument()
+    expect(push).toHaveBeenCalledWith('/sign-up?email=friend%40example.com')
   })
 
-  it('disables the submit button while the request is in flight', async () => {
-    let resolveFn: (v: { status: string }) => void
-    vi.mocked(api.joinWaitlist).mockReturnValue(new Promise(resolve => { resolveFn = resolve }))
+  it('does not navigate if the email field is empty', () => {
     render(<LandingPage />)
 
-    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'friend@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: /join the waitlist/i }))
+    fireEvent.click(screen.getByRole('button', { name: /get started/i }))
 
-    expect(await screen.findByRole('button', { name: /joining/i })).toBeDisabled()
-    await act(async () => { resolveFn!({ status: 'joined' }) })
+    expect(push).not.toHaveBeenCalled()
   })
 })
