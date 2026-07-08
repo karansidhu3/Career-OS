@@ -179,6 +179,17 @@ body::before {
   pointer-events: none;
 }
 
+/* ─── Sign-in link — a soft white glow so it reads as the second   */
+/* real action on the landing page, not fine print like Terms/Privacy. */
+.sign-in-glow {
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
+  transition: text-shadow 0.2s ease;
+}
+
+.sign-in-glow:hover {
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.55);
+}
+
 /* ─── JD textarea — bare canvas, no focus ring ───────────────── */
 .jd-textarea:focus {
   box-shadow: none !important;

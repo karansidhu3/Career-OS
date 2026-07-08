@@ -1,10 +1,19 @@
-import { SignUp } from '@clerk/nextjs'
+'use client'
 
-// See app/sign-in — appearance now lives once at the ClerkProvider level.
+import { Suspense } from 'react'
+import { usePathname } from 'next/navigation'
+import { AuthenticateWithRedirectCallback } from '@clerk/nextjs'
+import { AuthCard } from '@/components/AuthCard'
+
+// See app/sign-in — same catch-all + sso-callback branching pattern.
 export default function SignUpPage() {
+  const pathname = usePathname()
+  if (pathname?.endsWith('/sso-callback')) {
+    return <AuthenticateWithRedirectCallback />
+  }
   return (
-    <div className="flex justify-center pt-12">
-      <SignUp />
-    </div>
+    <Suspense>
+      <AuthCard mode="sign-up" />
+    </Suspense>
   )
 }

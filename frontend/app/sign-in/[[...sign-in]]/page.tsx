@@ -1,13 +1,22 @@
-import { SignIn } from '@clerk/nextjs'
+'use client'
 
-// Appearance is now set once at the ClerkProvider level (app/layout.tsx) so it
-// covers every Clerk component — SignIn/SignUp here, but also UserButton's
-// dropdown and "Manage account" modal, which previously fell back to Clerk's
-// stock light theme since nothing themed them individually.
+import { Suspense } from 'react'
+import { usePathname } from 'next/navigation'
+import { AuthenticateWithRedirectCallback } from '@clerk/nextjs'
+import { AuthCard } from '@/components/AuthCard'
+
+// Custom sign-in flow (OAuth + email code) instead of Clerk's prebuilt <SignIn/>.
+// This route is a catch-all so the OAuth callback (/sign-in/sso-callback) also
+// lands here — branch on pathname to complete the redirect handshake instead
+// of rendering the form again.
 export default function SignInPage() {
+  const pathname = usePathname()
+  if (pathname?.endsWith('/sso-callback')) {
+    return <AuthenticateWithRedirectCallback />
+  }
   return (
-    <div className="flex justify-center pt-12">
-      <SignIn />
-    </div>
+    <Suspense>
+      <AuthCard mode="sign-in" />
+    </Suspense>
   )
 }
