@@ -122,11 +122,13 @@ export function AuthCard({ mode }: { mode: Mode }) {
         pending.current = await created.prepareEmailAddressVerification({ strategy: 'email_code' })
         setStep('code')
       }
-    } catch {
+    } catch (err: any) {
+      console.error('Auth error:', err)
+      const clerkMsg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message
       setError(
         mode === 'sign-in'
-          ? 'Wrong email or password.'
-          : "Couldn't start sign-up — check the email and try again.",
+          ? (clerkMsg ?? 'Wrong email or password.')
+          : (clerkMsg ?? "Couldn't start sign-up — check the email and try again."),
       )
     } finally {
       setLoading(null)
