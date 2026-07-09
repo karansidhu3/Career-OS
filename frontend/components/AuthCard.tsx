@@ -100,17 +100,19 @@ export function AuthCard({ mode }: { mode: Mode }) {
 
   const submitEmail = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!ready || !email.trim() || (mode === 'sign-up' && !password.trim())) return
+    if (!ready || !email.trim() || !password.trim()) return
     setLoading('email')
     setError(null)
     try {
       if (mode === 'sign-in') {
-        const res = await signIn!.create({ identifier: email.trim() })
-        const emailFactor = res.supportedFirstFactors?.find(
-          (f): f is Extract<typeof f, { strategy: 'email_code' }> => f.strategy === 'email_code',
-        )
-        if (!emailFactor) throw new Error('no-email-code')
-        pending.current = await res.prepareFirstFactor({ strategy: 'email_code', emailAddressId: emailFactor.emailAddressId })
+        // Password auth completes in one step — no code needed.
+        const attempt = await signIn!.create({ identifier: email.trim(), password: password.trim() })
+        if (attempt.status === 'complete') {
+          await setActiveSignIn!({ session: attempt.createdSessionId })
+          router.push('/')
+          return
+        }
+        throw new Error('sign-in-incomplete')
       } else {
         // This instance requires a password on sign-up (confirmed live: verifying
         // the email code alone leaves the attempt at status "missing_requirements"
@@ -118,12 +120,12 @@ export function AuthCard({ mode }: { mode: Mode }) {
         // identical to a wrong code from the UI).
         const created = await signUp!.create({ emailAddress: email.trim(), password: password.trim() })
         pending.current = await created.prepareEmailAddressVerification({ strategy: 'email_code' })
+        setStep('code')
       }
-      setStep('code')
     } catch {
       setError(
         mode === 'sign-in'
-          ? "Couldn't find that account — check the email or sign up instead."
+          ? 'Wrong email or password.'
           : "Couldn't start sign-up — check the email and try again.",
       )
     } finally {
@@ -219,23 +221,21 @@ export function AuthCard({ mode }: { mode: Mode }) {
                 style={inputStyle}
                 disabled={loading !== null}
               />
-              {mode === 'sign-up' && (
-                <input
-                  type="password"
-                  required
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Password"
-                  className="form-input w-full px-3 py-2 rounded-xl text-sm font-light text-neutral-700 placeholder-neutral-300 focus:outline-none"
-                  style={inputStyle}
-                  disabled={loading !== null}
-                />
-              )}
+              <input
+                type="password"
+                required
+                autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Password"
+                className="form-input w-full px-3 py-2 rounded-xl text-sm font-light text-neutral-700 placeholder-neutral-300 focus:outline-none"
+                style={inputStyle}
+                disabled={loading !== null}
+              />
               <PrimaryButton
                 type="submit"
                 fullWidth
-                disabled={loading !== null || !email.trim() || (mode === 'sign-up' && !password.trim())}
+                disabled={loading !== null || !email.trim() || !password.trim()}
               >
                 {loading === 'email' ? 'Continuing…' : 'Continue'}
               </PrimaryButton>
