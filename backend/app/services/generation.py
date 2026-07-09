@@ -229,10 +229,10 @@ Commit to selected_projects before writing. List highest-relevance first.
 STEP 5 — Generate a descriptor for every selected project.
 Format: Name | Descriptor (5 words or fewer, describing what the project is)
 Examples:
-  "MarketMind AI | Investment Intelligence Platform"
   "Relay | Serverless Event Processing Platform"
   "Ledger | Transactional Backend Infrastructure"
-  "CareerOS | AI Job Application Engine"
+  "Sentinel | Distributed Anomaly Detection System"
+  "Folio | AI-Powered Portfolio Rebalancing Engine"
 The descriptor goes in the project heading name argument as shown in the template.
 Not optional. No project ships without a recruiter-legible descriptor.
 
@@ -564,7 +564,7 @@ GENERATE_TOOL = {
                 "type": "array",
                 "description": (
                     "Project names to include, highest JD-relevance first. 2–4 projects. "
-                    "Example: [\"MarketMind AI\", \"TA Matching Platform\"]"
+                    "Example: [\"Relay\", \"Ledger\"]"
                 ),
                 "items": {"type": "string"},
                 "minItems": 2,
