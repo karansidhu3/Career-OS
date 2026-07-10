@@ -27,6 +27,8 @@ const emptyPersonalWrite = {
   target_roles: [] as string[],
   target_locations: [] as string[],
   cover_letter_voice: '',
+  resume_template: null as string | null,
+  custom_preamble: null as string | null,
 }
 
 // ---- Review step — one editable card per extracted item, removable before saving ----
@@ -180,12 +182,15 @@ export function ProfileSetupGate({ onComplete }: { onComplete: () => void }) {
 
   return (
     <div className="pt-16 max-w-lg mx-auto">
+      <div className="text-center mb-3">
+        <SectionLabel>Step 2 of 3</SectionLabel>
+      </div>
       <AnimatePresence mode="wait">
         {stage.kind === 'choose' && (
           <motion.div key="choose" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
             <h1 className="text-2xl font-semibold text-neutral-900 mb-2 text-center">Set up your profile</h1>
             <p className="text-sm text-neutral-600 text-center mb-10 leading-relaxed">
-              CareerOS reads this to write tailored resumes and cover letters.
+              Add it once — every resume and cover letter CareerOS writes from here on reuses it automatically.
             </p>
             <div className="space-y-3">
               <button

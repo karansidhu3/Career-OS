@@ -18,6 +18,7 @@ from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 from sqlalchemy import select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -157,6 +158,16 @@ async def get_current_user(
         return user
 
     # First time this Clerk identity has hit the backend — provision locally.
+    # Two concurrent requests for the same brand-new identity (e.g. the
+    # frontend onboarding gate's Promise.all([getProfile, getApiKeyStatus])
+    # on a user's very first sign-in) can both reach this point believing
+    # they're first, since neither has committed yet — a classic
+    # check-then-insert race. clerk_user_id is unique, so the loser's commit
+    # raises IntegrityError; recover by re-fetching the row the winner just
+    # created instead of bubbling a 500 up to the caller. Left unhandled,
+    # that 500 made Promise.all reject, which the frontend's onboarding gate
+    # treated as "transient error, fail open" — dropping a brand-new,
+    # zero-profile, zero-key user straight onto the full generation screen.
     is_first_ever_user = (
         await db.execute(select(User.id).limit(1))
     ).scalar_one_or_none() is None
@@ -164,13 +175,19 @@ async def get_current_user(
     email = await _fetch_clerk_email(clerk_user_id)
     user = User(clerk_user_id=clerk_user_id, email=email)
     db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    if is_first_ever_user:
-        # Runs on its own elevated connection (see _claim_legacy_data) — needs
-        # the user row already committed and visible there, hence the commit above.
-        await _claim_legacy_data(user.id)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        user = (
+            await db.execute(select(User).where(User.clerk_user_id == clerk_user_id))
+        ).scalar_one()
+    else:
+        await db.refresh(user)
+        if is_first_ever_user:
+            # Runs on its own elevated connection (see _claim_legacy_data) — needs
+            # the user row already committed and visible there, hence the commit above.
+            await _claim_legacy_data(user.id)
 
     await _set_rls_user(db, user.id)
     request.state.user_id = str(user.id)

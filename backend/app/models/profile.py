@@ -19,6 +19,8 @@ class PersonalInfo(Base):
     target_roles = Column(JSONB, default=list)
     target_locations = Column(JSONB, default=list)
     cover_letter_voice = Column(Text, default="")
+    resume_template = Column(String(32), nullable=True)
+    custom_preamble = Column(Text, nullable=True)
 
 
 class Education(Base):

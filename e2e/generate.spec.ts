@@ -93,7 +93,7 @@ async function setupMocks(page: Page) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        personal: { id: 1, name: 'Test User', email: 'careeros-e2e-test@example.com', phone: null, linkedin: null, github: null, location: null },
+        personal: { id: 1, name: 'Test User', email: 'careeros-e2e-test@example.com', phone: null, linkedin: null, github: null, location: null, resume_template: 'jake', custom_preamble: null },
         education: [],
         experience: [{ id: 1, company: 'Acme', title: 'Engineer', start_date: '2024-01', end_date: null, bullets: ['Did things'] }],
         projects: [],

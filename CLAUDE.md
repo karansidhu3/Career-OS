@@ -36,15 +36,23 @@ No navigation. No page transitions. One surface.
 
 - Chat interface — destroys "no prompt engineering" moat
 - Job scraping / sourcing — wrong product
-- Analytics or career dashboards — CRM thinking
-- Multi-user features — destroys personal context moat
+- Analytics or career dashboards — CRM thinking. **Onboarding exception** (decided
+  2026-07-09, see ADR-016): a one-time, pre-core-loop setup gate for brand-new users is not
+  "the dashboard" — it is a prerequisite screen that exists only until a profile meets the
+  minimum bar, then disappears for good. It must not persist, resurface, or grow status/analytics
+  features of its own once the user is past it.
+- Multi-user features — destroys personal context moat. Superseded by ADR-013 (BYO-key
+  multi-tenancy, Phase 3) — the product is now multi-user by design; this line is kept for
+  historical context only.
 - Email integration for notifications, digests, or marketing — pull-only product. **Exception**
   (decided during Phase 6 planning, 2026-07-01): transactional email for two specific
   security-critical account-lifecycle triggers — data export ready, account deletion
   confirmation — via a minimal `EmailClient` seam (mirrors `LLMClient`/`PDFStorage`). Nothing
   beyond those two triggers; no engagement/notification email of any kind.
 - Interview scheduler — out of scope
-- Gamification or progress metrics — wrong emotional direction
+- Gamification or progress metrics — wrong emotional direction. **Onboarding exception**
+  (ADR-016): step/completion progress shown only inside the one-time setup gate, never in the
+  steady-state product. No streaks, counts, or achievement framing anywhere, including onboarding.
 - Status tracking beyond interview/offer — CRM thinking
 - Notifications or reminders — pull-only product
 - Salary benchmarking — different product

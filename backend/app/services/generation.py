@@ -8,48 +8,17 @@ logger = logging.getLogger(__name__)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
+from app.models.profile import Education, Experience, PersonalInfo, Project, SkillCategory
 from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
 
-# Static preamble — injected by Python at assembly time; never output by Claude.
-# Contains all deterministic content: packages, custom commands, heading, education.
-LATEX_PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
+# ── Shared LaTeX command set ──────────────────────────────────────────────────
+# All templates use the same command names so Claude's body output is template-
+# agnostic. Only the packages, section format, and heading block differ.
 
-\usepackage{latexsym}
-\usepackage[empty]{fullpage}
-\usepackage{titlesec}
-\usepackage{marvosym}
-\usepackage[usenames,dvipsnames]{color}
-\usepackage{verbatim}
-\usepackage{enumitem}
-\usepackage{hyperref}
-\usepackage{fancyhdr}
-\usepackage{fontawesome}
-
-\pagestyle{fancy}
-\fancyhf{}
-\fancyfoot{}
-\renewcommand{\headrulewidth}{0pt}
-\renewcommand{\footrulewidth}{0pt}
-
-\addtolength{\oddsidemargin}{-0.5in}
-\addtolength{\evensidemargin}{-0.5in}
-\addtolength{\textwidth}{1in}
-\addtolength{\topmargin}{-.5in}
-\addtolength{\textheight}{1.2in}
-
-\urlstyle{same}
-\raggedbottom
-\raggedright
-\setlength{\tabcolsep}{0in}
-
-\titleformat{\section}{
-  \vspace{-5pt}\scshape\raggedright\large
-}{}{0em}{}[\color{black}\titlerule \vspace{-4pt}]
-
+_LATEX_COMMANDS = r"""
 \newcommand{\iconlink}[1]{#1}
 \newcommand{\resumeItem}[2]{
   \item\small{
@@ -82,27 +51,407 @@ LATEX_PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
       \textbf{#1} & #2 \\
     \end{tabular*}\vspace{-5pt}
 }
+"""
 
-\begin{document}
+_JAKE_PACKAGES = r"""\documentclass[letterpaper,11pt]{article}
 
-%----------HEADING-----------------
-\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
-  \textbf{\href{https://www.linkedin.com/in/karan-sidhu3/}{\Large Karanveer Sidhu}} &
-  \iconlink{\faEnvelope} \href{mailto:karansidhu5550@gmail.com}{karansidhu5550@gmail.com}\\
-  \iconlink{\faLinkedin} \href{https://www.linkedin.com/in/karan-sidhu3/}{linkedin.com/in/karan-sidhu3} &
-  \iconlink{\faPhone} +1 (250) 509-2500 \\
-  \iconlink{\faGithub} \href{https://github.com/karansidhu3}{github.com/karansidhu3} & \\
-\end{tabular*}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{fontawesome}
 
-%-----------EDUCATION-----------------
-\section{Education}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-5pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-4pt}]
+"""
+
+_CRISP_PACKAGES = r"""\documentclass[letterpaper,11pt]{article}
+
+\usepackage{lmodern}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{fontawesome}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\large\bfseries\raggedright
+}{}{0em}{}[\vspace{1pt}\color{black}\rule{\linewidth}{0.5pt}\vspace{-8pt}]
+"""
+
+_MODERN_PACKAGES = r"""\documentclass[letterpaper,11pt]{article}
+
+\usepackage{mathpazo}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{fontawesome}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\large\bfseries\scshape\raggedright
+}{}{0em}{}[\color{black}\rule{\linewidth}{0.5pt}\vspace{-5pt}]
+"""
+
+_SHARP_PACKAGES = r"""\documentclass[letterpaper,11pt]{article}
+
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{fontawesome}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\large\bfseries\raggedright
+}{}{0em}{}[\vspace{1pt}\color{black}\rule{0.4\linewidth}{1pt}\vspace{-8pt}]
+"""
+
+_CLASSIC_PACKAGES = r"""\documentclass[letterpaper,11pt]{article}
+
+\usepackage{mathptmx}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{fontawesome}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-5pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\rule{\linewidth}{1pt}\vspace{-4pt}]
+"""
+
+_MINIMAL_PACKAGES = r"""\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{fontawesome}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{2pt}\large\bfseries\raggedright
+}{}{0em}{}
+\titlespacing{\section}{0pt}{10pt}{6pt}
+"""
+
+
+def _tex(s: str) -> str:
+    """Escape a plain-text string for use as LaTeX display text."""
+    for ch, rep in [('&', r'\&'), ('%', r'\%'), ('#', r'\#'), ('$', r'\$')]:
+        s = s.replace(ch, rep)
+    return s
+
+
+def _build_education_latex(education: list) -> str:
+    if not education:
+        return ""
+    lines = ["%-----------EDUCATION-----------------",
+             r"\section{Education}",
+             r"  \resumeSubHeadingListStart"]
+    for edu in education:
+        degree = _tex(edu.degree or "")
+        if edu.field:
+            degree += f", {_tex(edu.field)}"
+        if edu.minor:
+            degree += f", Minor in {_tex(edu.minor)}"
+        start = edu.start_date or ""
+        end = edu.end_date or "Present"
+        date_range = f"{start} -- {end}" if start else end
+        lines.append(r"    \resumeSubheading")
+        lines.append(f"      {{{_tex(edu.school)}}}{{{date_range}}}")
+        lines.append(f"      {{{degree}}}{{}}")
+    lines.append(r"  \resumeSubHeadingListEnd")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _build_preamble(personal: "PersonalInfo | None", education: list, template: str = "jake") -> str:
+    """Assemble a full LaTeX preamble for the given template and user profile."""
+    name = _tex(personal.name if personal else "Name")
+    email = personal.email if personal else ""
+    phone = _tex(getattr(personal, "phone", "") or "")
+    linkedin_raw = getattr(personal, "linkedin", "") or ""
+    github_raw = getattr(personal, "github", "") or ""
+
+    # Normalise to full URLs
+    linkedin_url = linkedin_raw if linkedin_raw.startswith("http") else ("https://" + linkedin_raw if linkedin_raw else "")
+    github_url = github_raw if github_raw.startswith("http") else ("https://" + github_raw if github_raw else "")
+    linkedin_display = linkedin_raw.removeprefix("https://www.").removeprefix("https://").rstrip("/")
+    github_display = github_raw.removeprefix("https://www.").removeprefix("https://").rstrip("/")
+
+    edu_latex = _build_education_latex(education)
+
+    if template in ("crisp", "classic"):
+        # crisp and classic share a centered heading; classic uses a bullet
+        # separator instead of crisp's pipe, to read as a distinct texture
+        # rather than a re-skinned copy.
+        packages = _CRISP_PACKAGES if template == "crisp" else _CLASSIC_PACKAGES
+        separator = " $|$ " if template == "crisp" else " \\textbullet{} "
+        heading = (
+            "\n%----------HEADING-----------------\n"
+            "\\begin{center}\n"
+            f"  {{\\LARGE\\textbf{{{name}}}}}\\\\\n"
+            "  \\vspace{4pt}\n"
+            "  \\small\n"
+        )
+        contact_parts = []
+        if phone:
+            contact_parts.append(phone)
+        if email:
+            contact_parts.append(f"\\href{{mailto:{email}}}{{{email}}}")
+        if linkedin_url:
+            contact_parts.append(f"\\href{{{linkedin_url}}}{{{linkedin_display}}}")
+        if github_url:
+            contact_parts.append(f"\\href{{{github_url}}}{{{github_display}}}")
+        heading += "  " + separator.join(contact_parts) + "\n"
+        heading += "\\end{center}\n\n"
+    else:
+        # jake, modern, sharp, and minimal share the same tabular heading with
+        # fontawesome icons — only the packages/section styling differ.
+        packages = {
+            "jake": _JAKE_PACKAGES,
+            "modern": _MODERN_PACKAGES,
+            "sharp": _SHARP_PACKAGES,
+            "minimal": _MINIMAL_PACKAGES,
+        }.get(template, _JAKE_PACKAGES)
+        heading = "\n%----------HEADING-----------------\n"
+        heading += "\\begin{tabular*}{\\textwidth}{l@{\\extracolsep{\\fill}}r}\n"
+        name_cell = f"\\textbf{{\\href{{{linkedin_url}}}{{\\Large {name}}}}}" if linkedin_url else f"\\textbf{{\\Large {name}}}"
+        email_cell = f"\\iconlink{{\\faEnvelope}} \\href{{mailto:{email}}}{{{email}}}" if email else ""
+        linkedin_cell = f"\\iconlink{{\\faLinkedin}} \\href{{{linkedin_url}}}{{{linkedin_display}}}" if linkedin_url else ""
+        phone_cell = f"\\iconlink{{\\faPhone}} {phone}" if phone else ""
+        github_cell = f"\\iconlink{{\\faGithub}} \\href{{{github_url}}}{{{github_display}}}" if github_url else ""
+        heading += f"  {name_cell} & {email_cell}\\\\\n"
+        heading += f"  {linkedin_cell} & {phone_cell} \\\\\n"
+        heading += f"  {github_cell} & \\\\\n"
+        heading += "\\end{tabular*}\n\n"
+
+    return packages + _LATEX_COMMANDS + "\\begin{document}\n" + heading + edu_latex + "\n"
+
+
+# Keep the old constant pointing at a static fallback for any code that hasn't
+# been updated yet (should be nothing — _assemble_resume_latex now takes personal/edu).
+LATEX_PREAMBLE = _JAKE_PACKAGES + _LATEX_COMMANDS + "\\begin{document}\n"
+
+# ── Sample data for template preview compilation ──────────────────────────────
+
+_SAMPLE_PERSONAL = type("P", (), {
+    "name": "Jake Gutierrez",
+    "email": "jake@example.com",
+    "phone": "(555) 123-4567",
+    "linkedin": "https://linkedin.com/in/jakegutierrez",
+    "github": "https://github.com/jakegutierrez",
+    "resume_template": None,
+    "custom_preamble": None,
+})()
+
+_SAMPLE_EDUCATION = [type("E", (), {
+    "school": "Stanford University",
+    "degree": "Bachelor of Science",
+    "field": "Computer Science",
+    "minor": None,
+    "start_date": "Sep 2020",
+    "end_date": "May 2024",
+    "deleted_at": None,
+})()]
+
+_SAMPLE_BODY = r"""%-----------EXPERIENCE-----------------
+\section{Experience}
   \resumeSubHeadingListStart
-    \resumeSubheading
-      {University of British Columbia}{Sep 2022 -- Jun 2026}
-      {Bachelor of Science in Computer Science, Minor in Data Science}{}
+    \resumeSubheading{Acme Corp}{Jun 2024 -- Present}{Software Engineer}{San Francisco, CA}
+      \resumeItemListStart
+        \item \small{Built real-time pipeline processing 2M events/day with Kafka and Python, cutting latency from 8s to 340ms}
+        \item \small{Designed REST API serving 50k daily active users with 99.9\% uptime across 3 availability zones}
+      \resumeItemListEnd
+    \resumeSubheading{DataFlow Inc.}{May 2023 -- Aug 2023}{Backend Engineering Intern}{Remote}
+      \resumeItemListStart
+        \item \small{Reduced cold-start time 61\% by rewriting Node.js data-ingestion service in Go, eliminating 12 hours of weekly on-call alerts}
+      \resumeItemListEnd
   \resumeSubHeadingListEnd
 
+%-----------PROJECTS-----------------
+\section{Projects}
+  \resumeSubHeadingListStart
+    \projectSubheading{Relay | Distributed Message Queue}{Jan 2024 -- Apr 2024}{Go \textperiodcentered{} Redis \textperiodcentered{} Docker \textperiodcentered{} Kubernetes}{}{https://github.com/jakegutierrez/relay}
+      \resumeItemListStart
+        \item \small{Consistent hashing with virtual nodes distributes 500k msg/s across 8 broker nodes with zero message loss}
+        \item \small{Reduced consumer-group rebalancing time 73\% via partition ownership protocol built on Raft consensus}
+      \resumeItemListEnd
+    \projectSubheading{Ledger | Personal Finance Tracker}{Sep 2023 -- Dec 2023}{TypeScript \textperiodcentered{} Next.js \textperiodcentered{} PostgreSQL}{}{https://github.com/jakegutierrez/ledger}
+      \resumeItemListStart
+        \item \small{End-to-end encrypted sync serving 1,200 beta users with sub-100ms queries across 5M+ transactions}
+        \item \small{Double-entry engine reconciled \$2.3M in transactions with zero discrepancy over 18 months}
+      \resumeItemListEnd
+    \projectSubheading{Sentinel | Anomaly Detection}{Mar 2023 -- Jun 2023}{Python \textperiodcentered{} FastAPI \textperiodcentered{} scikit-learn \textperiodcentered{} TimescaleDB}{}{https://github.com/jakegutierrez/sentinel}
+      \resumeItemListStart
+        \item \small{Sliding-window z-score model flags 98.4\% of anomalies with 0.3\% false-positive rate across 40 metric streams}
+        \item \small{Replaced manual review process saving 8 hours/week; alert-to-acknowledge time dropped from 22 min to 90 sec}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+%-----------SKILLS-----------------
+\section{Skills}
+\vspace{-2pt}
+\begin{itemize}[leftmargin=*, itemsep=-2pt, topsep=2pt]
+  \item \textbf{Languages:} Python, Go, TypeScript, Java, SQL, Rust
+  \item \textbf{Frameworks:} FastAPI, Next.js, React, Node.js, gRPC, Gin
+  \item \textbf{Infrastructure:} Kubernetes, Docker, PostgreSQL, Redis, Kafka, Terraform
+\end{itemize}
+\vspace{-6pt}
 """
+
+
+async def compile_template_preview(template: str, custom_preamble: str | None = None) -> bytes:
+    """Compile a sample resume using the given template and return PDF bytes.
+
+    Used by the template picker so users can see a real compiled PDF before
+    committing to a format. Uses static sample data so no user profile is needed.
+    Raises ValueError if custom_preamble is requested but not provided, or if
+    compilation fails.
+    """
+    if template == "custom":
+        if not custom_preamble or not custom_preamble.strip():
+            raise ValueError("custom_preamble is required for the 'custom' template")
+        preamble = custom_preamble
+    else:
+        preamble = _build_preamble(_SAMPLE_PERSONAL, _SAMPLE_EDUCATION, template)
+
+    full_doc = preamble + _SAMPLE_BODY + "\n\n\\end{document}\n"
+    return await compile_latex_to_pdf(full_doc)
 
 # Body structure shown to Claude in the system prompt — variable sections only.
 # Includes command usage comments so Claude knows each command's argument signature.
@@ -712,12 +1061,14 @@ def _extract_resume_body(latex: str) -> str:
     return latex
 
 
-def _assemble_resume_latex(body: str) -> str:
-    """Wrap resume body sections with the static preamble and closing tag.
+def _assemble_resume_latex(body: str, preamble: str | None = None) -> str:
+    """Wrap resume body sections with the preamble and closing tag.
 
     The stored resume_latex remains a complete, compilable LaTeX document.
+    Falls back to the static LATEX_PREAMBLE when called without a preamble
+    (e.g. from code paths not yet updated to pass one).
     """
-    return LATEX_PREAMBLE + _extract_resume_body(body) + "\n\n\\end{document}\n"
+    return (preamble or LATEX_PREAMBLE) + _extract_resume_body(body) + "\n\n\\end{document}\n"
 
 
 # ── Page-overflow compression ─────────────────────────────────────────────────
@@ -763,7 +1114,7 @@ async def _call_compression(body_latex: str, api_key: str) -> str:
     return result.tool_input["resume_latex"]
 
 
-async def _compress_if_needed(assembled_latex: str, api_key: str, max_attempts: int = 2) -> tuple[str, int]:
+async def _compress_if_needed(assembled_latex: str, api_key: str, preamble: str | None = None, max_attempts: int = 2) -> tuple[str, int]:
     """Compile the resume and compress via Claude if it exceeds one page.
 
     The resume body is AI-generated LaTeX (see the module docstring on
@@ -810,13 +1161,16 @@ async def _compress_if_needed(assembled_latex: str, api_key: str, max_attempts: 
             logger.exception("Compression call failed — keeping current LaTeX")
             break
 
-        current = _assemble_resume_latex(compressed_body)
+        current = _assemble_resume_latex(compressed_body, preamble)
 
     return last_known_good, attempts
 
 
 async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> dict:
     personal = (await db.execute(select(PersonalInfo).limit(1))).scalar_one_or_none()
+    education = (await db.execute(
+        select(Education).where(Education.deleted_at.is_(None)).order_by(Education.id)
+    )).scalars().all()
     experience = (await db.execute(
         select(Experience).order_by(Experience.sort_order)
     )).scalars().all()
@@ -826,6 +1180,13 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
     skills = (await db.execute(
         select(SkillCategory).order_by(SkillCategory.sort_order)
     )).scalars().all()
+
+    template = getattr(personal, "resume_template", None) or "jake"
+    if template == "custom":
+        custom_preamble = getattr(personal, "custom_preamble", None) or ""
+        preamble = custom_preamble if custom_preamble.strip() else _build_preamble(personal, list(education), "jake")
+    else:
+        preamble = _build_preamble(personal, list(education), template)
 
     profile_text = _format_profile(
         personal, list(experience), list(projects), list(skills)
@@ -879,8 +1240,8 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
 
     # Assemble full document, then compress if it spills past one page
     if result.get("resume_latex"):
-        assembled = _assemble_resume_latex(result["resume_latex"])
-        final_latex, compression_attempts = await _compress_if_needed(assembled, api_key)
+        assembled = _assemble_resume_latex(result["resume_latex"], preamble)
+        final_latex, compression_attempts = await _compress_if_needed(assembled, api_key, preamble)
         result["resume_latex"] = final_latex
         result["compression_attempts"] = compression_attempts
 

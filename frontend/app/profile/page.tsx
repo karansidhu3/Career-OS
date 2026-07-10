@@ -1,12 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, FullProfile, Project, Experience, SkillCategory, Education, PersonalInfo } from '@/lib/api'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
 import { Field, Input, SaveButton, CancelButton, inputCls, inputStyle } from '@/components/FormControls'
+import { TEMPLATE_CATALOG, useTemplatePdfPreviews, TemplatePdfThumb, TemplatePreviewModal } from '@/components/TemplatePreview'
 
 // ---- Shared UI ----
 
@@ -889,6 +891,213 @@ function VoiceEditor({ personal, onSave }: { personal: PersonalInfo; onSave: (p:
   )
 }
 
+// ---- Resume format editor ----
+
+const TEMPLATE_IDS = TEMPLATE_CATALOG.map(t => t.id)
+
+function TemplateEditor({ personal, onSave }: { personal: PersonalInfo; onSave: (p: PersonalInfo) => void }) {
+  const current = personal.resume_template ?? 'jake'
+  const [selected, setSelected] = useState(current)
+  const [customPreamble, setCustomPreamble] = useState(personal.custom_preamble ?? '')
+  const [compiling, setCompiling] = useState(false)
+  const [compileError, setCompileError] = useState<string | null>(null)
+  const [customPreviewUrl, setCustomPreviewUrl] = useState<string | null>(null)
+  const [expandedPreview, setExpandedPreview] = useState<{ url: string; title: string } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+
+  const namedStates = useTemplatePdfPreviews(TEMPLATE_IDS)
+
+  useEffect(() => {
+    if (!savedFlash) return
+    const t = setTimeout(() => setSavedFlash(false), 2000)
+    return () => clearTimeout(t)
+  }, [savedFlash])
+
+  useEffect(() => {
+    return () => { if (customPreviewUrl) URL.revokeObjectURL(customPreviewUrl) }
+  }, [customPreviewUrl])
+
+  const isDirty =
+    selected !== current ||
+    (selected === 'custom' && customPreamble !== (personal.custom_preamble ?? ''))
+
+  const canSave = isDirty && (selected !== 'custom' || customPreviewUrl !== null)
+
+  const compileCustom = async () => {
+    if (!customPreamble.trim()) return
+    setCompiling(true)
+    setCompileError(null)
+    try {
+      const url = await api.compileCustomTemplatePdf(customPreamble)
+      setCustomPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Compilation failed'
+      try {
+        const d = JSON.parse(msg)
+        setCompileError(typeof d?.detail === 'string' ? d.detail : msg)
+      } catch { setCompileError(msg) }
+    } finally {
+      setCompiling(false)
+    }
+  }
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const { id, ...rest } = personal
+      const updated = await api.updatePersonal({
+        ...rest,
+        resume_template: selected,
+        custom_preamble: selected === 'custom' ? customPreamble : null,
+      })
+      onSave(updated)
+      setSavedFlash(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <SectionLabel>Resume format</SectionLabel>
+        <AnimatePresence>
+          {savedFlash && <SavedFlash />}
+        </AnimatePresence>
+      </div>
+      <p className="text-xs text-neutral-600 mb-4 leading-relaxed">
+        Controls the LaTeX template used when generating your resume. Change this any time —
+        new generations will use the updated format.
+      </p>
+
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {TEMPLATE_CATALOG.map(t => {
+          const active = selected === t.id
+          const previewUrl = namedStates[t.id]?.url ?? null
+          return (
+            <div
+              key={t.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => { setSelected(t.id); setCompileError(null) }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(t.id); setCompileError(null) } }}
+              className="text-left rounded-lg overflow-hidden transition-colors cursor-pointer"
+              style={{
+                border: `1.5px solid ${active ? 'var(--c-accent-border)' : 'var(--c-border)'}`,
+                background: active ? 'var(--c-accent-dim)' : 'transparent',
+              }}
+            >
+              <TemplatePdfThumb
+                state={namedStates[t.id]}
+                scale={0.19}
+                onExpand={previewUrl ? () => setExpandedPreview({ url: previewUrl, title: t.name }) : undefined}
+              />
+              <div className="px-2.5 py-2" style={{ borderTop: '1px solid var(--c-border)' }}>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-medium text-neutral-800">{t.name}</p>
+                  {t.recommended && (
+                    <span
+                      className="text-[8px] font-medium uppercase tracking-[0.06em] px-1 py-0.5 rounded"
+                      style={{ background: 'var(--c-accent-dim)', color: 'var(--color-neutral-800)' }}
+                    >
+                      Recommended
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-neutral-600 leading-snug mt-0.5">{t.description}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Custom template — full-width row, same treatment as onboarding */}
+      <button
+        onClick={() => { if (selected !== 'custom') setSelected('custom') }}
+        className="w-full text-left rounded-lg overflow-hidden transition-colors mb-2"
+        style={{
+          border: `1.5px solid ${selected === 'custom' ? 'var(--c-accent-border)' : 'var(--c-border)'}`,
+          background: selected === 'custom' ? 'var(--c-accent-dim)' : 'transparent',
+        }}
+      >
+        <div className="px-3 py-2.5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-neutral-800">Custom</p>
+            <p className="text-[11px] text-neutral-600 leading-snug mt-0.5">
+              Your own LaTeX preamble — paste and compile to apply.
+            </p>
+          </div>
+          {selected !== 'custom' && (
+            <span className="text-xs shrink-0 ml-3" style={{ color: 'var(--color-neutral-700)' }}>Use this</span>
+          )}
+        </div>
+      </button>
+
+      {selected === 'custom' && (
+        <div className="mt-2">
+          <p className="text-xs text-neutral-600 mb-2 leading-relaxed">
+            Paste your full LaTeX preamble from{' '}
+            <code className="font-mono">\documentclass</code> through{' '}
+            <code className="font-mono">\begin&#123;document&#125;</code>.
+          </p>
+          <textarea
+            value={customPreamble}
+            onChange={e => { setCustomPreamble(e.target.value); setCompileError(null) }}
+            rows={8}
+            spellCheck={false}
+            placeholder={'\\documentclass[letterpaper,11pt]{article}\n\\usepackage{...}\n\\begin{document}'}
+            className="w-full font-mono text-xs rounded-lg p-3 resize-y"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid var(--c-border)',
+              color: 'var(--color-neutral-900)',
+              outline: 'none',
+            }}
+          />
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            <button
+              onClick={compileCustom}
+              disabled={compiling || !customPreamble.trim()}
+              className="px-3 py-1.5 text-xs rounded-lg font-medium transition-opacity disabled:opacity-40"
+              style={{ background: 'var(--c-surface-raised)', color: 'var(--color-neutral-900)', border: '1px solid var(--c-border)' }}
+            >
+              {compiling ? 'Compiling…' : customPreviewUrl ? 'Recompile' : 'Compile & preview'}
+            </button>
+            {compileError && <p className="text-xs" style={{ color: 'var(--c-danger)' }}>{compileError}</p>}
+            {customPreviewUrl && !compileError && (
+              <p className="text-xs" style={{ color: 'var(--c-success)' }}>Compiled — select to save</p>
+            )}
+          </div>
+
+          {customPreviewUrl && (
+            <div className="mt-3 rounded-lg overflow-hidden" style={{ border: '1px solid var(--c-border)' }}>
+              <TemplatePdfThumb
+                state={{ url: customPreviewUrl, loading: false, error: null }}
+                scale={0.32}
+                showTop={0.9}
+                onExpand={() => setExpandedPreview({ url: customPreviewUrl, title: 'Custom' })}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {canSave && (
+        <div className="mt-4 flex justify-end">
+          <SaveButton saving={saving} onClick={save} />
+        </div>
+      )}
+
+      <TemplatePreviewModal
+        url={expandedPreview?.url ?? null}
+        title={expandedPreview?.title ?? ''}
+        onClose={() => setExpandedPreview(null)}
+      />
+    </div>
+  )
+}
+
 // ---- Loading skeleton — mirrors the real section layout so nothing reflows on arrival ----
 
 function ResumeSkeleton() {
@@ -943,10 +1152,71 @@ function ResumeSkeleton() {
 }
 
 // ---- Main page ----
+// Six sections used to stack in one continuous scroll — an Apple System
+// Settings-style tab bar keeps exactly one section on screen at a time
+// instead, without adding a new navbar route (this is a sub-view of the
+// existing /profile page, not new navigation).
+
+const PROFILE_TABS = [
+  { id: 'personal', label: 'Personal' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'experience', label: 'Experience' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'education', label: 'Education' },
+  { id: 'preferences', label: 'Preferences' },
+] as const
+type ProfileTab = typeof PROFILE_TABS[number]['id']
+
+// Shown on the Personal / Preferences tabs when personal_info doesn't exist
+// yet — reachable only by navigating straight to /profile before the home
+// page's onboarding gate has run (it normally creates this row first).
+function NoPersonalInfoYet() {
+  return (
+    <div className="py-16 text-center">
+      <p className="text-sm text-neutral-700 font-medium mb-1">Set up your profile first</p>
+      <p className="text-xs text-neutral-600 max-w-sm mx-auto leading-relaxed">
+        This is where your name, resume voice, and format live — but the setup that creates
+        it hasn&apos;t run yet.{' '}
+        <Link href="/" className="underline underline-offset-2 hover:text-neutral-800 transition-colors">
+          Go to Home
+        </Link>{' '}to finish onboarding.
+      </p>
+    </div>
+  )
+}
+
+function ProfileTabBar({ active, onChange }: { active: ProfileTab; onChange: (t: ProfileTab) => void }) {
+  return (
+    <div
+      className="flex items-center gap-1 mb-10 overflow-x-auto"
+      style={{ borderBottom: '1px solid var(--c-border)' }}
+    >
+      {PROFILE_TABS.map(t => (
+        <button
+          key={t.id}
+          onClick={() => onChange(t.id)}
+          className="relative px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors"
+          style={{ color: active === t.id ? 'var(--color-neutral-900)' : 'var(--color-neutral-600)' }}
+        >
+          {t.label}
+          {active === t.id && (
+            <motion.div
+              layoutId="profile-tab-underline"
+              className="absolute left-0 right-0 -bottom-px h-[2px]"
+              style={{ background: 'var(--c-accent)' }}
+              transition={spring.snappy}
+            />
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<FullProfile | null>(null)
   const [loadError, setLoadError] = useState(false)
+  const [activeTab, setActiveTab] = useState<ProfileTab>('personal')
   const [newProjectId, setNewProjectId] = useState<number | null>(null)
   const [newExpId, setNewExpId] = useState<number | null>(null)
   const [newSkillId, setNewSkillId] = useState<number | null>(null)
@@ -1337,34 +1607,42 @@ export default function ProfilePage() {
         </p>
       </motion.div>
 
-      {/* Personal info — who this resume belongs to */}
-      {profile.personal && (
+      <ProfileTabBar active={activeTab} onChange={setActiveTab} />
+
+      <AnimatePresence mode="wait">
+      {activeTab === 'personal' && (
         <motion.section
-          initial={{ opacity: 0, y: 16 }}
+          key="personal"
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...spring.gentle, delay: 0.04 }}
-          className="mb-10 pt-10"
-          style={{ borderTop: '1px solid var(--c-border)' }}
+          exit={{ opacity: 0 }}
+          transition={spring.gentle}
         >
-          <PersonalInfoEditor
-            personal={profile.personal}
-            onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)}
-          />
+          {profile.personal ? (
+            <PersonalInfoEditor
+              personal={profile.personal}
+              onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)}
+            />
+          ) : (
+            <NoPersonalInfoYet />
+          )}
         </motion.section>
       )}
 
-      {/* Projects — most important, first */}
+      {activeTab === 'projects' && (
       <motion.section
-        initial={{ opacity: 0, y: 16 }}
+        key="projects"
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.06 }}
-        className="mb-10 pt-10"
-        style={{ borderTop: '1px solid var(--c-border)' }}
+        exit={{ opacity: 0 }}
+        transition={spring.gentle}
       >
         <SectionHeader title="Projects" onAdd={addProject} adding={addingProject} />
         <div className="space-y-3">
           {profile.projects.length === 0 && (
-            <p className="text-xs text-neutral-600">No projects added yet.</p>
+            <p className="text-xs text-neutral-600 leading-relaxed">
+              No projects yet. Two or three with a concrete outcome give the generator the most to work with.
+            </p>
           )}
           <AnimatePresence>
             {profile.projects.map((p, i) => (
@@ -1397,19 +1675,22 @@ export default function ProfilePage() {
           </AnimatePresence>
         </div>
       </motion.section>
+      )}
 
-      {/* Experience */}
+      {activeTab === 'experience' && (
       <motion.section
-        initial={{ opacity: 0, y: 16 }}
+        key="experience"
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.1 }}
-        className="mb-10 pt-10"
-        style={{ borderTop: '1px solid var(--c-border)' }}
+        exit={{ opacity: 0 }}
+        transition={spring.gentle}
       >
         <SectionHeader title="Experience" onAdd={addExperience} adding={addingExp} />
         <div className="space-y-3">
           {profile.experience.length === 0 && (
-            <p className="text-xs text-neutral-600">No experience added yet.</p>
+            <p className="text-xs text-neutral-600 leading-relaxed">
+              No experience yet. Even one role gives tailored resumes real grounding.
+            </p>
           )}
           <AnimatePresence>
             {profile.experience.map((e, i) => (
@@ -1442,19 +1723,22 @@ export default function ProfilePage() {
           </AnimatePresence>
         </div>
       </motion.section>
+      )}
 
-      {/* Skills */}
+      {activeTab === 'skills' && (
       <motion.section
-        initial={{ opacity: 0, y: 16 }}
+        key="skills"
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.14 }}
-        className="mb-10 pt-10"
-        style={{ borderTop: '1px solid var(--c-border)' }}
+        exit={{ opacity: 0 }}
+        transition={spring.gentle}
       >
         <SectionHeader title="Skills" onAdd={addSkill} adding={addingSkill} />
         <div className="space-y-3">
           {profile.skills.length === 0 && (
-            <p className="text-xs text-neutral-600">No skills added yet.</p>
+            <p className="text-xs text-neutral-600 leading-relaxed">
+              No skills yet. Group them by category — Languages, Frameworks, Tools.
+            </p>
           )}
           <AnimatePresence>
             {profile.skills.map((s, i) => (
@@ -1487,19 +1771,22 @@ export default function ProfilePage() {
           </AnimatePresence>
         </div>
       </motion.section>
+      )}
 
-      {/* Education — rarely changes */}
+      {activeTab === 'education' && (
       <motion.section
-        initial={{ opacity: 0, y: 16 }}
+        key="education"
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.18 }}
-        className="mb-10 pt-10"
-        style={{ borderTop: '1px solid var(--c-border)' }}
+        exit={{ opacity: 0 }}
+        transition={spring.gentle}
       >
         <SectionHeader title="Education" onAdd={addEducation} adding={addingEducation} />
         <div className="space-y-3">
           {profile.education.length === 0 && (
-            <p className="text-xs text-neutral-600">No education added yet.</p>
+            <p className="text-xs text-neutral-600 leading-relaxed">
+              No education yet. Add your degree and school.
+            </p>
           )}
           <AnimatePresence>
             {profile.education.map(ed => (
@@ -1528,19 +1815,30 @@ export default function ProfilePage() {
           </AnimatePresence>
         </div>
       </motion.section>
+      )}
 
-      {/* Cover letter voice — fed into every generation */}
-      {profile.personal && (
+      {activeTab === 'preferences' && (
         <motion.section
-          initial={{ opacity: 0, y: 16 }}
+          key="preferences"
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...spring.gentle, delay: 0.22 }}
-          className="mb-10 pt-10"
-          style={{ borderTop: '1px solid var(--c-border)' }}
+          exit={{ opacity: 0 }}
+          transition={spring.gentle}
+          className={profile.personal ? 'space-y-10' : undefined}
         >
-          <VoiceEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
+          {profile.personal ? (
+            <>
+              <VoiceEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
+              <div style={{ borderTop: '1px solid var(--c-border)', paddingTop: '2.5rem' }}>
+                <TemplateEditor personal={profile.personal} onSave={updated => setProfile(prev => prev ? { ...prev, personal: updated } : prev)} />
+              </div>
+            </>
+          ) : (
+            <NoPersonalInfoYet />
+          )}
         </motion.section>
       )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {undoToast && (

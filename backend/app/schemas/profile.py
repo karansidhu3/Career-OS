@@ -13,6 +13,8 @@ class PersonalInfoBase(BaseModel):
     target_locations: list[str] = []
     # Stored up to 2000 chars; truncated to 800 when injected into Claude prompts
     cover_letter_voice: str = Field("", max_length=2000)
+    resume_template: Optional[str] = Field(None, max_length=32)
+    custom_preamble: Optional[str] = Field(None, max_length=20_000)
 
 
 class PersonalInfoRead(PersonalInfoBase):

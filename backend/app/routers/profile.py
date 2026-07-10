@@ -2,6 +2,8 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
+from pydantic import BaseModel
 from slowapi import Limiter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +28,7 @@ from app.schemas.profile import (
 )
 from app.schemas.profile_import import ProfileImportDraft
 from app.services.credentials import get_decrypted_key
+from app.services.generation import compile_template_preview
 from app.services.resume_import import extract_profile_draft, extract_text_from_docx, extract_text_from_pdf
 
 logger = logging.getLogger(__name__)
@@ -111,6 +114,47 @@ async def upsert_personal(
     await db.commit()
     await db.refresh(row)
     return row
+
+
+# --- Template previews ---
+
+VALID_TEMPLATES = {"jake", "crisp", "modern", "sharp", "classic", "minimal"}
+
+
+@router.get("/template-preview/{template}")
+async def get_template_preview(
+    template: str,
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    if template not in VALID_TEMPLATES:
+        raise HTTPException(status_code=400, detail=f"Unknown template '{template}'. Valid: {sorted(VALID_TEMPLATES)}")
+    try:
+        pdf = await compile_template_preview(template)
+    except Exception as exc:
+        logger.exception("Template preview compile failed for %s", template)
+        raise HTTPException(status_code=500, detail=str(exc))
+    return Response(content=pdf, media_type="application/pdf")
+
+
+class CustomPreambleBody(BaseModel):
+    preamble: str
+
+
+@router.post("/template-preview/custom")
+async def preview_custom_template(
+    body: CustomPreambleBody,
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    if not body.preamble.strip():
+        raise HTTPException(status_code=400, detail="Preamble cannot be empty")
+    try:
+        pdf = await compile_template_preview("custom", custom_preamble=body.preamble)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Custom template preview compile failed")
+        raise HTTPException(status_code=422, detail=f"LaTeX compile error: {exc}")
+    return Response(content=pdf, media_type="application/pdf")
 
 
 # --- Education ---

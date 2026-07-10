@@ -52,6 +52,8 @@ export interface PersonalInfo {
   target_roles: string[]
   target_locations: string[]
   cover_letter_voice: string
+  resume_template: string | null
+  custom_preamble: string | null
 }
 
 export interface Education {
@@ -342,6 +344,21 @@ export const api = {
     if ('file' in input) formData.append('file', input.file)
     else formData.append('text', input.text)
     return request<ProfileImportDraft>('/admin/profile/import', { method: 'POST', body: formData })
+  },
+
+  // Template previews — returns a blob URL of the compiled PDF
+  fetchTemplatePdfPreview: (template: string) =>
+    requestBlob(`/admin/profile/template-preview/${encodeURIComponent(template)}`),
+  compileCustomTemplatePdf: async (preamble: string): Promise<string> => {
+    const res = await fetch(`${API_BASE}/admin/profile/template-preview/custom`, {
+      ...json('POST', { preamble }),
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(text || `HTTP ${res.status}`)
+    }
+    const blob = await res.blob()
+    return URL.createObjectURL(blob)
   },
 
   // Waitlist (Phase 8) — pre-auth, hits /api/waitlist directly (not the generic

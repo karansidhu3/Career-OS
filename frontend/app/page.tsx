@@ -8,9 +8,11 @@ import { api, CandidacyInsights, Job } from '@/lib/api'
 import { ApiKeySettings } from '@/components/ApiKeySettings'
 import { LandingPage } from '@/components/LandingPage'
 import { ProfileSetupGate } from '@/components/ProfileSetupGate'
+import { TemplatePickerGate } from '@/components/TemplatePickerGate'
 import { AutoTextarea } from '@/components/AutoTextarea'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
+import { EmptyProfileNudge } from '@/components/EmptyProfileNudge'
 import { ScoreRing } from '@/components/ScoreRing'
 import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, DownloadIconButton, CoverLetterSection } from '@/components/ResultSections'
 import { spring } from '@/lib/motion'
@@ -22,6 +24,7 @@ type AppState =
   | { mode: 'checking' }
   | { mode: 'needs-key' }
   | { mode: 'needs-profile' }
+  | { mode: 'needs-template'; personal: NonNullable<import('@/lib/api').FullProfile['personal']> }
   | { mode: 'idle' }
   | { mode: 'generating'; jobId: number }
   | { mode: 'result'; job: Job }
@@ -169,6 +172,9 @@ export default function Home() {
   const [resumeDownloading, setResumeDownloading] = useState(false)
   // Profile readiness — show setup prompt if profile is empty
   const [profileEmpty, setProfileEmpty] = useState(false)
+  // One-time nudge shown only immediately after finishing onboarding with an
+  // empty profile — never re-checked on later visits, never blocks Generate.
+  const [showEmptyNudge, setShowEmptyNudge] = useState(false)
   const [insights, setInsights] = useState<CandidacyInsights | null>(() => {
     // Populate from cache synchronously so layout is stable on first render.
     // No age check — insights only change when a new generation happens (see
@@ -304,32 +310,50 @@ export default function Home() {
     }
   }, [resultJobId])
 
-  // ── Onboarding gate — enforced order: profile → API key → idle. Profile
-  // setup is free, low-risk, and shows the product learning about the user
-  // before asking for a billing credential — asking for the API key first
-  // (the old order) meant a brand-new signup's very first action was handing
-  // over a credential before the product had shown anything of value. Runs
-  // once on mount; any check failing (offline, etc.) fails open to idle
-  // rather than blocking a returning user on a transient network hiccup. ──
+  // ── Onboarding gate — enforced order: API key → profile → template → idle.
+  // Key comes first so users understand the BYO-key model before investing time
+  // in profile setup. A skip link lets them defer the key and poke around first
+  // (they'll be gated again at generate time). Runs once on mount.
+  //
+  // On failure, retries once after a short delay before falling open to idle.
+  // A bare fail-open-on-any-error here is dangerous specifically for a brand
+  // new user: their very first authenticated load races two concurrent
+  // requests (getProfile + getApiKeyStatus) against JIT user provisioning on
+  // the backend, and used to occasionally 500 on that race (see clerk_auth.py
+  // fix) — which silently dropped a zero-profile, zero-key user straight onto
+  // the full generation screen. A returning user with a real network hiccup
+  // still gets through after the retry; a fresh signup gets a real gate
+  // instead of one flaky request skipping every check.
   useEffect(() => {
-    (async () => {
+    const check = async () => {
+      const [p, keyStatus] = await Promise.all([api.getProfile(), api.getApiKeyStatus()])
+      if (!keyStatus.has_key && !DEV_SKIP_KEY_GATE) {
+        setAppState({ mode: 'needs-key' })
+        return
+      }
+      if (!p.personal) {
+        setAppState({ mode: 'needs-profile' })
+        return
+      }
+      if (!p.personal.resume_template) {
+        setAppState({ mode: 'needs-template', personal: p.personal })
+        return
+      }
+      const hasContent = (p.experience && p.experience.length > 0) ||
+                         (p.projects && p.projects.length > 0)
+      setProfileEmpty(!hasContent)
+      setAppState({ mode: 'idle' })
+    }
+    ;(async () => {
       try {
-        const p = await api.getProfile()
-        if (!p.personal) {
-          setAppState({ mode: 'needs-profile' })
-          return
-        }
-        const keyStatus = await api.getApiKeyStatus()
-        if (!keyStatus.has_key && !DEV_SKIP_KEY_GATE) {
-          setAppState({ mode: 'needs-key' })
-          return
-        }
-        const hasContent = (p.experience && p.experience.length > 0) ||
-                           (p.projects && p.projects.length > 0)
-        setProfileEmpty(!hasContent)
-        setAppState({ mode: 'idle' })
+        await check()
       } catch {
-        setAppState({ mode: 'idle' })
+        try {
+          await new Promise(r => setTimeout(r, 500))
+          await check()
+        } catch {
+          setAppState({ mode: 'idle' })
+        }
       }
     })()
   }, [])
@@ -458,32 +482,85 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* ── NEEDS-PROFILE STATE — three entry paths, review before saving.
-             Comes before the API key ask: free, low-friction, shows value first. ── */}
+        {/* ── NEEDS-PROFILE STATE ── */}
         {appState.mode === 'needs-profile' && (
           <motion.div key="needs-profile" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
             <ProfileSetupGate
               onComplete={async () => {
                 try {
-                  const keyStatus = await api.getApiKeyStatus()
-                  setAppState({ mode: keyStatus.has_key ? 'idle' : 'needs-key' })
+                  const p = await api.getProfile()
+                  if (p.personal && !p.personal.resume_template) {
+                    setAppState({ mode: 'needs-template', personal: p.personal })
+                  } else {
+                    setShowEmptyNudge(
+                      (p.experience?.length ?? 0) === 0 && (p.projects?.length ?? 0) === 0
+                    )
+                    setAppState({ mode: 'idle' })
+                  }
                 } catch {
-                  setAppState({ mode: 'needs-key' })
+                  setAppState({ mode: 'idle' })
                 }
               }}
             />
           </motion.div>
         )}
 
-        {/* ── NEEDS-KEY STATE — enforced order: profile → API key → idle ── */}
+        {/* ── NEEDS-TEMPLATE STATE — pick resume format ── */}
+        {appState.mode === 'needs-template' && (
+          <motion.div key="needs-template" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
+            <TemplatePickerGate
+              personal={appState.personal}
+              onComplete={async () => {
+                try {
+                  const p = await api.getProfile()
+                  setShowEmptyNudge(
+                    (p.experience?.length ?? 0) === 0 && (p.projects?.length ?? 0) === 0
+                  )
+                } catch {}
+                setAppState({ mode: 'idle' })
+              }}
+            />
+          </motion.div>
+        )}
+
+        {/* ── NEEDS-KEY STATE — first onboarding step, skip available ── */}
         {appState.mode === 'needs-key' && (
           <motion.div key="needs-key" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring.gentle}>
             <div className="pt-16 max-w-md mx-auto">
+              <div className="text-center mb-3">
+                <SectionLabel>Step 1 of 3</SectionLabel>
+              </div>
               <h1 className="text-2xl font-semibold text-neutral-900 mb-2 text-center">Add your Anthropic API key</h1>
               <p className="text-sm text-neutral-600 text-center mb-10 leading-relaxed">
-                One last thing — CareerOS runs on your own key. Every generation is billed to you, never to us.
+                CareerOS runs on your own key — every generation is billed to you, not us, and nothing about your
+                usage is visible to anyone else. You can find yours at{' '}
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-neutral-800 transition-colors">
+                  console.anthropic.com
+                </a>.
               </p>
-              <ApiKeySettings onSaved={() => setAppState({ mode: 'idle' })} />
+              <ApiKeySettings onSaved={async () => {
+                try {
+                  const p = await api.getProfile()
+                  if (!p.personal) { setAppState({ mode: 'needs-profile' }); return }
+                  if (!p.personal.resume_template) { setAppState({ mode: 'needs-template', personal: p.personal }); return }
+                  setAppState({ mode: 'idle' })
+                } catch { setAppState({ mode: 'idle' }) }
+              }} />
+              <p className="text-xs text-neutral-600 text-center mt-8">
+                <button
+                  onClick={async () => {
+                    try {
+                      const p = await api.getProfile()
+                      if (!p.personal) { setAppState({ mode: 'needs-profile' }); return }
+                      if (!p.personal.resume_template) { setAppState({ mode: 'needs-template', personal: p.personal }); return }
+                      setAppState({ mode: 'idle' })
+                    } catch { setAppState({ mode: 'idle' }) }
+                  }}
+                  className="underline underline-offset-2 hover:text-neutral-800 transition-colors"
+                >
+                  Set up later in Settings
+                </button>
+              </p>
             </div>
           </motion.div>
         )}
@@ -584,6 +661,13 @@ export default function Home() {
                   </p>
                 )}
               </div>
+
+              {/* ── One-time empty-profile nudge — only right after onboarding ── */}
+              <AnimatePresence>
+                {showEmptyNudge && (
+                  <EmptyProfileNudge onDismiss={() => setShowEmptyNudge(false)} />
+                )}
+              </AnimatePresence>
 
               {/* ── Candidacy signal — "arrived at a conclusion" reveal ── */}
               <AnimatePresence>
