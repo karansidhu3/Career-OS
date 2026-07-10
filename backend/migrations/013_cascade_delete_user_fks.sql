@@ -39,6 +39,13 @@ ALTER TABLE ai_credentials DROP CONSTRAINT IF EXISTS ai_credentials_user_id_fkey
 ALTER TABLE ai_credentials ADD CONSTRAINT ai_credentials_user_id_fkey
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE account_exports DROP CONSTRAINT IF EXISTS account_exports_user_id_fkey;
-ALTER TABLE account_exports ADD CONSTRAINT account_exports_user_id_fkey
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+-- account_exports was dropped in migration 016 (ADR-017) — guarded the same
+-- way as migration 010, since this file replays on every startup too.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'account_exports') THEN
+        ALTER TABLE account_exports DROP CONSTRAINT IF EXISTS account_exports_user_id_fkey;
+        ALTER TABLE account_exports ADD CONSTRAINT account_exports_user_id_fkey
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+END $$;

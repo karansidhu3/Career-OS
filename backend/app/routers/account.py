@@ -1,88 +1,18 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clerk_auth import get_current_user
 from app.database import get_db
-from app.models.account_export import AccountExport
 from app.models.user import User
-from app.schemas.account import AccountDeletionStatus, AccountExportRead
-from app.services.account_deletion import deletion_deadline
+from app.schemas.account import AccountDeletionStatus
+from app.services.account_deletion import deletion_deadline, hard_delete_user
 from app.services.email_client import get_email_client
-from app.services.pdf_storage import account_export_key, get_pdf_storage
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/account", tags=["account"])
-
-
-async def _has_active_export(db: AsyncSession, user_id) -> bool:
-    existing = (
-        await db.execute(
-            select(AccountExport.id).where(AccountExport.user_id == user_id, AccountExport.status == "processing").limit(1)
-        )
-    ).scalar_one_or_none()
-    return existing is not None
-
-
-@router.post("/export", response_model=AccountExportRead, status_code=201)
-async def request_export(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Enqueue an async account data export. Emails the user (see
-    app.services.email_client) once the worker finishes building the zip."""
-    if await _has_active_export(db, current_user.id):
-        raise HTTPException(status_code=409, detail="An export is already in progress. Wait for it to finish before requesting another.")
-
-    export = AccountExport(user_id=current_user.id, status="processing")
-    db.add(export)
-    await db.commit()
-    await db.refresh(export)
-
-    await request.app.state.arq_pool.enqueue_job("run_export_job", export.id, str(current_user.id))
-    return export
-
-
-@router.get("/export/{id}", response_model=AccountExportRead)
-async def get_export_status(
-    id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    export = (
-        await db.execute(select(AccountExport).where(AccountExport.id == id, AccountExport.user_id == current_user.id))
-    ).scalar_one_or_none()
-    if not export:
-        raise HTTPException(status_code=404, detail="Not found")
-    return export
-
-
-@router.get("/export/{id}/download")
-async def download_export(
-    id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    export = (
-        await db.execute(select(AccountExport).where(AccountExport.id == id, AccountExport.user_id == current_user.id))
-    ).scalar_one_or_none()
-    if not export or export.status != "ready":
-        raise HTTPException(status_code=404, detail="Export not ready")
-
-    zip_bytes = await get_pdf_storage().load(account_export_key(id))
-    if zip_bytes is None:
-        raise HTTPException(status_code=404, detail="Export file no longer available")
-
-    return Response(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename=\"careeros-export-{id}.zip\""},
-    )
 
 
 @router.get("/delete", response_model=AccountDeletionStatus)
@@ -96,10 +26,11 @@ async def request_deletion(
     db: AsyncSession = Depends(get_db),
 ):
     """Starts the 7-day grace period. A confirmation email goes out immediately
-    (see app.services.email_client) — the second of the two transactional email
-    triggers this app sends (CLAUDE.md carve-out). The account is hard-deleted by
+    (see app.services.email_client) — the one transactional email trigger this
+    app sends (CLAUDE.md carve-out). The account is hard-deleted by
     app.worker's hourly cron sweep once the deadline passes; cancel any time before
-    then with DELETE /admin/account/delete."""
+    then with DELETE /admin/account/delete, or skip the wait entirely with
+    POST /admin/account/delete/now."""
     current_user.scheduled_deletion_at = deletion_deadline()
     await db.commit()
 
@@ -128,3 +59,21 @@ async def cancel_deletion(
     current_user.scheduled_deletion_at = None
     await db.commit()
     return AccountDeletionStatus(scheduled_deletion_at=None)
+
+
+@router.post("/delete/now", status_code=204)
+async def delete_now(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Skips the remainder of the grace period and deletes immediately. Only
+    reachable once a deletion is already scheduled (POST /admin/account/delete) —
+    this is an acceleration of an in-progress deletion, not a separate path
+    around the confirmation step that started it. No further email: the
+    confirmation email already went out when deletion was first requested.
+    get_current_user has already set the RLS GUC on `db` for this user (see
+    app.clerk_auth._set_rls_user), same as app.worker's cron sweep does manually
+    for its own out-of-request-context session."""
+    if current_user.scheduled_deletion_at is None:
+        raise HTTPException(status_code=400, detail="No deletion is scheduled for this account.")
+    await hard_delete_user(db, current_user)

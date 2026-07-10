@@ -112,17 +112,6 @@ export interface CredentialStatus {
   last_verified_at: string | null
 }
 
-// ---- Account data export (Phase 6) ----
-
-export interface AccountExport {
-  id: number
-  status: string
-  created_at: string | null
-  completed_at: string | null
-  expires_at: string | null
-  error_message: string | null
-}
-
 // ---- Account deletion (Phase 6) ----
 
 export interface AccountDeletionStatus {
@@ -325,17 +314,12 @@ export const api = {
   deleteApiKey: () =>
     request<void>('/admin/settings/api-key', { method: 'DELETE' }),
 
-  // Account data export (Phase 6) — async: request enqueues on the worker,
-  // poll status until "ready", then download.
-  requestExport: () => request<AccountExport>('/admin/account/export', { method: 'POST' }),
-  getExportStatus: (id: number) => request<AccountExport>(`/admin/account/export/${id}`),
-  downloadExport: (id: number) =>
-    downloadBlob(`/admin/account/export/${id}/download`, `careeros-export-${id}.zip`),
-
-  // Account deletion (Phase 6) — 7-day grace period, cancel any time before it lapses.
+  // Account deletion (Phase 6) — 7-day grace period, cancel any time before it lapses,
+  // or skip the wait entirely with deleteNow (only valid once a deletion is scheduled).
   getDeletionStatus: () => request<AccountDeletionStatus>('/admin/account/delete'),
   requestDeletion: () => request<AccountDeletionStatus>('/admin/account/delete', { method: 'POST' }),
   cancelDeletion: () => request<AccountDeletionStatus>('/admin/account/delete', { method: 'DELETE' }),
+  deleteNow: () => request<void>('/admin/account/delete/now', { method: 'POST' }),
 
   // Resume import — draft only, never written to the profile until the caller
   // saves each reviewed item via the CRUD methods above.

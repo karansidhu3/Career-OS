@@ -1,10 +1,9 @@
-"""Provider-agnostic seam for the two transactional emails CareerOS sends
-(data export ready, account deletion confirmation) — see CLAUDE.md's "What NOT
-to build" carve-out. Mirrors the LLMClient/PDFStorage seam pattern: an
-abstract client, one real adapter (Resend, a plain HTTP call via the httpx
-dependency already in use elsewhere — no new SDK needed), and a no-op
-fallback so local dev without a configured API key doesn't crash, it just
-logs and skips sending.
+"""Provider-agnostic seam for the one transactional email CareerOS sends
+(account deletion confirmation) — see CLAUDE.md's "What NOT to build" carve-out.
+Mirrors the LLMClient/PDFStorage seam pattern: an abstract client, one real
+adapter (Resend, a plain HTTP call via the httpx dependency already in use
+elsewhere — no new SDK needed), and a no-op fallback so local dev without a
+configured API key doesn't crash, it just logs and skips sending.
 """
 import logging
 from abc import ABC, abstractmethod

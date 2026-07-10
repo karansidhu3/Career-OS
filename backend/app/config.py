@@ -54,8 +54,8 @@ class Settings(BaseSettings):
     r2_secret_access_key: str = ""
     r2_bucket_name: str = ""
 
-    # Resend (Phase 6) — transactional email ONLY, scoped to two triggers: data export
-    # ready, account deletion confirmation. See CLAUDE.md's "What NOT to build" carve-out.
+    # Resend (Phase 6) — transactional email ONLY, scoped to one trigger: account
+    # deletion confirmation. See CLAUDE.md's "What NOT to build" carve-out.
     # get_email_client() falls back to a no-op (logs, doesn't send) when unset, so local
     # dev never needs a real key.
     resend_api_key: str = ""
