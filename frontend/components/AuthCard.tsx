@@ -57,11 +57,12 @@ export function AuthCard({ mode }: { mode: Mode }) {
   const { isLoaded: signInLoaded, signIn, setActive: setActiveSignIn } = useSignIn()
   const { isLoaded: signUpLoaded, signUp, setActive: setActiveSignUp } = useSignUp()
 
-  const [step, setStep] = useState<'email' | 'code'>('email')
+  const [step, setStep] = useState<'email' | 'code' | 'forgot-email' | 'forgot-code'>('email')
   const [email, setEmail] = useState(searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
-  const [loading, setLoading] = useState<'email' | 'code' | 'github' | 'google' | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [loading, setLoading] = useState<'email' | 'code' | 'github' | 'google' | 'forgot-email' | 'forgot-code' | null>(null)
   const [error, setError] = useState<string | null>(null)
   // The exact resource instance returned by create()+prepare*Verification() in
   // submitEmail — attemptFirstFactor/attemptEmailAddressVerification in submitCode
@@ -164,6 +165,58 @@ export function AuthCard({ mode }: { mode: Mode }) {
     }
   }
 
+  // ── Forgot password (sign-in only) — same create()-then-attemptFirstFactor()
+  // shape as the sign-in code flow above, but on the reset_password_email_code
+  // strategy: the code Clerk emails proves ownership of the address, and the
+  // new password is submitted in the same attempt that consumes it.
+  const submitForgotEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!signInLoaded || !email.trim()) return
+    setLoading('forgot-email')
+    setError(null)
+    try {
+      pending.current = await signIn!.create({ strategy: 'reset_password_email_code', identifier: email.trim() })
+      setStep('forgot-code')
+    } catch (err: any) {
+      const clerkMsg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message
+      setError(clerkMsg ?? "Couldn't send a reset code — check the email and try again.")
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const submitForgotCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!signInLoaded || !code.trim() || !newPassword.trim()) return
+    setLoading('forgot-code')
+    setError(null)
+    try {
+      const attempt = await pending.current.attemptFirstFactor({
+        strategy: 'reset_password_email_code',
+        code: code.trim(),
+        password: newPassword.trim(),
+      })
+      if (attempt.status === 'complete') {
+        await setActiveSignIn!({ session: attempt.createdSessionId })
+        router.push('/')
+        return
+      }
+      setError('That code didn’t work — check it and try again.')
+    } catch (err: any) {
+      const clerkMsg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message
+      setError(clerkMsg ?? 'That code didn’t work — check it and try again.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const backToSignIn = () => {
+    setStep('email')
+    setCode('')
+    setNewPassword('')
+    setError(null)
+  }
+
   return (
     <div className="h-dvh overflow-hidden flex items-center justify-center px-6">
       <motion.div
@@ -234,6 +287,15 @@ export function AuthCard({ mode }: { mode: Mode }) {
                 style={inputStyle}
                 disabled={loading !== null}
               />
+              {mode === 'sign-in' && (
+                <button
+                  type="button"
+                  onClick={() => { setStep('forgot-email'); setError(null) }}
+                  className="self-end -mt-1 text-xs text-neutral-600 hover:text-neutral-800 transition-colors"
+                >
+                  Forgot password?
+                </button>
+              )}
               <PrimaryButton
                 type="submit"
                 fullWidth
@@ -242,7 +304,7 @@ export function AuthCard({ mode }: { mode: Mode }) {
                 {loading === 'email' ? 'Continuing…' : 'Continue'}
               </PrimaryButton>
             </motion.form>
-          ) : (
+          ) : step === 'code' ? (
             <motion.form
               key="code"
               initial={{ opacity: 0 }}
@@ -277,6 +339,89 @@ export function AuthCard({ mode }: { mode: Mode }) {
                 className="text-xs text-neutral-600 hover:text-neutral-800 transition-colors"
               >
                 Use a different email
+              </button>
+            </motion.form>
+          ) : step === 'forgot-email' ? (
+            <motion.form
+              key="forgot-email"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={spring.snappy}
+              onSubmit={submitForgotEmail}
+              className="flex flex-col gap-3"
+            >
+              <p className="text-xs text-neutral-600 -mt-1 mb-1">
+                We&rsquo;ll email a code to reset your password.
+              </p>
+              <input
+                type="email"
+                required
+                autoFocus
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="form-input w-full px-3 py-2 rounded-xl text-sm font-light text-neutral-700 placeholder-neutral-300 focus:outline-none"
+                style={inputStyle}
+                disabled={loading !== null}
+              />
+              <PrimaryButton type="submit" fullWidth disabled={loading !== null || !email.trim()}>
+                {loading === 'forgot-email' ? 'Sending…' : 'Send reset code'}
+              </PrimaryButton>
+              <button
+                type="button"
+                onClick={backToSignIn}
+                className="text-xs text-neutral-600 hover:text-neutral-800 transition-colors"
+              >
+                Back to sign in
+              </button>
+            </motion.form>
+          ) : (
+            <motion.form
+              key="forgot-code"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={spring.snappy}
+              onSubmit={submitForgotCode}
+              className="flex flex-col gap-3"
+            >
+              <p className="text-xs text-neutral-600 -mt-1 mb-1">
+                Enter the code sent to <span className="text-neutral-800">{email}</span> and choose a new password.
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                autoFocus
+                value={code}
+                onChange={e => setCode(e.target.value)}
+                placeholder="123456"
+                className="form-input w-full px-3 py-2 rounded-xl text-sm font-light tracking-[0.3em] text-center text-neutral-700 placeholder-neutral-300 focus:outline-none"
+                style={inputStyle}
+                disabled={loading !== null}
+              />
+              <input
+                type="password"
+                required
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="New password"
+                className="form-input w-full px-3 py-2 rounded-xl text-sm font-light text-neutral-700 placeholder-neutral-300 focus:outline-none"
+                style={inputStyle}
+                disabled={loading !== null}
+              />
+              <PrimaryButton type="submit" fullWidth disabled={loading !== null || !code.trim() || !newPassword.trim()}>
+                {loading === 'forgot-code' ? 'Resetting…' : 'Reset password'}
+              </PrimaryButton>
+              <button
+                type="button"
+                onClick={backToSignIn}
+                className="text-xs text-neutral-600 hover:text-neutral-800 transition-colors"
+              >
+                Back to sign in
               </button>
             </motion.form>
           )}
