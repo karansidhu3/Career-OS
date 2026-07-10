@@ -54,6 +54,13 @@ export const TEMPLATE_CATALOG: { id: NamedTemplate; name: string; description: s
 export const PDF_W = 816
 export const PDF_H = 1056
 
+// Each preview compiles a real PDF server-side via a Tectonic subprocess
+// (~100-150MB RSS each). Fetching all of them at once — one person loading
+// the template picker — used to spawn that many concurrent Tectonic
+// processes and OOM the backend machine. Matches the server-side compile
+// semaphore's limit of 2 (backend/app/services/pdf.py).
+const PREVIEW_FETCH_CONCURRENCY = 2
+
 /** Fetches a live compiled-PDF preview for each template id once on mount, cleaning up blob URLs on unmount. */
 export function useTemplatePdfPreviews(templates: readonly NamedTemplate[]) {
   const [states, setStates] = useState<Record<string, PdfState>>(() =>
@@ -64,17 +71,21 @@ export function useTemplatePdfPreviews(templates: readonly NamedTemplate[]) {
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      const results = await Promise.allSettled(templates.map(t => api.fetchTemplatePdfPreview(t)))
-      if (cancelled) return
-      results.forEach((r, i) => {
-        const id = templates[i]
-        if (r.status === 'fulfilled') {
-          blobUrls.current.push(r.value)
-          setStates(prev => ({ ...prev, [id]: { url: r.value, loading: false, error: null } }))
-        } else {
-          setStates(prev => ({ ...prev, [id]: { url: null, loading: false, error: 'Failed' } }))
-        }
-      })
+      for (let i = 0; i < templates.length; i += PREVIEW_FETCH_CONCURRENCY) {
+        if (cancelled) return
+        const batch = templates.slice(i, i + PREVIEW_FETCH_CONCURRENCY)
+        const results = await Promise.allSettled(batch.map(t => api.fetchTemplatePdfPreview(t)))
+        if (cancelled) return
+        results.forEach((r, j) => {
+          const id = batch[j]
+          if (r.status === 'fulfilled') {
+            blobUrls.current.push(r.value)
+            setStates(prev => ({ ...prev, [id]: { url: r.value, loading: false, error: null } }))
+          } else {
+            setStates(prev => ({ ...prev, [id]: { url: null, loading: false, error: 'Failed' } }))
+          }
+        })
+      }
     }
     load()
     const urls = blobUrls.current

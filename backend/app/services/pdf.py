@@ -8,6 +8,14 @@ import tempfile
 # Shared cache dir so package downloads persist across requests on the same container.
 _CACHE_DIR = "/tmp/tectonic-cache"
 
+# Each Tectonic subprocess uses ~100-150MB RSS. Nothing bounded concurrent
+# invocations before this — a single user opening the template picker fires
+# 6 preview requests at once (see frontend useTemplatePdfPreviews), each
+# spawning its own Tectonic process, which OOM-killed the backend machine.
+# Caps concurrent compiles process-wide regardless of caller, so this also
+# protects against multiple users hitting compile-heavy endpoints at once.
+_COMPILE_SEMAPHORE = asyncio.Semaphore(2)
+
 
 async def compile_latex_to_pdf(latex_content: str) -> bytes:
     """
@@ -54,23 +62,24 @@ async def compile_latex_to_pdf(latex_content: str) -> bytes:
             if home:
                 env["HOME"] = home
 
-        proc = await asyncio.create_subprocess_exec(
-            "tectonic",
-            tex_path,
-            cwd=tmpdir,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=180.0,  # generous for first-run package downloads
+        async with _COMPILE_SEMAPHORE:
+            proc = await asyncio.create_subprocess_exec(
+                "tectonic",
+                tex_path,
+                cwd=tmpdir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
-        except asyncio.TimeoutError:
-            proc.kill()
-            raise RuntimeError("LaTeX compilation timed out (180 s)")
+
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=180.0,  # generous for first-run package downloads
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                raise RuntimeError("LaTeX compilation timed out (180 s)")
 
         if proc.returncode != 0:
             # Tectonic writes errors to stdout; stderr is usually empty.
