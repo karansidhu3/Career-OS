@@ -740,6 +740,75 @@ function EducationCard({
 
 // ---- Personal info ----
 
+// ---- Contact field icons — minimal line icons, matching the app's existing icon language ----
+
+function MailIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-10 5L2 7" />
+    </svg>
+  )
+}
+
+function PhoneIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+    </svg>
+  )
+}
+
+function PinIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  )
+}
+
+function LinkedinIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6Z" />
+      <rect x="2" y="9" width="4" height="12" />
+      <circle cx="4" cy="4" r="2" />
+    </svg>
+  )
+}
+
+function GithubIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+    </svg>
+  )
+}
+
+function ContactRow({ icon, value, href }: { icon: React.ReactNode; value: string; href?: string }) {
+  const content = (
+    <>
+      <span className="text-neutral-600 shrink-0">{icon}</span>
+      <span className="truncate">{value}</span>
+    </>
+  )
+  return href ? (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center gap-2.5 text-sm text-neutral-700 hover:text-neutral-900 transition-colors"
+    >
+      {content}
+    </a>
+  ) : (
+    <div className="flex items-center gap-2.5 text-sm text-neutral-700">
+      {content}
+    </div>
+  )
+}
+
 function PersonalInfoEditor({ personal, onSave }: { personal: PersonalInfo; onSave: (p: PersonalInfo) => void }) {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -787,17 +856,18 @@ function PersonalInfoEditor({ personal, onSave }: { personal: PersonalInfo; onSa
     }
   }
 
-  const contactLine = [personal.location, personal.linkedin, personal.github].filter(Boolean).join(' · ')
-
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1">
         <SectionLabel>Personal info</SectionLabel>
         <AnimatePresence>{savedFlash && <SavedFlash />}</AnimatePresence>
       </div>
+      <p className="text-xs text-neutral-600 mb-6 leading-relaxed">
+        This becomes the header of every generated resume.
+      </p>
       <AnimatePresence mode="wait">
         {editing ? (
-          <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+          <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3 max-w-xl">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Name"><Input value={name} onChange={setName} placeholder="Karanveer Sidhu" /></Field>
               <Field label="Email"><Input value={email} onChange={setEmail} placeholder="you@example.com" /></Field>
@@ -816,20 +886,35 @@ function PersonalInfoEditor({ personal, onSave }: { personal: PersonalInfo; onSa
             </div>
           </motion.div>
         ) : (
-          <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-start justify-between gap-4 group">
-            <div className="text-sm leading-relaxed">
-              <p className="text-neutral-800 font-medium">{personal.name}</p>
-              <p className="text-neutral-600">
-                {personal.email}{personal.phone ? ` · ${personal.phone}` : ''}
-              </p>
-              {contactLine && <p className="text-neutral-600">{contactLine}</p>}
+          <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="group">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <p className="text-2xl font-semibold text-neutral-900 tracking-tight">{personal.name}</p>
+              <button
+                onClick={() => setEditing(true)}
+                className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors shrink-0 pt-1.5"
+              >
+                Edit
+              </button>
             </div>
-            <button
-              onClick={() => setEditing(true)}
-              className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors shrink-0 pt-0.5"
-            >
-              Edit
-            </button>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 max-w-xl">
+              {personal.email && <ContactRow icon={<MailIcon />} value={personal.email} href={`mailto:${personal.email}`} />}
+              {personal.phone && <ContactRow icon={<PhoneIcon />} value={personal.phone} />}
+              {personal.location && <ContactRow icon={<PinIcon />} value={personal.location} />}
+              {personal.linkedin && (
+                <ContactRow
+                  icon={<LinkedinIcon />}
+                  value={personal.linkedin}
+                  href={personal.linkedin.startsWith('http') ? personal.linkedin : `https://${personal.linkedin}`}
+                />
+              )}
+              {personal.github && (
+                <ContactRow
+                  icon={<GithubIcon />}
+                  value={personal.github}
+                  href={personal.github.startsWith('http') ? personal.github : `https://${personal.github}`}
+                />
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
