@@ -197,6 +197,66 @@ test.describe('generation flow', () => {
   })
 })
 
+test.describe('empty profile guard', () => {
+  async function setupEmptyProfileMocks(page: Page) {
+    // Same as setupMocks, except experience and projects are both empty —
+    // the exact "nothing to write from" state Generate must refuse to spend
+    // a token on. api-key/jobs/insights routes are unrelated to this guard,
+    // so reuse the same fulfillments as setupMocks.
+    await page.route('**/admin/settings/api-key', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ provider: 'anthropic', has_key: true, key_hint: 'sk-ant-...xyz', label: null, last_verified_at: new Date().toISOString() }),
+      })
+    )
+    await page.route('**/admin/profile', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          personal: { id: 1, name: 'Test User', email: 'careeros-e2e-test@example.com', phone: null, linkedin: null, github: null, location: null, resume_template: 'jake', custom_preamble: null },
+          education: [],
+          experience: [],
+          projects: [],
+          skills: [],
+        }),
+      })
+    )
+    await page.route('**/admin/jobs', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    )
+    await page.route('**/admin/jobs/insights', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: 0, headline: null, observed: null, gap: null, action: null }) })
+    )
+  }
+
+  test('blocks Generate client-side and never calls the API when profile has no experience or projects', async ({ page }) => {
+    await setupEmptyProfileMocks(page)
+
+    let generateCalled = false
+    await page.route('**/admin/jobs/generate', route => {
+      generateCalled = true
+      route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(MOCK_JOB_PROCESSING) })
+    })
+
+    await page.goto('/')
+
+    const textarea = page.locator('textarea').first()
+    await textarea.fill(SAMPLE_JD)
+    await textarea.press('Meta+Enter')
+
+    // The corrective message must appear...
+    await expect(page.getByText(/nothing to write from yet/i)).toBeVisible({ timeout: 5_000 })
+    // ...the JD must not be lost...
+    await expect(textarea).toHaveValue(SAMPLE_JD)
+    // ...and the button must never have called the real endpoint (zero tokens spent).
+    expect(generateCalled).toBe(false)
+    // Never entered the generating state either.
+    await expect(page.locator('text=Generating').first()).not.toBeVisible()
+  })
+})
+
 test.describe('applications flow', () => {
   test('applications page renders without error', async ({ page }) => {
     await page.route('**/admin/jobs', route =>

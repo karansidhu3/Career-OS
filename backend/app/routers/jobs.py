@@ -191,6 +191,27 @@ async def _has_active_generation(db: AsyncSession, user_id) -> bool:
     return existing is not None
 
 
+async def _has_generatable_content(db: AsyncSession, user_id) -> bool:
+    """A profile with no experience and no projects has nothing for the model to
+    write from — generating anyway just spends the user's own Anthropic tokens
+    on a resume with fabricated or empty sections. Mirrors the frontend's
+    profileEmpty check (experience OR projects), enforced here as the
+    authoritative gate since the frontend check alone doesn't stop a direct
+    API call or a stale client."""
+    has_experience = (
+        await db.execute(
+            select(Experience.id).where(Experience.user_id == user_id, Experience.deleted_at.is_(None)).limit(1)
+        )
+    ).scalar_one_or_none() is not None
+    if has_experience:
+        return True
+    return (
+        await db.execute(
+            select(Project.id).where(Project.user_id == user_id, Project.deleted_at.is_(None)).limit(1)
+        )
+    ).scalar_one_or_none() is not None
+
+
 # ── Guardrails (Phase 7) ────────────────────────────────────────────────────
 #
 # Counted in Redis via the existing ARQ pool connection (ArqRedis subclasses
@@ -256,6 +277,8 @@ async def generate_job(
     on the ARQ worker (runs in a separate process — survives an API redeploy)."""
     if not await get_decrypted_key(db, current_user.id):
         raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
+    if not await _has_generatable_content(db, current_user.id):
+        raise HTTPException(status_code=400, detail="Add at least one project or role in your profile before generating — there's nothing to write from yet.")
     if await _has_active_generation(db, current_user.id):
         raise HTTPException(status_code=409, detail="A generation is already in progress. Wait for it to finish before starting another.")
     pool = request.app.state.arq_pool
@@ -295,6 +318,8 @@ async def regenerate_job(
         raise HTTPException(status_code=400, detail="No JD stored for this job")
     if not await get_decrypted_key(db, current_user.id):
         raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
+    if not await _has_generatable_content(db, current_user.id):
+        raise HTTPException(status_code=400, detail="Add at least one project or role in your profile before generating — there's nothing to write from yet.")
     if await _has_active_generation(db, current_user.id):
         raise HTTPException(status_code=409, detail="A generation is already in progress. Wait for it to finish before starting another.")
     pool = request.app.state.arq_pool

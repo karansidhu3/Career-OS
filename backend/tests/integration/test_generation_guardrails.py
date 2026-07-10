@@ -13,6 +13,7 @@ import pytest
 
 from app.config import settings
 from app.models.ai_credential import AICredential
+from app.models.profile import Experience
 from app.services.crypto import encrypt
 
 pytestmark = pytest.mark.integration
@@ -29,10 +30,19 @@ async def _add_api_key(db_session, user_id):
     await db_session.commit()
 
 
+async def _add_experience(db_session, user_id):
+    """Generation also requires at least one experience or project on file —
+    otherwise there's nothing for the model to write from (see jobs.py's
+    _has_generatable_content)."""
+    db_session.add(Experience(user_id=user_id, company="Acme Corp", role="Engineer"))
+    await db_session.commit()
+
+
 # ── Daily generation cap ────────────────────────────────────────────────────
 
 async def test_generate_allowed_when_under_daily_cap(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = str(settings.daily_generation_limit - 1)
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 201
@@ -40,6 +50,7 @@ async def test_generate_allowed_when_under_daily_cap(client, db_session, current
 
 async def test_generate_rejects_when_daily_cap_reached(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = str(settings.daily_generation_limit)
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 429
@@ -48,6 +59,7 @@ async def test_generate_rejects_when_daily_cap_reached(client, db_session, curre
 
 async def test_generate_rejects_when_daily_cap_exceeded(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = str(settings.daily_generation_limit + 5)
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 429
@@ -56,6 +68,7 @@ async def test_generate_rejects_when_daily_cap_exceeded(client, db_session, curr
 async def test_daily_cap_does_not_enqueue_or_create_job(client, db_session, current_test_user, arq_pool_mock):
     """A request rejected by the cap must not enqueue work or leave a stray job row."""
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = str(settings.daily_generation_limit)
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 429
@@ -67,6 +80,7 @@ async def test_daily_cap_does_not_enqueue_or_create_job(client, db_session, curr
 
 async def test_regenerate_respects_daily_cap(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = "0"
     create = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     job_id = create.json()["id"]
@@ -80,6 +94,7 @@ async def test_regenerate_respects_daily_cap(client, db_session, current_test_us
 
 async def test_successful_generate_increments_daily_counter(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = "0"
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 201
@@ -93,6 +108,7 @@ async def test_velocity_anomaly_logs_warning_at_threshold(
 ):
     """Crossing the threshold logs a structured warning but does not block the request."""
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = "0"
     arq_pool_mock.incr.side_effect = [1, settings.velocity_anomaly_threshold]
 
@@ -107,6 +123,7 @@ async def test_velocity_anomaly_does_not_log_below_threshold(
     client, db_session, current_test_user, arq_pool_mock, caplog
 ):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = "0"
     arq_pool_mock.incr.side_effect = [1, settings.velocity_anomaly_threshold - 1]
 
@@ -123,6 +140,7 @@ async def test_velocity_anomaly_logs_only_once_per_window(
     """Only fires exactly when the counter first crosses the threshold, not on every
     subsequent request within the same window — avoids repeat-alert log spam."""
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     arq_pool_mock.get.return_value = "0"
     arq_pool_mock.incr.side_effect = [1, settings.velocity_anomaly_threshold + 1]
 

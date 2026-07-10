@@ -13,6 +13,7 @@ import pytest
 
 from app.models.ai_credential import AICredential
 from app.models.job import Job
+from app.models.profile import Experience, Project
 from app.services.crypto import encrypt
 
 pytestmark = pytest.mark.integration
@@ -30,6 +31,14 @@ async def _add_api_key(db_session, user_id):
     await db_session.commit()
 
 
+async def _add_experience(db_session, user_id):
+    """Generation also requires at least one experience or project on file —
+    otherwise there's nothing for the model to write from (see jobs.py's
+    _has_generatable_content)."""
+    db_session.add(Experience(user_id=user_id, company="Acme Corp", role="Engineer"))
+    await db_session.commit()
+
+
 # ── POST /admin/jobs/generate ─────────────────────────────────────────────────
 # Generation now runs on a separate ARQ worker process (Phase 5) — these routes
 # just enqueue and return immediately. arq_pool_mock (conftest.py) replaces the
@@ -37,6 +46,7 @@ async def _add_api_key(db_session, user_id):
 
 async def test_generate_returns_201_with_processing_status(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 201
     data = resp.json()
@@ -47,6 +57,7 @@ async def test_generate_returns_201_with_processing_status(client, db_session, c
 
 async def test_generate_enqueues_on_arq_pool(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     job_id = resp.json()["id"]
     arq_pool_mock.enqueue_job.assert_awaited_once_with(
@@ -67,6 +78,7 @@ async def test_generate_rejects_missing_description(client):
 async def test_generate_rejects_second_concurrent_generation(client, db_session, current_test_user):
     """Per-user concurrency limit (Phase 5) — one active generation at a time."""
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     first = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert first.status_code == 201
 
@@ -77,6 +89,7 @@ async def test_generate_rejects_second_concurrent_generation(client, db_session,
 
 async def test_generate_allowed_after_previous_job_completed(client, db_session, current_test_user):
     await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
     first = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     job_id = first.json()["id"]
 
@@ -94,6 +107,46 @@ async def test_generate_requires_api_key(client):
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 400
     assert "API key" in resp.json()["detail"]
+
+
+async def test_generate_rejects_empty_profile(client, db_session, current_test_user):
+    """A profile with no experience and no projects has nothing for the model
+    to write from — generating anyway just spends the user's own tokens on a
+    resume with nothing real in it. Must fail fast with a clear 400, same as
+    the missing-API-key case, rather than enqueueing a doomed job."""
+    await _add_api_key(db_session, current_test_user.id)
+    resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    assert resp.status_code == 400
+    assert "nothing to write from" in resp.json()["detail"]
+
+
+async def test_generate_allowed_with_project_but_no_experience(client, db_session, current_test_user, arq_pool_mock):
+    """Either experience OR projects is enough — a new grad with only project
+    work and no job history yet is not an empty profile."""
+    await _add_api_key(db_session, current_test_user.id)
+    db_session.add(Project(user_id=current_test_user.id, name="Personal site"))
+    await db_session.commit()
+    resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    assert resp.status_code == 201
+
+
+async def test_regenerate_rejects_empty_profile(client, db_session, current_test_user):
+    """Same guard on regenerate — if all experience/projects were deleted after
+    the first generation, a regenerate attempt must not silently burn a token
+    on a now-empty profile either."""
+    await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
+    first = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+    job_id = first.json()["id"]
+
+    await db_session.execute(
+        Experience.__table__.delete().where(Experience.user_id == current_test_user.id)
+    )
+    await db_session.commit()
+
+    resp = await client.post(f"/admin/jobs/{job_id}/regenerate")
+    assert resp.status_code == 400
+    assert "nothing to write from" in resp.json()["detail"]
 
 
 # ── GET /admin/jobs ───────────────────────────────────────────────────────────

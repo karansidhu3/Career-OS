@@ -175,6 +175,11 @@ export default function Home() {
   // One-time nudge shown only immediately after finishing onboarding with an
   // empty profile — never re-checked on later visits, never blocks Generate.
   const [showEmptyNudge, setShowEmptyNudge] = useState(false)
+  // Set only when a Generate attempt was actually blocked by the empty-profile
+  // check — distinct from profileEmpty itself, so the passive hint under the
+  // textarea only turns into this corrective message after a real attempt,
+  // not preemptively.
+  const [generateBlocked, setGenerateBlocked] = useState(false)
   const [insights, setInsights] = useState<CandidacyInsights | null>(() => {
     // Populate from cache synchronously so layout is stable on first render.
     // No age check — insights only change when a new generation happens (see
@@ -394,6 +399,15 @@ export default function Home() {
   // ── Generate ──
   const handleGenerate = async () => {
     if (!jd.trim() || submitting) return
+    // Fail fast, before spending a token: an empty profile has nothing for the
+    // model to write from. The backend enforces this too (authoritative — see
+    // jobs.py's _has_generatable_content), but checking here means the common
+    // case never even hits the network. Generate itself stays clickable; this
+    // only intercepts the click, it doesn't disable anything.
+    if (profileEmpty) {
+      setGenerateBlocked(true)
+      return
+    }
     setSubmitting(true)
     try {
       const job = await api.generate({ description: jd.trim() })
@@ -643,9 +657,27 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* ── Output hint — what arrives, or setup nudge if profile is empty ── */}
+              {/* ── Output hint — what arrives, corrective message if a blocked Generate
+                   was just attempted, or a passive setup nudge if profile is empty ── */}
               <div className="mt-3 text-center">
-                {profileEmpty ? (
+                {generateBlocked && profileEmpty ? (
+                  <motion.p
+                    initial={{ opacity: 0, y: -2 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={spring.snappy}
+                    className="text-xs"
+                    style={{ color: 'var(--c-danger)' }}
+                  >
+                    Add a project or role first —{' '}
+                    <Link
+                      href="/profile"
+                      className="underline decoration-current hover:opacity-80 transition-opacity"
+                    >
+                      add now
+                    </Link>
+                    {' '}— there&apos;s nothing to write from yet.
+                  </motion.p>
+                ) : profileEmpty ? (
                   <p className="text-xs text-neutral-600">
                     <Link
                       href="/profile"
