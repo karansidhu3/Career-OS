@@ -5,7 +5,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from arq import create_pool
+from arq import Worker as ArqWorker, create_pool
 from arq.connections import RedisSettings
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,7 @@ from app.database import Base, engine
 from app.logging_config import configure_logging
 from app.rate_limit import limiter_key
 from app.routers import account, credentials, jobs, profile, waitlist
+from app.worker import WorkerSettings
 from app.services.crypto import validate_master_keys
 from app.services.error_tracking import init_error_tracking
 
@@ -160,12 +161,27 @@ async def lifespan(_: FastAPI):
     import asyncio
     asyncio.create_task(_warmup_tectonic())
 
-    # ARQ pool for enqueueing generation jobs (Phase 5) — the actual work runs in
-    # a separate worker process (`arq app.worker.WorkerSettings`), not here.
+    # ARQ pool for enqueueing jobs, and an in-process worker that consumes them.
+    # Previously the worker ran as a separate Fly machine; consolidating into one
+    # process halves compute cost and lets auto-stop work (a stopped machine means
+    # both the API and the worker are idle — they wake together on the next request).
     app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    worker = ArqWorker(
+        functions=WorkerSettings.functions,
+        cron_jobs=WorkerSettings.cron_jobs,
+        redis_settings=WorkerSettings.redis_settings,
+        poll_delay=WorkerSettings.poll_delay,
+        handle_signals=False,  # uvicorn owns signal handling; don't let ARQ override it
+    )
+    worker_task = asyncio.create_task(worker.main())
     try:
         yield
     finally:
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
         await app.state.arq_pool.close()
 
 
