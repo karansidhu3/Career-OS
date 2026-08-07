@@ -2,6 +2,8 @@
 
 Paste a job description. In about twenty seconds, get back a resume and a cover letter written specifically for that role — not reworded from a template, built from a career history the system actually understands.
 
+![CareerOS's focused application loop](screenshots/readme/01-core-loop-desktop.png)
+
 <br>
 
 ## The problem
@@ -14,27 +16,11 @@ CareerOS removes the re-explaining. A person's background lives in the system on
 
 <br>
 
-## What it looks like
-
-> **[VISUAL — hero, idle state]**
-> The home screen at rest: a single paste box, focused automatically on load, nothing else competing for attention. Capture at the app's real content width, light background, cropped tight with no browser chrome.
-
-> **[VISUAL — generating state]**
-> A few seconds of screen recording rather than a static frame: the elapsed-time counter and the status line changing as it works ("Matching your background to this role…").
-
-> **[VISUAL — result state]**
-> The most important image in this document. Fit score, the strategic read on the role (what's a genuine strength, what's a real gap, what to do about it), which projects the system chose to lead with and why, and the compiled resume sitting inline as a live preview.
-
-> **[VISUAL — cover letter and source]**
-> The editable cover letter panel, and underneath it, the LaTeX source it compiles from, collapsed by default. For anyone technical reading this: the output isn't a black box. The typeset source is one click away.
-
-<br>
-
 ## How it works, from the outside
 
 Open the app. Paste a job description. One key combination. Wait roughly twenty seconds. Read a short, specific read on the fit. Download a resume and a cover letter, both compiled to PDF, both built for that posting. Move to the next application.
 
-There's no dashboard to configure first, no template to choose, no fields beyond the one paste box. During that loop the interface has exactly one job, and it does nothing else while the user is in it.
+After one-time setup of an API key, profile, and resume format, there is no dashboard to manage and no prompt to compose. During the application loop the interface has exactly one job, and it does nothing else while the user is in it.
 
 <br>
 
@@ -44,7 +30,11 @@ Every generation writes back into the same place it reads from. CareerOS keeps a
 
 The same structure lets the system notice things a single resume never could. After enough applications, CareerOS looks across every one of them and surfaces a pattern: which roles a person is consistently strong for, where the same gap keeps showing up, what's worth fixing before the next application instead of after. One specific observation, generated the same way the resumes are — not a dashboard of counts to feel good about.
 
+![CareerOS application history](screenshots/readme/02-applications-desktop.png)
+
 It also doesn't get quietly more expensive to run the more it's used. Every generation runs on the user's own AI provider key, encrypted at rest, never shared, never billed to anyone but its owner. CareerOS owns the workflow. Each person owns their own usage.
+
+![A completed application with fit analysis](screenshots/readme/03-application-analysis-desktop.png)
 
 <br>
 
@@ -58,17 +48,24 @@ It also doesn't get quietly more expensive to run the more it's used. Every gene
 
 ## Under the hood
 
-> **[VISUAL — architecture diagram]**
-> Request flow: browser → Vercel (Next.js) → Fly.io API (FastAPI) → Postgres / Redis / Anthropic, with a separate worker process pulling from the same queue for anything too slow for a request/response cycle. Plain boxes and arrows — no gradients, matching the product's own restraint.
+```mermaid
+flowchart LR
+    Browser[Browser] --> Vercel["Vercel\nNext.js"]
+    Vercel --> API["Fly.io\nFastAPI + ARQ worker"]
+    API --> Postgres["Neon\nPostgreSQL + RLS"]
+    API --> Redis["Upstash\nRedis queue"]
+    API --> Anthropic["Anthropic\nuser's own API key"]
+    API --> R2["Cloudflare R2\ncompiled PDFs"]
+```
 
 **Every user's data is isolated by the database, not just by application code.**
 Most multi-tenant systems enforce "your data, not theirs" entirely in application code — a `WHERE user_id = …` clause that has to be remembered, correctly, on every query, forever, by everyone who ever touches the codebase. One missed clause is a data leak. CareerOS enforces isolation at the database itself: every user-scoped table runs under Postgres row-level security, forced on, tied to a value set once per request, through a database role that has no ability to bypass it. Postgres exempts superusers from row-level security unconditionally, so the role that actually handles requests deliberately isn't one. The application-layer checks still exist. Row-level security is what holds if one of them is ever wrong.
 
 **The AI provider is a seam, not a dependency baked into the business logic.**
-Generation code calls an interface, not Anthropic's SDK directly. The same pattern repeats for PDF storage and for the two transactional emails the system sends: an abstract interface, one real implementation, and a no-op fallback for local development. Changing providers, or adding a second one, is a new implementation of an existing interface — not a rewrite of everything that calls it.
+Generation code calls a provider interface rather than coupling business logic to the Anthropic client. The same pattern repeats for PDF storage and the single transactional email trigger: account-deletion confirmation. Changing providers, or adding a second one, is a new implementation of an existing interface — not a rewrite of everything that calls it.
 
-**Generation runs somewhere that can fail without losing anything.**
-A resume call can run long enough that it doesn't belong inside the request that triggered it. CareerOS enqueues the work and runs it in a separate worker process reading from the same queue. If the API redeploys mid-generation, the job is still there when the worker comes back. Nothing disappears because a container happened to restart at the wrong moment.
+**Generation survives the request that started it.**
+A resume call can run long enough that it doesn't belong inside the request that triggered it. CareerOS immediately creates a job record, enqueues the work in Redis, and consumes it through an ARQ worker hosted alongside the API. The browser polls the persisted job rather than holding an HTTP request open, so a restart does not turn a slow generation into a lost response.
 
 **The output is typeset, not approximated.**
 Resumes aren't styled HTML printed to PDF. They're assembled as LaTeX and compiled with Tectonic, in a fresh, sandboxed subprocess per request, with a stripped environment that never has access to a database credential or an API key. The document that comes out the other end is the same class of artifact a person who cared about kerning would produce by hand, because it's actually typeset.
@@ -90,7 +87,7 @@ Before extending access past its own author, CareerOS went through a full securi
 | **Job queue** | ARQ + Redis |
 | **Document generation** | LaTeX, compiled with Tectonic |
 | **Object storage** | Cloudflare R2 |
-| **Hosting** | Fly.io (API + worker), Vercel (frontend), Neon (Postgres), Upstash (Redis) |
+| **Hosting** | Fly.io (API + in-process ARQ worker), Vercel (frontend), Neon (Postgres), Upstash (Redis) |
 | **Observability** | Structured JSON logging, Sentry |
 
 <br>
@@ -102,7 +99,7 @@ Before extending access past its own author, CareerOS went through a full securi
 
 <br>
 
-Requires Python 3.12+, Node 20+, a Postgres instance, a Redis instance, a Clerk application, and an Anthropic API key for local testing.
+Requires Python 3.12+, Node 20+, a Postgres instance, a Redis instance, and a Clerk application. Add an Anthropic API key through Settings after signing in; CareerOS has no shared generation key.
 
 ```bash
 git clone https://github.com/karansidhu3/Career-OS.git
@@ -114,9 +111,7 @@ python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # DATABASE_URL, CLERK_*, ENCRYPTION_MASTER_KEY
 uvicorn app.main:app --reload
-
-# Worker — separate terminal
-arq app.worker.WorkerSettings
+# Starts the API and its in-process ARQ worker.
 
 # Frontend — separate terminal
 cd frontend
