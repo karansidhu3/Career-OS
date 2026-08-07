@@ -104,6 +104,7 @@ export default function JobPage() {
 
   // PDF state — lifted so both mobile and desktop columns share one fetch
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [pdfLoaded, setPdfLoaded] = useState(false)
   const [pdfFailed, setPdfFailed] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
@@ -429,7 +430,9 @@ export default function JobPage() {
               <ResumePreview
                 jobId={job.id}
                 blobUrl={pdfBlobUrl}
+                loaded={pdfLoaded}
                 failed={pdfFailed}
+                onLoad={() => setPdfLoaded(true)}
                 onError={() => setPdfFailed(true)}
               />
               <div className="mb-8 flex items-center gap-3">

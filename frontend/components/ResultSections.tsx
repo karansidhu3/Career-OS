@@ -100,15 +100,20 @@ export function Divider({ delay = 0 }: { delay?: number }) {
 export function ResumePreview({
   jobId,
   blobUrl: externalBlobUrl,
+  loaded: externalLoaded,
   failed: externalFailed,
+  onLoad,
   onError,
 }: {
   jobId: number
   blobUrl?: string | null
+  loaded?: boolean
   failed?: boolean
+  onLoad?: () => void
   onError?: () => void
 }) {
   const [internalBlobUrl, setInternalBlobUrl] = useState<string | null>(null)
+  const [internalLoaded, setInternalLoaded] = useState(false)
   const [internalFailed, setInternalFailed] = useState(false)
 
   const isManaged = externalBlobUrl !== undefined
@@ -131,18 +136,16 @@ export function ResumePreview({
   }, [jobId, isManaged])
 
   const blobUrl = isManaged ? (externalBlobUrl ?? null) : internalBlobUrl
-  // A successful fetch means the PDF is ready to render. Native PDF viewers do
-  // not reliably dispatch iframe `load` events for blob URLs, which previously
-  // left a completed preview behind the perpetual "Compiling PDF…" overlay.
-  const ready = Boolean(blobUrl)
+  const loaded = isManaged ? (externalLoaded ?? false) : internalLoaded
   const failed = isManaged ? (externalFailed ?? false) : internalFailed
 
+  const handleLoad = () => { if (!isManaged) setInternalLoaded(true); onLoad?.() }
   const handleError = () => { if (!isManaged) setInternalFailed(true); onError?.() }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: ready ? 1 : 0.35, y: 0 }}
+      animate={{ opacity: loaded ? 1 : 0.35, y: 0 }}
       transition={{ ...spring.gentle, delay: 0.1 }}
       className="relative mb-6 rounded-sm overflow-hidden"
       style={{
@@ -156,7 +159,7 @@ export function ResumePreview({
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
           <p className="text-xs text-neutral-600">PDF preview unavailable — download to view</p>
         </div>
-      ) : !ready && (
+      ) : !loaded && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
           <div className="flex flex-col items-center gap-3">
             <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
@@ -170,6 +173,7 @@ export function ResumePreview({
           // without it, the browser renders its own toolbar (zoom, page count, its
           // own download button) directly on top of ResumeDownloadOverlay below.
           src={`${blobUrl}#toolbar=0&navpanes=0`}
+          onLoad={handleLoad}
           onError={handleError}
           title="Resume"
           style={{
@@ -177,7 +181,7 @@ export function ResumePreview({
             height: '100%',
             border: 'none',
             display: 'block',
-            opacity: ready ? 1 : 0,
+            opacity: loaded ? 1 : 0,
             transition: 'opacity 0.4s ease',
           }}
         />
@@ -232,6 +236,7 @@ export function DownloadIconButton({
 // force a fresh fetch, rather than this component reacting to a version prop).
 export function CoverLetterPreview({ jobId }: { jobId: number }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -253,7 +258,7 @@ export function CoverLetterPreview({ jobId }: { jobId: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: blobUrl ? 1 : 0.35, y: 0 }}
+      animate={{ opacity: loaded ? 1 : 0.35, y: 0 }}
       transition={{ ...spring.gentle, delay: 0.1 }}
       className="relative mb-4 rounded-sm overflow-hidden"
       style={{
@@ -267,7 +272,7 @@ export function CoverLetterPreview({ jobId }: { jobId: number }) {
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
           <p className="text-xs text-neutral-600">PDF preview unavailable — download to view</p>
         </div>
-      ) : !blobUrl && (
+      ) : !loaded && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--c-surface)' }}>
           <div className="flex flex-col items-center gap-3">
             <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '2px solid var(--c-accent-dim)', borderTopColor: 'var(--c-accent)' }} />
@@ -278,6 +283,7 @@ export function CoverLetterPreview({ jobId }: { jobId: number }) {
       {blobUrl && (
         <iframe
           src={`${blobUrl}#toolbar=0&navpanes=0`}
+          onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
           title="Cover letter"
           style={{
@@ -285,7 +291,7 @@ export function CoverLetterPreview({ jobId }: { jobId: number }) {
             height: '100%',
             border: 'none',
             display: 'block',
-            opacity: blobUrl ? 1 : 0,
+            opacity: loaded ? 1 : 0,
             transition: 'opacity 0.4s ease',
           }}
         />

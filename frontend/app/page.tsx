@@ -198,6 +198,7 @@ export default function Home() {
 
   // PDF preview state — fetched once, shared between mobile and desktop renders
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [pdfLoaded, setPdfLoaded] = useState(false)
   const [pdfFailed, setPdfFailed] = useState(false)
 
   // Generate shortcut hint — the handler already accepts either modifier
@@ -292,12 +293,14 @@ export default function Home() {
   useEffect(() => {
     if (!resultJobId) {
       setPdfBlobUrl(null)
+      setPdfLoaded(false)
       setPdfFailed(false)
       return
     }
     let objectUrl: string | null = null
     let cancelled = false
     setPdfBlobUrl(null)
+    setPdfLoaded(false)
     setPdfFailed(false)
     api.fetchResumePdfPreview(resultJobId)
       .then(url => {
@@ -930,7 +933,9 @@ export default function Home() {
                   <ResumePreview
                     jobId={appState.job.id}
                     blobUrl={pdfBlobUrl}
+                    loaded={pdfLoaded}
                     failed={pdfFailed}
+                    onLoad={() => setPdfLoaded(true)}
                     onError={() => setPdfFailed(true)}
                   />
                 </motion.div>
