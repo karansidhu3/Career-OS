@@ -36,10 +36,7 @@ async def test_first_compile_failure_raises_instead_of_returning_broken_latex():
             await _compress_if_needed("BROKEN_LATEX", "sk-ant-fake")
 
 
-async def test_later_compile_failure_falls_back_to_last_known_good():
-    """First compile succeeds (2 pages, triggers compression). Compression
-    produces LaTeX that fails to compile. Must return the pre-compression
-    LaTeX (proven to compile), not the broken post-compression version."""
+async def test_later_compile_failure_rejects_multi_page_fallback():
     compile_results = [
         b"%PDF-two-pages",           # first compile: succeeds, 2 pages
         RuntimeError("broken output"),  # second compile (post-compression): fails
@@ -54,20 +51,16 @@ async def test_later_compile_failure_falls_back_to_last_known_good():
     with patch("app.services.generation.compile_latex_to_pdf", side_effect=fake_compile), \
          patch("app.services.generation.PdfReader", return_value=_mock_pdf_reader(2)), \
          patch("app.services.generation._call_compression", return_value="COMPRESSED_BODY"):
-        result, attempts = await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake")
-
-    assert result == "ORIGINAL_LATEX"
-    assert attempts == 1
+        with pytest.raises(ValueError, match="refusing"):
+            await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake")
 
 
-async def test_compression_call_failure_keeps_last_known_good():
+async def test_compression_call_failure_rejects_multi_page_result():
     with patch("app.services.generation.compile_latex_to_pdf", return_value=b"%PDF-two-pages"), \
          patch("app.services.generation.PdfReader", return_value=_mock_pdf_reader(2)), \
          patch("app.services.generation._call_compression", side_effect=RuntimeError("claude call failed")):
-        result, attempts = await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake")
-
-    assert result == "ORIGINAL_LATEX"
-    assert attempts == 1
+        with pytest.raises(ValueError, match="multi-page"):
+            await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake")
 
 
 async def test_successful_compression_returns_compressed_latex():
@@ -87,3 +80,13 @@ async def test_successful_compression_returns_compressed_latex():
 
     assert result == "ASSEMBLED_COMPRESSED"
     assert attempts == 1
+
+
+async def test_final_compression_output_is_validated_and_rejected_if_still_two_pages():
+    with patch("app.services.generation.compile_latex_to_pdf", return_value=b"%PDF-two-pages") as compile_mock, \
+         patch("app.services.generation.PdfReader", return_value=_mock_pdf_reader(2)), \
+         patch("app.services.generation._call_compression", return_value="COMPRESSED_BODY"), \
+         patch("app.services.generation._assemble_resume_latex", return_value="ASSEMBLED_COMPRESSED"):
+        with pytest.raises(ValueError, match="still renders to 2 pages"):
+            await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake", max_attempts=2)
+    assert compile_mock.await_count == 3

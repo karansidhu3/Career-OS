@@ -29,6 +29,8 @@ class JobListRead(BaseModel):
     strategic_note: Optional[str] = None
     selected_projects: Optional[list[str]] = None
     compression_attempts: Optional[int] = None
+    generation_version: Optional[str] = None
+    page_count: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -55,20 +57,20 @@ class JobRead(BaseModel):
     cache_write_tokens: Optional[int] = None
 
     compression_attempts: Optional[int] = None
+    generation_version: Optional[str] = None
+    generation_metadata: Optional[dict] = None
+    page_count: Optional[int] = None
+    total_cost_usd: Optional[float] = None
 
     @computed_field
     @property
     def cost_usd(self) -> Optional[float]:
+        if self.total_cost_usd is not None:
+            return round(self.total_cost_usd, 4)
         if self.input_tokens is None:
             return None
-        non_cached = max(
-            0,
-            (self.input_tokens or 0)
-            - (self.cache_read_tokens or 0)
-            - (self.cache_write_tokens or 0),
-        )
         cost = (
-            non_cached * 3.00 / 1_000_000
+            (self.input_tokens or 0) * 3.00 / 1_000_000
             + (self.cache_write_tokens or 0) * 3.75 / 1_000_000
             + (self.cache_read_tokens or 0) * 0.30 / 1_000_000
             + (self.output_tokens or 0) * 15.00 / 1_000_000

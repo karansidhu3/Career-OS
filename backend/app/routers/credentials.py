@@ -17,6 +17,7 @@ from app.services.credentials import DEFAULT_PROVIDER, get_credential
 from app.services.crypto import encrypt
 from app.services.generation import CLAUDE_MODEL
 from app.services.llm_client import get_llm_client
+from app.services.llm_cost import record_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ async def add_api_key(
     """
     llm = get_llm_client(body.api_key)
     try:
-        await llm.call_tool(
+        validation_usage = await llm.call_tool(
             model=CLAUDE_MODEL,
             max_tokens=16,
             system="Call the ack tool with ok=true.",
@@ -87,6 +88,7 @@ async def add_api_key(
         logger.exception("Unexpected error validating API key for user %s", current_user.id)
         raise HTTPException(status_code=400, detail="Could not verify this key. Check that you pasted the whole key and try again.")
 
+    record_llm_call(db, user_id=current_user.id, job_id=None, purpose="api_key_validation", model=CLAUDE_MODEL, usage=validation_usage)
     encrypted_key, key_version = encrypt(body.api_key)
     now = datetime.now(timezone.utc)
 

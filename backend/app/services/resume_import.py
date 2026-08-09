@@ -7,12 +7,15 @@ own key (see app.services.credentials), never Karan's.
 """
 import io
 import zipfile
+from uuid import UUID
 
 from docx import Document
 from pypdf import PdfReader
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.generation import CLAUDE_MODEL
 from app.services.llm_client import get_llm_client
+from app.services.llm_cost import record_llm_call
 
 MAX_RESUME_TEXT_CHARS = 20_000
 
@@ -133,7 +136,13 @@ def _clean(value: str | None) -> str | None:
     return value or None
 
 
-async def extract_profile_draft(resume_text: str, api_key: str) -> dict:
+async def extract_profile_draft(
+    resume_text: str,
+    api_key: str,
+    *,
+    db: AsyncSession | None = None,
+    user_id: UUID | None = None,
+) -> dict:
     """Send raw resume text to Claude and return a structured draft for review.
 
     Never touches the database — the caller returns this straight to the frontend.
@@ -151,6 +160,8 @@ async def extract_profile_draft(resume_text: str, api_key: str) -> dict:
         tool=_EXTRACT_TOOL,
         timeout=60.0,
     )
+    if db is not None and user_id is not None:
+        record_llm_call(db, user_id=user_id, job_id=None, purpose="resume_import", model=CLAUDE_MODEL, usage=result)
     data = result.tool_input
     personal = data.get("personal") or {}
 

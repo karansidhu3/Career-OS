@@ -40,9 +40,9 @@ There's no dashboard to configure first, no template to choose, no fields beyond
 
 ## Why it isn't just a resume generator
 
-Every generation writes back into the same place it reads from. CareerOS keeps a structured model of a person's work — companies, roles, projects, skills, education — not a resume file, but the underlying facts a resume gets assembled from. That structure is what makes tailoring possible at all: the system isn't rewriting a document, it's selecting and reframing from a body of knowledge it already has, choosing which projects matter for this specific posting and building bullets around the numbers that posting actually asked for.
+Every generation starts from the same persistent source of truth. CareerOS keeps a structured model of a person's work — companies, roles, projects, skills, education — not a resume file, but the underlying facts a resume gets assembled from. A versioned evidence index is rebuilt only when that profile changes. For each posting, the system selects the few facts that matter, writes against their source IDs, and lets code control names, dates, structure, LaTeX, and the one-page limit.
 
-The same structure lets the system notice things a single resume never could. After enough applications, CareerOS looks across every one of them and surfaces a pattern: which roles a person is consistently strong for, where the same gap keeps showing up, what's worth fixing before the next application instead of after. One specific observation, generated the same way the resumes are — not a dashboard of counts to feel good about.
+The same structure lets the system notice things a single resume never could. After enough applications, CareerOS looks across their stored evidence and surfaces one repeated gap worth fixing before the next application. That insight is deterministic and costs no additional AI call — not a dashboard of counts to feel good about.
 
 It also doesn't get quietly more expensive to run the more it's used. Every generation runs on the user's own AI provider key, encrypted at rest, never shared, never billed to anyone but its owner. CareerOS owns the workflow. Each person owns their own usage.
 

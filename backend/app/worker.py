@@ -26,8 +26,8 @@ from app.services.account_deletion import hard_delete_user
 from app.services.credentials import get_decrypted_key
 from app.services.crypto import validate_master_keys
 from app.services.error_tracking import init_error_tracking, set_user_context
-from app.services.generation import generate_materials
-from app.services.pdf_storage import cache_resume_pdf
+from app.services.generation_v2 import generate_materials_v2
+from app.services.pdf_storage import cache_resume_pdf, get_pdf_storage, resume_pdf_key
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,10 @@ def _apply_result(job: Job, result: dict) -> None:
     job.cache_read_tokens = result.get("cache_read_tokens")
     job.cache_write_tokens = result.get("cache_write_tokens")
     job.compression_attempts = result.get("compression_attempts", 0)
+    job.generation_version = result.get("generation_version")
+    job.generation_metadata = result.get("generation_metadata")
+    job.page_count = result.get("page_count")
+    job.total_cost_usd = result.get("total_cost_usd")
 
 
 async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> None:
@@ -81,6 +85,7 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
     """
     async with AsyncSessionLocal() as db:
         job = None
+        generated_pdf: bytes | None = None
         try:
             # set_config/the job fetch live inside this try too — a dead pooled
             # connection surfacing here previously escaped uncaught (see the
@@ -96,7 +101,14 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             api_key = await get_decrypted_key(db, uuid.UUID(str(user_id)))
             if not api_key:
                 raise ValueError("No Anthropic API key on file")
-            result = await generate_materials(db, jd_text, api_key)
+            result = await generate_materials_v2(
+                db,
+                jd_text,
+                api_key,
+                user_id=uuid.UUID(str(user_id)),
+                job_id=job_id,
+            )
+            generated_pdf = result.pop("pdf_bytes", None)
             _apply_result(job, result)
             job.status = "generated"
         except Exception as e:
@@ -109,7 +121,10 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
 
     if job is not None and job.status == "generated" and job.resume_latex:
         try:
-            await cache_resume_pdf(job_id, job.resume_latex)
+            if generated_pdf is not None:
+                await get_pdf_storage().save(resume_pdf_key(job_id), generated_pdf)
+            else:
+                await cache_resume_pdf(job_id, job.resume_latex)
         except Exception:
             logger.exception("Resume PDF caching failed for job %d — will compile on first request", job_id)
 

@@ -547,7 +547,9 @@ async def import_resume(
         raise HTTPException(status_code=400, detail="Provide a resume file or pasted text.")
 
     try:
-        return await extract_profile_draft(resume_text, api_key)
+        draft = await extract_profile_draft(resume_text, api_key, db=db, user_id=current_user.id)
+        await db.commit()
+        return draft
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:

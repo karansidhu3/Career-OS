@@ -230,23 +230,16 @@ export default function Home() {
     sessionStorage.setItem('careeros-jd', value)
   }
 
-  // ── Load candidacy insights — refreshed once per calendar day, on the
-  // first generation of that day ──
+  // ── Load candidacy insights — refreshed after each generation ──
   // No time-based expiry on ordinary loads: the underlying data (your
   // application history) only changes when you generate something new, so a
   // cached headline is never "stale" just because time passed with the page
   // open or refreshed.
   //
-  // The force-refresh after a completed generation is gated to once per local
-  // calendar day. This is deliberately coarser than "once per session" —
-  // "the dominant repeated gap across your whole history" essentially never
-  // changes between your 2nd and 4th application of the same day, so a
-  // second same-day refresh would mostly just be re-confirming the same
-  // answer at full cost. It's also a better match for what this feature
-  // actually is: a considered daily read on your search, not a live metric
-  // that should visibly react within a single day.
+  // A force refresh is now free: the backend derives the result from stored,
+  // normalized gap metadata and makes no AI call.
   const loadInsights = useCallback(async (force = false) => {
-    const CACHE_KEY = 'careeros-insights-v2'
+    const CACHE_KEY = 'careeros-insights-v3'
 
     let cached: { data: CandidacyInsights; ts: number } | null = null
     try {
@@ -260,10 +253,6 @@ export default function Home() {
         return
       }
       // No cache yet at all — fall through and fetch once to populate it.
-    } else if (cached && new Date(cached.ts).toDateString() === new Date().toDateString()) {
-      // Already refreshed today — keep showing what's cached until tomorrow's
-      // first generation.
-      return
     }
 
     try {
