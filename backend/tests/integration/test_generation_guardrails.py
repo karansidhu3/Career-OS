@@ -34,7 +34,12 @@ async def _add_experience(db_session, user_id):
     """Generation also requires at least one experience or project on file —
     otherwise there's nothing for the model to write from (see jobs.py's
     _has_generatable_content)."""
-    db_session.add(Experience(user_id=user_id, company="Acme Corp", role="Engineer"))
+    db_session.add(Experience(
+        user_id=user_id,
+        company="Acme Corp",
+        role="Engineer",
+        description="Built and maintained customer-facing software used by the engineering team.",
+    ))
     await db_session.commit()
 
 

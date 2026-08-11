@@ -35,7 +35,12 @@ async def _add_experience(db_session, user_id):
     """Generation also requires at least one experience or project on file —
     otherwise there's nothing for the model to write from (see jobs.py's
     _has_generatable_content)."""
-    db_session.add(Experience(user_id=user_id, company="Acme Corp", role="Engineer"))
+    db_session.add(Experience(
+        user_id=user_id,
+        company="Acme Corp",
+        role="Engineer",
+        description="Built and maintained customer-facing software used by the engineering team.",
+    ))
     await db_session.commit()
 
 
@@ -124,7 +129,11 @@ async def test_generate_allowed_with_project_but_no_experience(client, db_sessio
     """Either experience OR projects is enough — a new grad with only project
     work and no job history yet is not an empty profile."""
     await _add_api_key(db_session, current_test_user.id)
-    db_session.add(Project(user_id=current_test_user.id, name="Personal site"))
+    db_session.add(Project(
+        user_id=current_test_user.id,
+        name="Personal site",
+        description="Designed and shipped a responsive portfolio with a typed frontend.",
+    ))
     await db_session.commit()
     resp = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert resp.status_code == 201
