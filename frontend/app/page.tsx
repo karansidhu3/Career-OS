@@ -239,11 +239,11 @@ export default function Home() {
   // A force refresh is now free: the backend derives the result from stored,
   // normalized gap metadata and makes no AI call.
   const loadInsights = useCallback(async (force = false) => {
-    const CACHE_KEY = 'careeros-insights-v3'
+    const INSIGHTS_CACHE_ID = 'careeros-insights-v3'
 
     let cached: { data: CandidacyInsights; ts: number } | null = null
     try {
-      const raw = localStorage.getItem(CACHE_KEY)
+      const raw = localStorage.getItem(INSIGHTS_CACHE_ID)
       if (raw) cached = JSON.parse(raw)
     } catch { /* corrupt cache — treat as absent */ }
 
@@ -259,7 +259,7 @@ export default function Home() {
       const data = await api.getInsights()
       setInsights(data)
       try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
+        localStorage.setItem(INSIGHTS_CACHE_ID, JSON.stringify({ data, ts: Date.now() }))
       } catch { /* storage full — not critical */ }
     } catch { /* offline or no data */ }
   }, [])

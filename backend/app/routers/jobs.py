@@ -20,6 +20,7 @@ from app.models.profile import Experience, PersonalInfo, Project
 from app.models.user import User
 from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobListRead, JobRead, StatusUpdate
 from app.services.candidacy_insights import synthesize_insight
+from app.services.credentials import get_decrypted_key
 from app.services.pdf_storage import cache_cover_letter_pdf, cache_resume_pdf, cover_letter_pdf_key, get_pdf_storage, invalidate_cover_letter_pdf, resume_pdf_key
 
 logger = logging.getLogger(__name__)
