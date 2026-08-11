@@ -8,6 +8,7 @@ import { ScoreRing } from '@/components/ScoreRing'
 import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, DownloadIconButton, CoverLetterSection } from '@/components/ResultSections'
 import { spring } from '@/lib/motion'
 import { parseStrategicNote } from '@/lib/utils'
+import { generationFailureMessage } from '@/lib/generationErrors'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -239,7 +240,7 @@ export default function JobPage() {
           </div>
           <div className="text-center">
             <p className="text-neutral-700 font-medium">Generation failed</p>
-            <p className="text-sm text-neutral-600 mt-1">Claude didn't respond in time. Try again.</p>
+            <p className="text-sm text-neutral-600 mt-1">{generationFailureMessage(job.generation_metadata)}</p>
           </div>
           <motion.button
             onClick={handleRegenerate} disabled={regenerating} whileTap={{ scale: 0.97 }}

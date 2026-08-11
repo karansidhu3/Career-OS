@@ -23,6 +23,7 @@ export interface Job {
   cache_read_tokens: number | null
   cache_write_tokens: number | null
   compression_attempts: number | null
+  generation_metadata: Record<string, unknown> | null
   cost_usd: number | null
 }
 

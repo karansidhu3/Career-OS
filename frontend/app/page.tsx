@@ -17,6 +17,7 @@ import { ScoreRing } from '@/components/ScoreRing'
 import { AnalysisSection, SelectedProjectsBar, LatexSection, Divider, ResumePreview, DownloadIconButton, CoverLetterSection } from '@/components/ResultSections'
 import { spring } from '@/lib/motion'
 import { parseStrategicNote } from '@/lib/utils'
+import { generationFailureMessage } from '@/lib/generationErrors'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -377,7 +378,7 @@ export default function Home() {
           setAppState({
             mode: 'error',
             jobId: pollingJobId,
-            message: 'Generation failed. Claude didn\'t respond in time.',
+            message: generationFailureMessage(job.generation_metadata),
           })
         }
       } catch { /* keep polling on network error */ }

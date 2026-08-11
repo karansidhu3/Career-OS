@@ -103,6 +103,12 @@ class AnthropicAdapter(LLMClient):
     ) -> ToolCallResult:
         client = anthropic.AsyncAnthropic(api_key=self._api_key)
         started = time.perf_counter()
+        # Raw JSON schemas may contain constraints that Anthropic's grammar
+        # compiler does not support (for example minItems > 1). The SDK's
+        # official transformer strips those provider-incompatible constraints
+        # and preserves them in descriptions. Callers still validate the
+        # original schema's business rules after the response.
+        provider_schema = anthropic.transform_schema(schema)
         response = await asyncio.wait_for(
             client.messages.create(
                 model=model,
@@ -112,7 +118,7 @@ class AnthropicAdapter(LLMClient):
                 output_config={
                     "format": {
                         "type": "json_schema",
-                        "schema": schema,
+                        "schema": provider_schema,
                     }
                 },
             ),
