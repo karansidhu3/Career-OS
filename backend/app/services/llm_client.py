@@ -15,6 +15,14 @@ from dataclasses import dataclass
 import anthropic
 
 
+class StructuredOutputError(RuntimeError):
+    """The provider returned a response that cannot satisfy the requested schema."""
+
+
+class StructuredOutputTruncatedError(StructuredOutputError):
+    """The provider exhausted its output budget before completing the JSON object."""
+
+
 @dataclass
 class ToolCallResult:
     tool_input: dict
@@ -124,10 +132,25 @@ class AnthropicAdapter(LLMClient):
             ),
             timeout=timeout,
         )
-        text_block = next(block for block in response.content if block.type == "text")
+        stop_reason = getattr(response, "stop_reason", None)
+        if stop_reason == "max_tokens":
+            raise StructuredOutputTruncatedError(
+                f"Structured output exceeded the {max_tokens}-token response budget"
+            )
+        text_block = next((block for block in response.content if block.type == "text"), None)
+        if text_block is None:
+            raise StructuredOutputError(
+                f"Structured output contained no text block (stop_reason={stop_reason or 'unknown'})"
+            )
         usage = response.usage
+        try:
+            tool_input = json.loads(text_block.text)
+        except json.JSONDecodeError as exc:
+            raise StructuredOutputError(
+                f"Structured output was not complete JSON (stop_reason={stop_reason or 'unknown'})"
+            ) from exc
         return ToolCallResult(
-            tool_input=json.loads(text_block.text),
+            tool_input=tool_input,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
