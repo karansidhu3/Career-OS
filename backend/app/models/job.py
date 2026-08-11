@@ -34,3 +34,10 @@ class Job(Base):
 
     # Number of times the resume was recompressed to fit one page (0 = no compression needed)
     compression_attempts = Column(Integer, nullable=True)
+
+    # Generation v2 audit fields. These make quality/cost claims inspectable rather
+    # than reconstructing them from logs after the fact.
+    generation_version = Column(String(32), nullable=True)
+    generation_metadata = Column(JSONB, nullable=True)
+    page_count = Column(Integer, nullable=True)
+    total_cost_usd = Column(Float, nullable=True)

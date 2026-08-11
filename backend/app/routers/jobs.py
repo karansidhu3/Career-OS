@@ -16,11 +16,11 @@ from app.config import settings
 from app.database import get_db
 from app.models.job import Job
 from app.rate_limit import limiter_key
-from app.models.profile import Experience, PersonalInfo, Project, SkillCategory
+from app.models.profile import Experience, PersonalInfo, Project
 from app.models.user import User
 from app.schemas.job import CandidacyInsightsRead, CoverLetterUpdate, JobGenerateRequest, JobListRead, JobRead, StatusUpdate
+from app.services.candidacy_insights import synthesize_insight
 from app.services.credentials import get_decrypted_key
-from app.services.generation import generate_insights
 from app.services.pdf_storage import cache_cover_letter_pdf, cache_resume_pdf, cover_letter_pdf_key, get_pdf_storage, invalidate_cover_letter_pdf, resume_pdf_key
 
 logger = logging.getLogger(__name__)
@@ -200,14 +200,26 @@ async def _has_generatable_content(db: AsyncSession, user_id) -> bool:
     API call or a stale client."""
     has_experience = (
         await db.execute(
-            select(Experience.id).where(Experience.user_id == user_id, Experience.deleted_at.is_(None)).limit(1)
+            select(Experience.id).where(
+                Experience.user_id == user_id,
+                Experience.deleted_at.is_(None),
+                Experience.description.is_not(None),
+                func.length(func.trim(Experience.description)) > 0,
+                ~Experience.company.ilike("%old navy%"),
+                ~Experience.role.ilike("%sales associate%"),
+            ).limit(1)
         )
     ).scalar_one_or_none() is not None
     if has_experience:
         return True
     return (
         await db.execute(
-            select(Project.id).where(Project.user_id == user_id, Project.deleted_at.is_(None)).limit(1)
+            select(Project.id).where(
+                Project.user_id == user_id,
+                Project.deleted_at.is_(None),
+                Project.description.is_not(None),
+                func.length(func.trim(Project.description)) > 0,
+            ).limit(1)
         )
     ).scalar_one_or_none() is not None
 
@@ -500,7 +512,7 @@ async def get_candidacy_insights(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return a synthesized candidacy observation derived from recent applications."""
+    """Return a free, deterministic pattern from stored generation evidence."""
     completed_statuses = ("generated", "applied", "interview", "offer", "skipped")
 
     # True total drives the "3+ applications" gate and the count shown to the user —
@@ -512,18 +524,8 @@ async def get_candidacy_insights(
         .where(Job.user_id == current_user.id, Job.status.in_(completed_statuses))
     )).scalar_one()
     if count < 3:
-        return CandidacyInsightsRead(observation=None, count=count)
+        return CandidacyInsightsRead(count=count)
 
-    api_key = await get_decrypted_key(db, current_user.id)
-    if not api_key:
-        # Insights is an automatic background fetch, not a user-initiated action —
-        # fail quietly the same way "not enough applications yet" does, rather than
-        # surfacing a hard error for something the user didn't explicitly trigger.
-        return CandidacyInsightsRead(observation=None, count=count)
-
-    # A genuinely repeated gap shows up just as reliably in the most recent dozen
-    # applications as in the full history — capped here to limit how much of the
-    # per-note text (see _extract_gaps) gets sent, not to change what the user sees.
     jobs = (await db.execute(
         select(Job)
         .where(Job.user_id == current_user.id, Job.status.in_(completed_statuses))
@@ -531,49 +533,7 @@ async def get_candidacy_insights(
         .limit(12)
     )).scalars().all()
 
-    summaries = [
-        {
-            "title": j.title,
-            "company": j.company,
-            "strategic_note": j.strategic_note,
-            "description_snippet": (j.description or "")[:400] if not j.strategic_note else None,
-        }
-        for j in jobs
-    ]
-
-    skill_categories = (await db.execute(
-        select(SkillCategory).where(SkillCategory.user_id == current_user.id).order_by(SkillCategory.sort_order)
-    )).scalars().all()
-    experiences = (await db.execute(
-        select(Experience).where(Experience.user_id == current_user.id).order_by(Experience.sort_order)
-    )).scalars().all()
-    projects = (await db.execute(
-        select(Project).where(Project.user_id == current_user.id).order_by(Project.sort_order)
-    )).scalars().all()
-
-    profile_lines: list[str] = []
-    if experiences:
-        profile_lines.append("Experience:")
-        for e in experiences:
-            line = f"- {e.role} at {e.company}"
-            if e.description:
-                line += f": {e.description}"
-            profile_lines.append(line)
-    if projects:
-        profile_lines.append("Projects:")
-        for p in projects:
-            line = f"- {p.name}"
-            if p.description:
-                line += f": {p.description}"
-            profile_lines.append(line)
-    if skill_categories:
-        profile_lines.append("Skills:")
-        for cat in skill_categories:
-            if cat.items:
-                profile_lines.append(f"- {cat.category}: {', '.join(cat.items)}")
-    profile_context = "\n".join(profile_lines) if profile_lines else None
-
-    result = await generate_insights(summaries, api_key, profile_context=profile_context)
+    result = synthesize_insight(list(jobs), count)
     return CandidacyInsightsRead(
         headline=result.get("headline"),
         observed=result.get("observed"),

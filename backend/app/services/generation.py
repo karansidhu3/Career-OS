@@ -271,9 +271,11 @@ _MINIMAL_PACKAGES = r"""\documentclass[letterpaper,11pt]{article}
 
 def _tex(s: str) -> str:
     """Escape a plain-text string for use as LaTeX display text."""
-    for ch, rep in [('&', r'\&'), ('%', r'\%'), ('#', r'\#'), ('$', r'\$')]:
-        s = s.replace(ch, rep)
-    return s
+    replacements = {
+        "\\": r"\textbackslash{}", "{": r"\{", "}": r"\}",
+        "&": r"\&", "%": r"\%", "#": r"\#", "$": r"\$", "_": r"\_",
+    }
+    return re.sub(r"[\\{}&%#$_]", lambda match: replacements[match.group()], str(s))
 
 
 def _build_education_latex(education: list) -> str:
@@ -284,7 +286,9 @@ def _build_education_latex(education: list) -> str:
              r"  \resumeSubHeadingListStart"]
     for edu in education:
         degree = _tex(edu.degree or "")
-        if edu.field:
+        # Avoid headings such as "BSc Computer Science, Computer Science" when
+        # the stored degree already contains the field name.
+        if edu.field and edu.field.casefold() not in (edu.degree or "").casefold():
             degree += f", {_tex(edu.field)}"
         if edu.minor:
             degree += f", Minor in {_tex(edu.minor)}"
@@ -1138,19 +1142,24 @@ async def _compress_if_needed(assembled_latex: str, api_key: str, preamble: str 
     current = assembled_latex
     last_known_good: str | None = None
 
-    for _ in range(max_attempts):
+    # max_attempts counts paid rewrite calls, so validation needs one additional
+    # compile after the final rewrite. The old loop skipped that last validation
+    # and could return the previous known-good two-page document.
+    for check in range(max_attempts + 1):
         try:
             pdf_bytes = await compile_latex_to_pdf(current)
         except Exception:
             if last_known_good is None:
                 raise
-            logger.warning("Compression check: compilation failed, falling back to last known-good LaTeX")
-            return last_known_good, attempts
+            raise ValueError("Compressed resume failed compilation; refusing an unverified or multi-page result")
 
         last_known_good = current
         page_count = len(PdfReader(io.BytesIO(pdf_bytes)).pages)
         if page_count <= 1:
-            break
+            return current, attempts
+
+        if check == max_attempts:
+            raise ValueError(f"Resume still renders to {page_count} pages after {attempts} compression attempts")
 
         logger.info("Resume compiled to %d pages — compressing (attempt %d)", page_count, attempts + 1)
         attempts += 1
@@ -1158,12 +1167,12 @@ async def _compress_if_needed(assembled_latex: str, api_key: str, preamble: str 
         try:
             compressed_body = await _call_compression(_extract_resume_body(current), api_key)
         except Exception:
-            logger.exception("Compression call failed — keeping current LaTeX")
-            break
+            logger.exception("Compression call failed")
+            raise ValueError("Resume compression failed; refusing a multi-page result")
 
         current = _assemble_resume_latex(compressed_body, preamble)
 
-    return last_known_good, attempts
+    raise ValueError("Resume one-page validation ended unexpectedly")
 
 
 async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> dict:
@@ -1248,67 +1257,6 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
     return result
 
 
-_INSIGHTS_SYSTEM = (
-    "You are reviewing Karanveer Sidhu's job search history as a direct advisor. "
-    "The input begins with 'Current profile' — the full current state of the profile "
-    "(experience descriptions, project descriptions, and skill categories).\n\n"
-    "Find the single most actionable pattern across all applications: a technology, skill type, "
-    "or experience gap that appears repeatedly in JDs and is absent from the profile.\n\n"
-    "IMPORTANT: Read the full profile carefully before identifying any gap. "
-    "A technology mentioned anywhere in the profile — experience descriptions, project descriptions, "
-    "or skill lists — is NOT a gap. Only flag something as a gap if it genuinely does not appear "
-    "anywhere in the current profile.\n\n"
-    "Produce four fields. Each field is one thing, stated once, under 25 words.\n\n"
-    "Hard rules: no em dashes, no adverbs, no filler phrases. "
-    "Name exact technologies. Name specific projects from the current profile. Be precise."
-)
-
-_INSIGHTS_TOOL = {
-    "name": "candidacy_signal",
-    "description": "Structured four-part candidacy signal: headline, observed pattern, gap, action.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "headline": {
-                "type": "string",
-                "description": (
-                    "4-8 words. The memorable conclusion about the dominant pattern. "
-                    "Name the specific technology or skill gap that is ABSENT from the current profile. "
-                    "Do NOT name any technology that appears in the current profile section. "
-                    "Example format: '[Technology] Gap Across Applications', '[Skill] Appearing in Every JD'. "
-                    "Wrong: 'Keep applying', 'Good progress'."
-                ),
-            },
-            "observed": {
-                "type": "string",
-                "description": (
-                    "1-2 sentences. What pattern appears across the applications — factual, no advice. "
-                    "Under 25 words. Name the specific technologies or experience types appearing."
-                ),
-            },
-            "gap": {
-                "type": "string",
-                "description": (
-                    "1-2 sentences. What specific skill or experience is absent from the CURRENT PROFILE. "
-                    "Under 25 words. Name exact technologies from the JDs. "
-                    "CRITICAL: If the technology appears anywhere in the 'Current profile' section "
-                    "(experience, projects, or skills), it is NOT a gap — pick a different one."
-                ),
-            },
-            "action": {
-                "type": "string",
-                "description": (
-                    "1-2 sentences. One concrete action to close the gap. "
-                    "Under 25 words. Name a specific project from the current profile or exact deliverable. "
-                    "No em dashes."
-                ),
-            },
-        },
-        "required": ["headline", "observed", "gap", "action"],
-    },
-}
-
-
 def _extract_gaps(note: str) -> str:
     """Pull just the GAPS section out of a structured strategic note (see the
     GOOD FIT / GAPS / IMPROVEMENT PLAN format in the generation system prompt
@@ -1323,50 +1271,3 @@ def _extract_gaps(note: str) -> str:
         return note
     gaps = match.group(1).strip()
     return gaps or note
-
-
-async def generate_insights(
-    job_summaries: list[dict],
-    api_key: str,
-    profile_context: str | None = None,
-) -> dict[str, str | None]:
-    """Synthesize a candidacy observation from a list of job application summaries.
-
-    Returns: {"headline": str | None, "observed": str | None, "gap": str | None, "action": str | None}
-    Each summary dict should have: title, company (optional), strategic_note (optional),
-    description_snippet (optional, first 400 chars of JD for older jobs without a strategic_note).
-    profile_context: full profile text (experience/project descriptions + skills) used to avoid
-    flagging gaps the candidate has already addressed.
-    """
-    lines: list[str] = []
-    if profile_context:
-        lines.append(f"Current profile:\n{profile_context}\n")
-    lines.append(f"Applications analyzed: {len(job_summaries)}\n")
-    for s in job_summaries:
-        entry = f"- {s.get('title') or 'Unknown role'}"
-        if s.get("company"):
-            entry += f" at {s['company']}"
-        lines.append(entry)
-        if s.get("strategic_note"):
-            lines.append(f"  Gaps: {_extract_gaps(s['strategic_note'])}")
-        elif s.get("description_snippet"):
-            lines.append(f"  JD excerpt: {s['description_snippet']}")
-
-    llm = get_llm_client(api_key)
-    try:
-        call_result = await llm.call_tool(
-            model=CLAUDE_MODEL,
-            max_tokens=400,
-            system=_INSIGHTS_SYSTEM,
-            messages=[{"role": "user", "content": "\n".join(lines)}],
-            tool=_INSIGHTS_TOOL,
-            timeout=30.0,
-        )
-        return {
-            "headline": call_result.tool_input.get("headline") or None,
-            "observed":  call_result.tool_input.get("observed")  or None,
-            "gap":       call_result.tool_input.get("gap")       or None,
-            "action":    call_result.tool_input.get("action")    or None,
-        }
-    except Exception:
-        return {"headline": None, "observed": None, "gap": None, "action": None}

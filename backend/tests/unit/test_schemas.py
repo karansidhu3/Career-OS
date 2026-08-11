@@ -128,7 +128,9 @@ def test_cost_usd_output_tokens_most_expensive():
 
 def test_cost_usd_cache_reads_cheaper_than_uncached():
     # Cached reads ($0.30/M) much cheaper than uncached input ($3/M)
-    job_cached   = _make_job_read(input_tokens=1000, cache_read_tokens=800, output_tokens=0)
+    # Provider usage reports uncached input and cache reads separately. Compare
+    # equal 1,000-token prompts: 200 uncached + 800 cached versus 1,000 uncached.
+    job_cached   = _make_job_read(input_tokens=200, cache_read_tokens=800, output_tokens=0)
     job_uncached = _make_job_read(input_tokens=1000, output_tokens=0)
     assert job_cached.cost_usd < job_uncached.cost_usd
 
