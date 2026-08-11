@@ -1,3 +1,4 @@
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -8,16 +9,20 @@ from app.services.candidacy_insights import synthesize_insight
 from app.services.generation_v2 import (
     _WRITER_SCHEMA,
     WriterValidationError,
+    _availability_context,
     _eligible_experiences,
+    _experience_display_role,
+    _project_display_name,
     _recover_writer,
     _render_body,
     _validate_bullet,
     _validate_plan,
+    _validated_cover,
     _validate_writer,
 )
 from app.services.llm_client import AnthropicAdapter, StructuredOutputTruncatedError, ToolCallResult
 from app.services.llm_cost import calculate_llm_cost
-from app.services.profile_fact_bank import FACT_BANK_VERSION, _source_payload, _validate_bank, get_or_build_fact_bank, profile_hash
+from app.services.profile_fact_bank import FACT_BANK_VERSION, _evidence_fragments, _source_payload, _validate_bank, get_or_build_fact_bank, profile_hash
 
 
 def ns(**kwargs):
@@ -110,6 +115,16 @@ def test_fact_bank_drops_claim_without_verbatim_evidence():
     assert "500" in bank["sources"][0]["facts"][0]["evidence"]
 
 
+def test_fact_bank_retains_late_high_signal_evidence_from_long_profiles():
+    filler = [f"Documented routine implementation detail number {index}." for index in range(18)]
+    description = " ".join(filler + ["Validated 123 automated tests and reduced queue latency by 40%."])
+
+    fragments = _evidence_fragments(description)
+
+    assert len(fragments) == 12
+    assert any("123 automated tests" in fragment for fragment in fragments)
+
+
 def test_plan_rejects_unknown_project_fact_and_skill_ids():
     projects = [ns(id=1), ns(id=2)]
     skills = [ns(items=["Python", "FastAPI"])]
@@ -124,6 +139,46 @@ def test_plan_rejects_unknown_project_fact_and_skill_ids():
     assert plan["selected_project_ids"] == [1, 2]
     assert plan["selected_fact_ids"] == ["project:1:0"]
     assert plan["selected_skills"] == ["Python"]
+
+
+def test_plan_restores_three_project_density_and_ranks_missing_slot_by_jd():
+    projects = [ns(id=1), ns(id=2), ns(id=3), ns(id=4)]
+    skills = [ns(items=["Python", "FastAPI", "React"])]
+    bank = {"sources": [
+        {"source_key": "project:1", "name": "Relay", "facts": [{"id": "project:1:0", "evidence": "Built an AWS event queue."}]},
+        {"source_key": "project:2", "name": "Portfolio", "facts": [{"id": "project:2:0", "evidence": "Built a React landing page."}]},
+        {"source_key": "project:3", "name": "CareerOS", "facts": [{"id": "project:3:0", "evidence": "Built Python FastAPI APIs with PostgreSQL."}]},
+        {"source_key": "project:4", "name": "Other", "facts": [{"id": "project:4:0", "evidence": "Created a visualization."}]},
+    ]}
+
+    plan = _validate_plan(
+        {"selected_project_ids": [1], "selected_fact_ids": [], "selected_skills": [], "gaps": [], "matches": []},
+        bank,
+        projects,
+        skills,
+        "Python web APIs using FastAPI and PostgreSQL",
+    )
+
+    assert plan["selected_project_ids"] == [1, 3, 2]
+    assert plan["selected_skills"] == ["Python", "FastAPI", "React"]
+
+
+def test_plan_keeps_compound_framework_gap_and_replaces_resume_spin_with_real_action():
+    bank = {"sources": [], "skills": {"Languages": ["Python"]}}
+    plan = _validate_plan({
+        "selected_project_ids": [],
+        "selected_fact_ids": [],
+        "selected_skills": ["Python"],
+        "matches": [],
+        "gaps": [{
+            "key": "flask-django",
+            "label": "Flask or Django experience",
+            "action": "Highlight Python patterns to signal readiness for Flask.",
+        }],
+    }, bank, [], [ns(items=["Python"])])
+
+    assert plan["gaps"][0]["label"] == "Flask or Django experience"
+    assert plan["gaps"][0]["action"].startswith("Build a small, demonstrable project")
 
 
 def test_bullet_rejects_number_not_present_in_cited_evidence():
@@ -184,6 +239,54 @@ def test_writer_recovery_uses_literal_source_facts_instead_of_failing_job():
         "Built durable retries for failed background tasks.",
     ]
     assert len(writer["cover_letter"].split("\n\n")) == 3
+    assert writer["fit_score"] == 10
+
+
+def test_writer_requires_two_experience_bullets_when_two_facts_exist():
+    bank = {"skills": {}, "sources": [{
+        "source_key": "experience:2", "name": "Developer", "type": "experience", "organization": "UBC",
+        "facts": [
+            {"id": "experience:2:0", "statement": "Built an allocation service for faculty teams.", "evidence": "Built an allocation service for faculty teams."},
+            {"id": "experience:2:1", "statement": "Automated validation across multiple departments.", "evidence": "Automated validation across multiple departments."},
+        ],
+    }]}
+    raw = {
+        "experience_entries": [{"experience_id": 2, "bullets": [
+            {"text": "Built an allocation service for faculty teams.", "fact_ids": ["experience:2:0"]},
+        ]}],
+        "project_entries": [],
+        "cover_letter_paragraphs": [],
+        "cover_letter_fact_ids": [],
+        "fit_score": 8,
+    }
+
+    with pytest.raises(WriterValidationError, match=r"experience 2 has 1/2 accepted bullets"):
+        _validate_writer(raw, {"selected_project_ids": [], "selected_experience_ids": [2], "gaps": []}, bank, [])
+
+
+def test_cover_rejects_anonymous_passive_and_self_undermining_prose():
+    facts = {"project:1:0": {
+        "evidence": "Built 29 REST endpoints for Ledger.",
+        "source_name": "Transactional Backend Infrastructure",
+        "source_display_name": "Ledger | Transactional Backend Infrastructure",
+        "source_brand_name": "Ledger",
+        "source_type": "project",
+    }}
+    raw = {
+        "cover_letter_paragraphs": [
+            "The backend role matches my interests.",
+            "For a transactional backend project, 29 REST endpoints were built with active Python proficiency development.",
+            "My degree completes in June 2026, at which point availability begins.",
+        ],
+        "cover_letter_fact_ids": ["project:1:0"],
+    }
+
+    _, _, errors = _validated_cover(raw, facts, "Education completion is in the past (June 2026).")
+
+    assert any("banned phrasing" in error for error in errors)
+    assert "cover letter second paragraph does not name its cited project" in errors
+    assert "cover letter second paragraph is not written in first person" in errors
+    assert "cover letter describes a past graduation or availability date as future" in errors
 
 
 def test_renderer_uses_canonical_project_name_not_model_supplied_heading():
@@ -194,6 +297,21 @@ def test_renderer_uses_canonical_project_name_not_model_supplied_heading():
     project = ns(id=1, name="Canonical Relay", start_date="Jan 2025", end_date=None, github_url="", description="Python Redis")
     body = _render_body(writer, [1], [], [project], [ns(category="Languages", items=["Python"], sort_order=0)], ["Python"])
     assert "Canonical Relay" in body
+
+
+def test_project_brand_and_project_like_experience_role_are_restored_honestly():
+    project = ns(name="Serverless Event Processing Platform", github_url="https://github.com/karansidhu3/Relay")
+    experience = ns(role="Workforce Scheduling Platform")
+
+    assert _project_display_name(project) == "Relay | Serverless Event Processing Platform"
+    assert _experience_display_role(experience) == "Software Developer — Workforce Scheduling Platform"
+
+
+def test_availability_context_does_not_put_past_graduation_in_the_future():
+    context = _availability_context([ns(end_date="Jun 2026")], today=date(2026, 8, 10))
+
+    assert "Education completion is in the past" in context
+    assert "available for full-time work now" in context
 
 
 def test_old_navy_and_sales_associate_are_excluded_in_code():
