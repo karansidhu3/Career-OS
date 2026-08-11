@@ -5,8 +5,8 @@ from uuid import uuid4
 import pytest
 
 from app.services.candidacy_insights import synthesize_insight
-from app.services.generation_v2 import _eligible_experiences, _render_body, _validate_bullet, _validate_plan
-from app.services.llm_client import ToolCallResult
+from app.services.generation_v2 import _WRITER_SCHEMA, _eligible_experiences, _render_body, _validate_bullet, _validate_plan
+from app.services.llm_client import AnthropicAdapter, ToolCallResult
 from app.services.llm_cost import calculate_llm_cost
 from app.services.profile_fact_bank import _source_payload, _validate_bank, get_or_build_fact_bank, profile_hash
 
@@ -19,6 +19,50 @@ def test_cost_ledger_prices_each_token_class_without_double_counting():
     usage = ToolCallResult(tool_input={}, input_tokens=1_000, output_tokens=1_000, cache_read_tokens=1_000, cache_write_tokens=1_000)
     assert calculate_llm_cost("claude-sonnet-4-6", usage) == pytest.approx(0.02205)
     assert calculate_llm_cost("claude-haiku-4-5", usage) == pytest.approx(0.00735)
+
+
+def test_anthropic_transforms_unsupported_writer_schema_constraints():
+    """The raw schema keeps CareerOS's exact business rule, while the schema
+    sent to Anthropic must use only constraints its grammar compiler accepts."""
+    import anthropic
+
+    raw = _WRITER_SCHEMA["properties"]["cover_letter_paragraphs"]
+    provider = anthropic.transform_schema(_WRITER_SCHEMA)["properties"]["cover_letter_paragraphs"]
+
+    assert raw["minItems"] == 3
+    assert raw["maxItems"] == 3
+    assert "minItems" not in provider
+    assert "maxItems" not in provider
+    assert "minItems: 3" in provider["description"]
+
+
+@pytest.mark.asyncio
+async def test_structured_call_sends_the_transformed_schema(monkeypatch):
+    create = AsyncMock(return_value=ns(
+        content=[ns(type="text", text='{"ok": true}')],
+        usage=ns(
+            input_tokens=1,
+            output_tokens=1,
+            cache_read_input_tokens=0,
+            cache_creation_input_tokens=0,
+        ),
+    ))
+    client = ns(messages=ns(create=create))
+    monkeypatch.setattr("app.services.llm_client.anthropic.AsyncAnthropic", lambda api_key: client)
+
+    await AnthropicAdapter("test-key").call_structured(
+        model="claude-sonnet-4-6",
+        max_tokens=100,
+        system="Return JSON.",
+        messages=[{"role": "user", "content": "test"}],
+        schema=_WRITER_SCHEMA,
+        timeout=1.0,
+    )
+
+    sent_schema = create.await_args.kwargs["output_config"]["format"]["schema"]
+    paragraphs = sent_schema["properties"]["cover_letter_paragraphs"]
+    assert "minItems" not in paragraphs
+    assert "maxItems" not in paragraphs
 
 
 def test_profile_hash_is_stable_across_dictionary_order():

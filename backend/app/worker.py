@@ -8,9 +8,11 @@ API restart: the worker just picks them back up.
 
 Run locally with: arq app.worker.WorkerSettings
 """
+import asyncio
 import logging
 import uuid
 
+import anthropic
 from arq.connections import RedisSettings
 from arq.cron import cron
 from sqlalchemy import select, text
@@ -30,6 +32,21 @@ from app.services.generation_v2 import generate_materials_v2
 from app.services.pdf_storage import cache_resume_pdf, get_pdf_storage, resume_pdf_key
 
 logger = logging.getLogger(__name__)
+
+
+def _generation_failure_code(error: Exception) -> str:
+    """Return a stable, non-sensitive reason the frontend can act on."""
+    if isinstance(error, (asyncio.TimeoutError, anthropic.APITimeoutError)):
+        return "anthropic_timeout"
+    if isinstance(error, anthropic.AuthenticationError):
+        return "api_key_invalid"
+    if isinstance(error, anthropic.RateLimitError):
+        return "anthropic_rate_limit"
+    if isinstance(error, anthropic.BadRequestError):
+        return "generation_configuration"
+    if isinstance(error, (anthropic.APIConnectionError, anthropic.InternalServerError)):
+        return "anthropic_unavailable"
+    return "generation_failed"
 
 
 async def _on_startup(ctx) -> None:
@@ -116,6 +133,9 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             if job is not None:
                 job.status = "failed"
                 job.title = job.title if job.title != "Generating…" else "Generation failed"
+                metadata = dict(job.generation_metadata) if isinstance(job.generation_metadata, dict) else {}
+                metadata["failure_code"] = _generation_failure_code(e)
+                job.generation_metadata = metadata
         finally:
             await db.commit()
 
