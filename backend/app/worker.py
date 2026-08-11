@@ -29,6 +29,7 @@ from app.services.credentials import get_decrypted_key
 from app.services.crypto import validate_master_keys
 from app.services.error_tracking import init_error_tracking, set_user_context
 from app.services.generation_v2 import generate_materials_v2
+from app.services.llm_client import StructuredOutputError, StructuredOutputTruncatedError
 from app.services.pdf_storage import cache_resume_pdf, get_pdf_storage, resume_pdf_key
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,10 @@ def _generation_failure_code(error: Exception) -> str:
         return "anthropic_rate_limit"
     if isinstance(error, anthropic.BadRequestError):
         return "generation_configuration"
+    if isinstance(error, StructuredOutputTruncatedError):
+        return "generation_output_too_large"
+    if isinstance(error, StructuredOutputError):
+        return "generation_output_invalid"
     if isinstance(error, (anthropic.APIConnectionError, anthropic.InternalServerError)):
         return "anthropic_unavailable"
     return "generation_failed"

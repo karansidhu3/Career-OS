@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from app import worker
+from app.services.llm_client import StructuredOutputTruncatedError
 
 
 @pytest.mark.asyncio
@@ -34,3 +35,7 @@ def test_bad_anthropic_schema_is_classified_as_configuration_failure():
 
 def test_timeout_is_classified_separately_from_other_failures():
     assert worker._generation_failure_code(asyncio.TimeoutError()) == "anthropic_timeout"
+
+
+def test_truncated_structured_output_has_actionable_failure_code():
+    assert worker._generation_failure_code(StructuredOutputTruncatedError("too large")) == "generation_output_too_large"

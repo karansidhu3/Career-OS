@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import re
 from typing import Any
 from uuid import UUID
@@ -28,6 +29,15 @@ GENERATION_VERSION = "2.0"
 PLANNER_MODEL = "claude-haiku-4-5"
 WRITER_MODEL = "claude-sonnet-4-6"
 MAX_WRITER_FACTS_PER_SOURCE = 3
+logger = logging.getLogger(__name__)
+
+
+class WriterValidationError(ValueError):
+    """Actionable deterministic rejections for a writer response."""
+
+    def __init__(self, errors: list[str]):
+        self.errors = errors
+        super().__init__("; ".join(errors))
 
 _PLAN_SCHEMA = {
     "type": "object", "additionalProperties": False,
@@ -247,20 +257,85 @@ def _validate_bullet(
     known_skills: list[str] | None = None,
     forbidden_terms: list[str] | None = None,
 ) -> dict | None:
+    valid, _ = _validate_bullet_detailed(
+        bullet,
+        facts,
+        expected_prefix,
+        known_skills,
+        forbidden_terms,
+    )
+    return valid
+
+
+def _validate_bullet_detailed(
+    bullet: dict,
+    facts: dict[str, dict],
+    expected_prefix: str,
+    known_skills: list[str] | None = None,
+    forbidden_terms: list[str] | None = None,
+    *,
+    enforce_length: bool = True,
+) -> tuple[dict | None, list[str]]:
     text = re.sub(r"\s+", " ", str(bullet.get("text") or "")).strip().replace("—", ",")
     cited = [fid for fid in bullet.get("fact_ids", []) if fid in facts and fid.startswith(expected_prefix)]
     evidence = " ".join(facts[fid]["evidence"] + " " + facts[fid]["statement"] for fid in cited)
     words = text.split()
-    unsupported_skill = any(
+    unsupported_skills = [skill for skill in (known_skills or []) if (
         re.search(rf"(?<![A-Za-z0-9]){re.escape(skill)}(?![A-Za-z0-9])", text, re.IGNORECASE)
         and not re.search(rf"(?<![A-Za-z0-9]){re.escape(skill)}(?![A-Za-z0-9])", evidence, re.IGNORECASE)
-        for skill in (known_skills or [])
-    )
-    forbidden = any(term and term.casefold() in text.casefold() for term in (forbidden_terms or []))
-    unsupported_acronym = any(token.casefold() not in evidence.casefold() for token in re.findall(r"\b[A-Z]{2,}\b", text))
-    if not text or not cited or len(words) < 8 or len(words) > 24 or unsupported_skill or forbidden or unsupported_acronym or not _numbers(text).issubset(_numbers(evidence)):
-        return None
-    return {"text": text, "fact_ids": cited}
+    )]
+    unsupported_acronyms = [
+        token for token in re.findall(r"\b[A-Z]{2,}\b", text)
+        if token.casefold() not in evidence.casefold()
+    ]
+    unsupported_numbers = sorted(_numbers(text) - _numbers(evidence))
+    reasons = []
+    if not text:
+        reasons.append("empty text")
+    if not cited:
+        reasons.append(f"no valid citation beginning with {expected_prefix}")
+    # Length is a quality bound, not a claim-grounding rule. Keep it broad so a
+    # 25-word factual bullet cannot destroy an otherwise good application.
+    if enforce_length and text and not 6 <= len(words) <= 32:
+        reasons.append(f"{len(words)} words (accepted range is 6-32)")
+    if unsupported_skills:
+        reasons.append(f"skills absent from cited evidence: {', '.join(unsupported_skills)}")
+    if unsupported_acronyms:
+        reasons.append(f"acronyms absent from cited evidence: {', '.join(unsupported_acronyms)}")
+    if unsupported_numbers:
+        reasons.append(f"numbers absent from cited evidence: {', '.join(unsupported_numbers)}")
+    if reasons:
+        return None, reasons
+    return {"text": text, "fact_ids": cited}, []
+
+
+def _validated_cover(
+    raw: dict,
+    facts: dict[str, dict],
+    cover_context: str,
+    *,
+    enforce_style: bool = True,
+) -> tuple[list[str], list[str], list[str]]:
+    paragraphs = [re.sub(r"\s+", " ", str(x)).strip().replace("—", ",") for x in raw.get("cover_letter_paragraphs", [])]
+    cover_fact_ids = [fid for fid in raw.get("cover_letter_fact_ids", []) if fid in facts]
+    cover_evidence = " ".join(facts[fid]["evidence"] for fid in cover_fact_ids) + " " + cover_context
+    cover_text = " ".join(paragraphs)
+    banned = ("leveraging", "i am writing to", "i am excited", "delve", "tapestry")
+    errors = []
+    if len(paragraphs) != 3:
+        errors.append(f"cover letter has {len(paragraphs)} paragraphs; exactly 3 required")
+    elif not all(paragraphs):
+        errors.append("cover letter contains an empty paragraph")
+    unsupported_numbers = sorted(_numbers(cover_text) - _numbers(cover_evidence))
+    if unsupported_numbers:
+        errors.append(f"cover letter numbers absent from cited evidence or job context: {', '.join(unsupported_numbers)}")
+    if enforce_style and paragraphs and paragraphs[0].casefold().startswith(("i ", "i'm ", "i am ")):
+        errors.append("cover letter first paragraph starts with first person")
+    if enforce_style:
+        found = [phrase for phrase in banned if phrase in cover_text.casefold()]
+        if found:
+            errors.append(f"cover letter contains banned phrasing: {', '.join(found)}")
+    return paragraphs, cover_fact_ids, errors
 
 
 def _validate_writer(raw: dict, plan: dict, bank: dict, experiences: list[Experience], cover_context: str = "") -> dict:
@@ -273,35 +348,147 @@ def _validate_writer(raw: dict, plan: dict, bank: dict, experiences: list[Experi
         eid = entry.get("experience_id")
         if eid not in exp_ids:
             continue
-        bullets = [valid for b in entry.get("bullets", [])[:2] if (valid := _validate_bullet(b, facts, f"experience:{eid}:", known_skills, forbidden_terms))]
+        bullets = [valid for b in entry.get("bullets", []) if (valid := _validate_bullet(b, facts, f"experience:{eid}:", known_skills, forbidden_terms))][:2]
         if bullets:
             exp_entries.append({"experience_id": eid, "bullets": bullets})
     project_entries = []
+    errors = []
     for pid in plan["selected_project_ids"]:
         match = next((e for e in raw.get("project_entries", []) if e.get("project_id") == pid), None)
-        bullets = [valid for b in (match or {}).get("bullets", [])[:2] if (valid := _validate_bullet(b, facts, f"project:{pid}:", known_skills, forbidden_terms))]
+        bullets = []
+        rejected = []
+        for index, bullet in enumerate((match or {}).get("bullets", [])):
+            valid, reasons = _validate_bullet_detailed(bullet, facts, f"project:{pid}:", known_skills, forbidden_terms)
+            if valid and valid["text"] not in {item["text"] for item in bullets}:
+                bullets.append(valid)
+            elif reasons:
+                rejected.append(f"bullet {index + 1}: {', '.join(reasons)}")
+            if len(bullets) == 2:
+                break
         if len(bullets) != 2:
-            raise ValueError(f"Writer did not produce two grounded bullets for project {pid}")
+            detail = " | ".join(rejected) if rejected else "project entry missing"
+            errors.append(f"project {pid} has {len(bullets)}/2 accepted bullets ({detail})")
         project_entries.append({"project_id": pid, "bullets": bullets})
-    paragraphs = [re.sub(r"\s+", " ", str(x)).strip().replace("—", ",") for x in raw.get("cover_letter_paragraphs", [])]
-    cover_fact_ids = [fid for fid in raw.get("cover_letter_fact_ids", []) if fid in facts]
-    cover_evidence = " ".join(facts[fid]["evidence"] for fid in cover_fact_ids) + " " + cover_context
-    cover_text = " ".join(paragraphs)
-    banned = ("leveraging", "i am writing to", "i am excited", "delve", "tapestry")
-    if (
-        len(paragraphs) != 3
-        or not all(paragraphs)
-        or paragraphs[0].casefold().startswith(("i ", "i'm ", "i am "))
-        or any(phrase in cover_text.casefold() for phrase in banned)
-        or not _numbers(cover_text).issubset(_numbers(cover_evidence))
-    ):
-        raise ValueError("Cover letter failed structure, voice, or factual-grounding checks")
+    paragraphs, cover_fact_ids, cover_errors = _validated_cover(raw, facts, cover_context)
+    errors.extend(cover_errors)
+    if errors:
+        raise WriterValidationError(errors)
     return {
         "experience_entries": exp_entries,
         "project_entries": project_entries,
         "cover_letter": "\n\n".join(paragraphs),
         "cover_letter_fact_ids": cover_fact_ids,
         "fit_score": max(0, min(100, int(raw.get("fit_score", 0)))),
+    }
+
+
+def _source_fallback_bullets(
+    source_key: str,
+    facts: dict[str, dict],
+    known_skills: list[str],
+    existing: list[dict],
+) -> list[dict]:
+    """Use literal profile evidence as a last-resort bullet; never invent prose."""
+    bullets = list(existing)
+    seen = {item["text"].casefold() for item in bullets}
+    for fact_id, fact in facts.items():
+        if fact.get("source_key") != source_key:
+            continue
+        text = re.sub(r"^\s*[-*•]+\s*", "", re.sub(r"\s+", " ", fact.get("evidence", ""))).strip()
+        words = text.split()
+        if len(words) > 32:
+            text = " ".join(words[:32]).rstrip(" ,;:")
+        candidate, _ = _validate_bullet_detailed(
+            {"text": text, "fact_ids": [fact_id]},
+            facts,
+            f"{source_key}:",
+            known_skills,
+            enforce_length=False,
+        )
+        if candidate and candidate["text"].casefold() not in seen:
+            bullets.append(candidate)
+            seen.add(candidate["text"].casefold())
+        if len(bullets) == 2:
+            break
+    return bullets[:2]
+
+
+def _fallback_cover_letter(plan: dict, bank: dict, project_ids: list[int]) -> tuple[list[str], list[str]]:
+    company = plan.get("company") or "the team"
+    title = plan.get("job_title") or "role"
+    first = f"The {title} opportunity at {company} aligns with the technical work represented in my background."
+    source = next(
+        (item for item in bank.get("sources", []) if item.get("source_key") == f"project:{project_ids[0]}"),
+        None,
+    ) if project_ids else None
+    facts = (source or {}).get("facts", [])[:2]
+    fact_ids = [fact["id"] for fact in facts]
+    evidence = " ".join(fact["evidence"] for fact in facts).strip()
+    if source and evidence:
+        second = f"My work on {source.get('name') or 'a relevant project'} includes this documented technical evidence: {evidence}"
+    else:
+        second = "My background includes directly relevant technical work that I would be glad to discuss in detail."
+    third = f"I would welcome a conversation about how this experience could contribute to {company}."
+    return [first, second, third], fact_ids
+
+
+def _recover_writer(
+    outputs: list[dict],
+    plan: dict,
+    bank: dict,
+    cover_context: str,
+) -> dict:
+    """Preserve grounded content after the single paid repair is exhausted."""
+    facts = _fact_index(bank)
+    known_skills = [str(value) for values in bank.get("skills", {}).values() for value in values]
+    exp_entries = []
+    for eid in plan.get("selected_experience_ids", []):
+        candidates = []
+        for raw in outputs:
+            entry = next((item for item in raw.get("experience_entries", []) if item.get("experience_id") == eid), None)
+            candidates.extend((entry or {}).get("bullets", []))
+        valid = [item for bullet in candidates if (item := _validate_bullet(bullet, facts, f"experience:{eid}:", known_skills))]
+        valid = _source_fallback_bullets(f"experience:{eid}", facts, known_skills, valid[:2])
+        if valid:
+            exp_entries.append({"experience_id": eid, "bullets": valid})
+
+    project_entries = []
+    for pid in plan.get("selected_project_ids", []):
+        candidates = []
+        for raw in outputs:
+            entry = next((item for item in raw.get("project_entries", []) if item.get("project_id") == pid), None)
+            candidates.extend((entry or {}).get("bullets", []))
+        valid = []
+        for bullet in candidates:
+            item = _validate_bullet(bullet, facts, f"project:{pid}:", known_skills)
+            if item and item["text"] not in {existing["text"] for existing in valid}:
+                valid.append(item)
+        valid = _source_fallback_bullets(f"project:{pid}", facts, known_skills, valid[:2])
+        if valid:
+            project_entries.append({"project_id": pid, "bullets": valid})
+    if not project_entries:
+        raise WriterValidationError(["no selected project has grounded source evidence"])
+
+    paragraphs: list[str] = []
+    cover_fact_ids: list[str] = []
+    for raw in outputs:
+        candidate, candidate_ids, errors = _validated_cover(raw, facts, cover_context)
+        if not errors:
+            paragraphs, cover_fact_ids = candidate, candidate_ids
+            break
+    if not paragraphs:
+        paragraphs, cover_fact_ids = _fallback_cover_letter(
+            plan,
+            bank,
+            [entry["project_id"] for entry in project_entries],
+        )
+    fit_score = next((raw.get("fit_score") for raw in outputs if isinstance(raw.get("fit_score"), int)), 0)
+    return {
+        "experience_entries": exp_entries,
+        "project_entries": project_entries,
+        "cover_letter": "\n\n".join(paragraphs),
+        "cover_letter_fact_ids": cover_fact_ids,
+        "fit_score": max(0, min(100, fit_score)),
     }
 
 
@@ -414,14 +601,28 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
     writer_raw, writer_usage, writer_cost = await _call(db, llm, user_id=user_id, job_id=job_id, purpose="resume_writer", model=WRITER_MODEL, system=_WRITE_SYSTEM, payload=writer_payload, schema=_WRITER_SCHEMA, max_tokens=4000)
     repair_usage: ToolCallResult | None = None
     repair_cost = 0.0
+    writer_recovered = False
+    validation_errors: list[str] = []
     try:
         writer = _validate_writer(writer_raw, plan, bank, experiences, cover_context)
-    except ValueError as validation_error:
+    except WriterValidationError as validation_error:
+        validation_errors = validation_error.errors
         # One bounded repair is cheaper than making the user manually regenerate,
         # and it never bypasses the same deterministic acceptance checks.
         repair_payload = {**writer_payload, "rejected_output": writer_raw, "validation_error": str(validation_error)}
-        repaired_raw, repair_usage, repair_cost = await _call(db, llm, user_id=user_id, job_id=job_id, purpose="resume_writer_repair", model=WRITER_MODEL, system=_WRITE_SYSTEM + "\nCorrect the rejected output. Change only what is necessary to satisfy the validation error.", payload=repair_payload, schema=_WRITER_SCHEMA, max_tokens=4000)
-        writer = _validate_writer(repaired_raw, plan, bank, experiences, cover_context)
+        try:
+            repaired_raw, repair_usage, repair_cost = await _call(db, llm, user_id=user_id, job_id=job_id, purpose="resume_writer_repair", model=WRITER_MODEL, system=_WRITE_SYSTEM + "\nCorrect the rejected output. Change only what is necessary to satisfy every listed validation error.", payload=repair_payload, schema=_WRITER_SCHEMA, max_tokens=4000)
+        except Exception as repair_error:
+            logger.warning("Writer repair call failed; recovering grounded initial output: %s", type(repair_error).__name__)
+            writer = _recover_writer([writer_raw], plan, bank, cover_context)
+            writer_recovered = True
+        else:
+            try:
+                writer = _validate_writer(repaired_raw, plan, bank, experiences, cover_context)
+            except WriterValidationError as repaired_validation_error:
+                validation_errors = repaired_validation_error.errors
+                writer = _recover_writer([repaired_raw, writer_raw], plan, bank, cover_context)
+                writer_recovered = True
 
     template = getattr(personal, "resume_template", None) or "jake"
     if template == "custom" and (getattr(personal, "custom_preamble", "") or "").strip():
@@ -429,7 +630,10 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
     else:
         preamble = _build_preamble(personal, education, template if template != "custom" else "jake")
 
-    project_ids = list(plan["selected_project_ids"])
+    # Recovery may omit a project only when neither model output nor its literal
+    # profile source contains a grounded bullet. Rendering must follow the actual
+    # accepted content rather than indexing into a missing entry.
+    project_ids = [entry["project_id"] for entry in writer["project_entries"]]
     layout_passes = 0
     compact = False
     while True:
@@ -470,6 +674,8 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
             "selected_experience_ids": plan["selected_experience_ids"],
             "selected_project_ids": project_ids, "selected_fact_ids": sorted({fid for entry in writer["experience_entries"] + writer["project_entries"] for bullet in entry["bullets"] for fid in bullet["fact_ids"]}),
             "cover_letter_fact_ids": writer["cover_letter_fact_ids"], "layout_passes": layout_passes,
+            "writer_recovered": writer_recovered,
+            "writer_validation_errors": validation_errors if writer_recovered else [],
             "calls": call_metadata,
         },
     }

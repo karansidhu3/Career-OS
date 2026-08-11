@@ -1,10 +1,13 @@
-"""Versioned, evidence-backed profile compression for generation v2."""
+"""Versioned, deterministic evidence indexing for generation v2.
+
+The source descriptions are already the authority. Splitting them locally is safer,
+cheaper, and more reliable than paying a model to copy the same text into JSON.
+"""
 
 from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import re
 from typing import Any
 from uuid import UUID
@@ -15,53 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.generation_audit import ProfileFactBank
 from app.models.profile import Experience, Project, SkillCategory
 from app.services.llm_client import LLMClient
-from app.services.llm_cost import record_llm_call
 
 
-FACT_BANK_VERSION = "1"
-FACT_BANK_MODEL = "claude-haiku-4-5"
-
-_FACT_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "sources": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "source_key": {"type": "string"},
-                    "summary": {"type": "string"},
-                    "facts": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "properties": {
-                                "statement": {"type": "string"},
-                                "evidence": {"type": "string"},
-                                "tags": {"type": "array", "items": {"type": "string"}},
-                                "technologies": {"type": "array", "items": {"type": "string"}},
-                            },
-                            "required": ["statement", "evidence", "tags", "technologies"],
-                        },
-                    },
-                },
-                "required": ["source_key", "summary", "facts"],
-            },
-        }
-    },
-    "required": ["sources"],
-}
-
-_SYSTEM = """Convert profile descriptions into a compact evidence index.
-Every fact must be directly supported by one exact, contiguous quote copied into `evidence`.
-Keep all numbers, named systems, technologies, architecture decisions, and measured outcomes.
-Do not infer, improve, rename, or add anything. Use each supplied source_key unchanged.
-Statements must be concise factual clauses, not resume bullets."""
-
-logger = logging.getLogger(__name__)
+FACT_BANK_VERSION = "2"
+MAX_FACTS_PER_SOURCE = 8
+MAX_FACT_CHARS = 360
 
 
 def _source_payload(experiences: list[Experience], projects: list[Project], skills: list[SkillCategory]) -> dict[str, Any]:
@@ -94,6 +55,43 @@ def profile_hash(payload: dict[str, Any]) -> str:
 
 def _normal(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _evidence_fragments(description: str) -> list[str]:
+    """Split source prose into bounded, verbatim facts without inventing text."""
+    pieces = re.split(r"(?:\r?\n)+|(?<=[.!?;])\s+(?=[A-Z0-9])", description)
+    fragments: list[str] = []
+    for piece in pieces:
+        piece = re.sub(r"^\s*[-*•]+\s*", "", piece).strip()
+        while len(piece) > MAX_FACT_CHARS:
+            boundary = piece.rfind(" ", 0, MAX_FACT_CHARS + 1)
+            if boundary < MAX_FACT_CHARS // 2:
+                boundary = MAX_FACT_CHARS
+            fragments.append(piece[:boundary].strip())
+            piece = piece[boundary:].strip()
+        if piece:
+            fragments.append(piece)
+    return fragments[:MAX_FACTS_PER_SOURCE]
+
+
+def _deterministic_raw_bank(payload: dict[str, Any]) -> dict[str, Any]:
+    known_skills = [str(skill) for values in payload["skills"].values() for skill in values]
+    sources = []
+    for source in payload["sources"]:
+        facts = []
+        for fragment in _evidence_fragments(source["description"]):
+            technologies = [
+                skill for skill in known_skills
+                if re.search(rf"(?<![A-Za-z0-9]){re.escape(skill)}(?![A-Za-z0-9])", fragment, re.IGNORECASE)
+            ]
+            facts.append({
+                "statement": fragment,
+                "evidence": fragment,
+                "tags": [],
+                "technologies": technologies[:12],
+            })
+        sources.append({"source_key": source["source_key"], "summary": source["name"], "facts": facts})
+    return {"sources": sources}
 
 
 def _validate_bank(raw: dict, payload: dict[str, Any]) -> dict[str, Any]:
@@ -169,27 +167,14 @@ async def get_or_build_fact_bank(
     if cached and cached.profile_hash == digest and cached.schema_version == FACT_BANK_VERSION:
         return cached.fact_bank, True, 0.0
 
-    try:
-        call = await llm.call_structured(
-            model=FACT_BANK_MODEL,
-            max_tokens=3500,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-            schema=_FACT_SCHEMA,
-            timeout=60.0,
-        )
-    except Exception:
-        # Source descriptions themselves are safe evidence. Falling back to one
-        # bounded fact per source preserves reliability without inventing facts;
-        # the fallback is not cached, so the next generation retries compilation.
-        logger.exception("Profile fact-bank compilation failed; using bounded source fallback")
-        return _validate_bank({"sources": []}, payload), False, 0.0
-    bank = _validate_bank(call.tool_input, payload)
-    audit = record_llm_call(db, user_id=user_id, job_id=None, purpose="profile_fact_bank", model=FACT_BANK_MODEL, usage=call)
+    # `llm` remains in the public signature for compatibility with callers, but
+    # building the evidence index is intentionally local and incurs no AI call.
+    del llm
+    bank = _validate_bank(_deterministic_raw_bank(payload), payload)
     if cached:
         cached.profile_hash = digest
         cached.schema_version = FACT_BANK_VERSION
         cached.fact_bank = bank
     else:
         db.add(ProfileFactBank(user_id=user_id, profile_hash=digest, schema_version=FACT_BANK_VERSION, fact_bank=bank))
-    return bank, False, audit.cost_usd
+    return bank, False, 0.0
