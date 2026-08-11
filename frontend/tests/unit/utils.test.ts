@@ -1,5 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { parseStrategicNote, relativeDate } from '@/lib/utils'
+import { normalizeFitScore, parseStrategicNote, relativeDate } from '@/lib/utils'
+
+describe('normalizeFitScore', () => {
+  it('preserves current scores on the 0-10 scale', () => {
+    expect(normalizeFitScore(8)).toBe(8)
+  })
+
+  it('converts historical 0-100 scores to the displayed scale', () => {
+    expect(normalizeFitScore(62)).toBe(6)
+    expect(normalizeFitScore(85)).toBe(9)
+  })
+
+  it('clamps malformed values to the supported range', () => {
+    expect(normalizeFitScore(-4)).toBe(0)
+    expect(normalizeFitScore(999)).toBe(10)
+  })
+})
 
 // ── parseStrategicNote ────────────────────────────────────────────────────────
 

@@ -11,6 +11,16 @@ export interface AnalysisSections {
 }
 
 /**
+ * Generation v2 briefly stored fit scores on a 0-100 scale while the product
+ * consistently renders them out of 10. Normalize those historical rows at the
+ * display boundary; new generations are already stored on the correct scale.
+ */
+export function normalizeFitScore(score: number): number {
+  const normalized = score > 10 ? Math.round(score / 10) : Math.round(score)
+  return Math.max(0, Math.min(10, normalized))
+}
+
+/**
  * Parse a structured strategic_note into three sections.
  * Returns null when the note is plain prose (old format) or missing.
  *

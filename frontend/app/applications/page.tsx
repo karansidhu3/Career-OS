@@ -7,7 +7,7 @@ import { api, Job } from '@/lib/api'
 import { BrandMark } from '@/components/BrandMark'
 import { SectionLabel } from '@/components/SectionLabel'
 import { spring } from '@/lib/motion'
-import { relativeDate, parseStrategicNote } from '@/lib/utils'
+import { normalizeFitScore, relativeDate, parseStrategicNote } from '@/lib/utils'
 
 
 // Status display labels — user-facing language, not internal state names
@@ -74,6 +74,7 @@ function AppRow({ job, i }: { job: Job; i: number }) {
   const router = useRouter()
   const isSpecial = job.status === 'interview' || job.status === 'offer'
   const statusColor = STATUS_TEXT[job.status] ?? 'var(--color-neutral-500)'
+  const fitScore = job.fit_score == null ? null : normalizeFitScore(job.fit_score)
 
   // Signal: first gap bullet from structured analysis, or first sentence of prose fallback
   const signal = (() => {
@@ -113,12 +114,12 @@ function AppRow({ job, i }: { job: Job; i: number }) {
       </div>
 
       {/* Score */}
-      {job.fit_score != null && (
+      {fitScore != null && (
         <span
           className="text-xs font-mono font-semibold tabular-nums shrink-0"
-          style={{ color: scoreColor(job.fit_score) }}
+          style={{ color: scoreColor(fitScore) }}
         >
-          {job.fit_score}/10
+          {fitScore}/10
         </span>
       )}
 

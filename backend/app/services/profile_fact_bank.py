@@ -20,9 +20,23 @@ from app.models.profile import Experience, Project, SkillCategory
 from app.services.llm_client import LLMClient
 
 
-FACT_BANK_VERSION = "2"
-MAX_FACTS_PER_SOURCE = 8
+FACT_BANK_VERSION = "3"
+MAX_FACTS_PER_SOURCE = 12
 MAX_FACT_CHARS = 360
+
+_HIGH_SIGNAL_TERMS = re.compile(
+    r"\b(?:architect|built|designed|developed|implemented|integrated|migrated|optimized|"
+    r"reduced|improved|increased|automated|deployed|tested|validated|scaled|processed|"
+    r"api|database|queue|worker|pipeline|authentication|authorization|ci/cd|latency|"
+    r"throughput|reliability|transaction|schema|architecture)\b",
+    re.IGNORECASE,
+)
+
+
+def project_brand_from_url(url: str | None) -> str:
+    """Return the repository name when a project has a GitHub URL."""
+    match = re.search(r"github\.com/[^/]+/([^/?#]+)", url or "", re.IGNORECASE)
+    return (match.group(1).removesuffix(".git") if match else "").strip()
 
 
 def _source_payload(experiences: list[Experience], projects: list[Project], skills: list[SkillCategory]) -> dict[str, Any]:
@@ -36,10 +50,17 @@ def _source_payload(experiences: list[Experience], projects: list[Project], skil
             "description": item.description or "",
         })
     for item in projects:
+        brand_name = project_brand_from_url(getattr(item, "github_url", None))
         sources.append({
             "source_key": f"project:{item.id}",
             "type": "project",
             "name": item.name,
+            "brand_name": brand_name,
+            "display_name": (
+                item.name
+                if not brand_name or brand_name.casefold() in item.name.casefold()
+                else f"{brand_name} | {item.name}"
+            ),
             "description": item.description or "",
         })
     return {
@@ -58,7 +79,12 @@ def _normal(text: str) -> str:
 
 
 def _evidence_fragments(description: str) -> list[str]:
-    """Split source prose into bounded, verbatim facts without inventing text."""
+    """Split source prose and keep its most probative verbatim facts.
+
+    Long profile entries often put metrics, tests, and architecture decisions after
+    introductory prose. Ranking the complete entry prevents those facts from being
+    discarded merely because they appeared after the first eight sentences.
+    """
     pieces = re.split(r"(?:\r?\n)+|(?<=[.!?;])\s+(?=[A-Z0-9])", description)
     fragments: list[str] = []
     for piece in pieces:
@@ -71,7 +97,29 @@ def _evidence_fragments(description: str) -> list[str]:
             piece = piece[boundary:].strip()
         if piece:
             fragments.append(piece)
-    return fragments[:MAX_FACTS_PER_SOURCE]
+    if len(fragments) <= MAX_FACTS_PER_SOURCE:
+        return fragments
+
+    def signal(item: tuple[int, str]) -> tuple[int, int]:
+        index, fragment = item
+        score = 0
+        if index == 0:
+            score += 3
+        if _numbers_in(fragment):
+            score += 7
+        score += min(6, len(_HIGH_SIGNAL_TERMS.findall(fragment)))
+        if re.search(r"\b(?:because|instead of|replaced|resulting|so that|while|without)\b", fragment, re.IGNORECASE):
+            score += 3
+        if re.search(r"\b[A-Z][A-Za-z0-9.+#/-]{1,}\b", fragment):
+            score += 1
+        return score, -index
+
+    ranked = sorted(enumerate(fragments), key=signal, reverse=True)[:MAX_FACTS_PER_SOURCE]
+    return [fragment for _, fragment in sorted(ranked)]
+
+
+def _numbers_in(text: str) -> set[str]:
+    return set(re.findall(r"(?<![A-Za-z])\d+(?:[.,]\d+)?%?\+?", text))
 
 
 def _deterministic_raw_bank(payload: dict[str, Any]) -> dict[str, Any]:

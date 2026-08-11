@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { useCountUp } from '@/lib/hooks'
+import { normalizeFitScore } from '@/lib/utils'
 
 // ─── Per-size geometry ───────────────────────────────────────────
 const CONFIG = {
@@ -60,18 +61,19 @@ type ScoreRingProps = {
 }
 
 export function ScoreRing({ score, size = 96, celebrate }: ScoreRingProps) {
+  const normalizedScore = normalizeFitScore(score)
   const { r, sw, fontSize, fontWeight } = CONFIG[size]
   const center = size / 2
   const circumference = 2 * Math.PI * r
-  const tokens = scoreTokens(score)
-  const filters = buildFilters(scoreGlowRgb(score))
-  const displayScore = useCountUp(score, 700)
-  const targetOffset = circumference * (1 - score / 10)
+  const tokens = scoreTokens(normalizedScore)
+  const filters = buildFilters(scoreGlowRgb(normalizedScore))
+  const displayScore = useCountUp(normalizedScore, 700)
+  const targetOffset = circumference * (1 - normalizedScore / 10)
 
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0, background: filters.ambient, borderRadius: '50%' }}>
       {/* Celebration ping — one outward pulse for strong matches */}
-      {celebrate && score >= 8 && (
+      {celebrate && normalizedScore >= 8 && (
         <motion.div
           initial={{ opacity: 0.55, scale: 1 }}
           animate={{ opacity: 0, scale: 1.55 }}
