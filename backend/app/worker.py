@@ -140,6 +140,9 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
                 job.title = job.title if job.title != "Generating…" else "Generation failed"
                 metadata = dict(job.generation_metadata) if isinstance(job.generation_metadata, dict) else {}
                 metadata["failure_code"] = _generation_failure_code(e)
+                if (failed_cost := getattr(e, "recorded_cost_usd", None)) is not None:
+                    job.total_cost_usd = float(job.total_cost_usd or 0) + float(failed_cost)
+                    metadata["failed_call_cost_usd"] = float(failed_cost)
                 job.generation_metadata = metadata
         finally:
             await db.commit()
