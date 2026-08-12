@@ -10,8 +10,13 @@ from app.services.generation_v2 import (
     _WRITER_SCHEMA,
     WriterValidationError,
     _availability_context,
+    _candidate_ids,
+    _compact_profile_bank,
     _eligible_experiences,
     _experience_display_role,
+    _merge_repair,
+    _metric_tier,
+    _narrow_repair_payload,
     _project_display_name,
     _recover_writer,
     _render_body,
@@ -33,6 +38,45 @@ def test_cost_ledger_prices_each_token_class_without_double_counting():
     usage = ToolCallResult(tool_input={}, input_tokens=1_000, output_tokens=1_000, cache_read_tokens=1_000, cache_write_tokens=1_000)
     assert calculate_llm_cost("claude-sonnet-4-6", usage) == pytest.approx(0.02205)
     assert calculate_llm_cost("claude-haiku-4-5", usage) == pytest.approx(0.00735)
+
+
+def test_metric_tiers_prefer_legible_outcomes_over_vanity_counts():
+    assert _metric_tier("Replaced spreadsheet scheduling for 15-30 employees.") == 1
+    assert _metric_tier("Validated 123 tests through Testcontainers.") == 2
+    assert _metric_tier("Implemented 29 endpoints, 47 migrations, and 4,083 lines of code.") == 3
+
+
+def test_compact_profile_bank_keeps_source_context_without_duplicate_evidence_fields():
+    bank = {"version": "3", "skills": {"Languages": ["Python"]}, "sources": [{
+        "source_key": "project:1", "type": "project", "name": "CareerOS", "display_name": "CareerOS",
+        "facts": [
+            {"id": "project:1:0", "statement": "Application generator.", "evidence": "Application generator.", "technologies": []},
+            {"id": "project:1:1", "statement": "Reduced feedback to 1 second.", "evidence": "Reduced feedback to 1 second.", "technologies": ["Python"]},
+        ],
+    }]}
+
+    compact = _compact_profile_bank(bank)
+
+    assert compact["sources"][0]["facts"][0]["text"] == "Application generator."
+    assert "statement" not in compact["sources"][0]["facts"][0]
+    assert "evidence" not in compact["sources"][0]["facts"][0]
+
+
+def test_candidate_ranking_prefers_role_relevance_over_number_density():
+    projects = [ns(id=1), ns(id=2)]
+    skills = [ns(items=["Python", "FastAPI", "Java"])]
+    bank = {"sources": [
+        {"source_key": "project:1", "name": "Ledger", "facts": [
+            {"id": "project:1:0", "evidence": "Implemented 29 endpoints, 47 migrations, and 4,083 lines of Java.", "technologies": ["Java"]},
+        ]},
+        {"source_key": "project:2", "name": "CareerOS", "facts": [
+            {"id": "project:2:0", "evidence": "Built a Python FastAPI application generator replacing 30 minutes of manual tailoring.", "technologies": ["Python", "FastAPI"]},
+        ]},
+    ]}
+
+    _, ranked = _candidate_ids(bank, [], projects, "Python and FastAPI platform engineering", skills)
+
+    assert ranked[0] == 2
 
 
 def test_anthropic_transforms_unsupported_writer_schema_constraints():
@@ -89,7 +133,7 @@ async def test_structured_call_reports_output_budget_exhaustion(monkeypatch):
     client = ns(messages=ns(create=create))
     monkeypatch.setattr("app.services.llm_client.anthropic.AsyncAnthropic", lambda api_key: client)
 
-    with pytest.raises(StructuredOutputTruncatedError, match="100-token"):
+    with pytest.raises(StructuredOutputTruncatedError, match="100-token") as exc:
         await AnthropicAdapter("test-key").call_structured(
             model="claude-sonnet-4-6",
             max_tokens=100,
@@ -98,6 +142,8 @@ async def test_structured_call_reports_output_budget_exhaustion(monkeypatch):
             schema={"type": "object"},
             timeout=1.0,
         )
+
+    assert exc.value.usage.output_tokens == 100
 
 
 def test_profile_hash_is_stable_across_dictionary_order():
@@ -163,6 +209,37 @@ def test_plan_restores_three_project_density_and_ranks_missing_slot_by_jd():
     assert plan["selected_skills"] == ["Python", "FastAPI", "React"]
 
 
+def test_plan_preserves_strong_optional_fourth_project_for_layout_filling():
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [
+        {"source_key": f"project:{value}", "facts": [{"id": f"project:{value}:0", "evidence": f"Built project {value}."}]}
+        for value in (1, 2, 3, 4)
+    ]}
+
+    plan = _validate_plan(
+        {"selected_project_ids": [1, 2, 3, 4], "selected_skills": [], "matches": [], "gaps": []},
+        bank,
+        projects,
+        [],
+    )
+
+    assert plan["selected_project_ids"] == [1, 2, 3, 4]
+
+
+def test_plan_does_not_select_one_letter_skill_from_incidental_text():
+    skills = [ns(items=["R", "Python"])]
+
+    plan = _validate_plan(
+        {"selected_project_ids": [], "selected_skills": [], "matches": [], "gaps": []},
+        {"sources": [], "skills": {"Languages": ["R", "Python"]}},
+        [],
+        skills,
+        "Build reliable Python services for our recruiting platform.",
+    )
+
+    assert plan["selected_skills"] == ["Python"]
+
+
 def test_plan_keeps_compound_framework_gap_and_replaces_resume_spin_with_real_action():
     bank = {"sources": [], "skills": {"Languages": ["Python"]}}
     plan = _validate_plan({
@@ -212,6 +289,39 @@ def test_writer_error_explains_exact_rejections_for_repair():
     assert "numbers absent from cited evidence: 999" in message
     assert "2 words (accepted range is 6-32)" in message
     assert "first paragraph starts with first person" in message
+
+
+def test_narrow_repair_sends_only_rejected_source_and_merges_only_that_entry():
+    bank = {"version": "3", "skills": {}, "sources": [
+        {"source_key": "project:1", "type": "project", "name": "Relay", "facts": [
+            {"id": "project:1:0", "statement": "Built a durable queue.", "evidence": "Built a durable queue.", "technologies": []},
+        ]},
+        {"source_key": "project:2", "type": "project", "name": "CareerOS", "facts": [
+            {"id": "project:2:0", "statement": "Built an application generator.", "evidence": "Built an application generator.", "technologies": []},
+        ]},
+    ]}
+    raw = {
+        "selected_project_ids": [1, 2],
+        "experience_entries": [],
+        "project_entries": [
+            {"project_id": 1, "bullets": [{"text": "bad", "fact_ids": []}]},
+            {"project_id": 2, "bullets": [{"text": "Keep this valid bullet unchanged.", "fact_ids": ["project:2:0"]}]},
+        ],
+        "cover_letter_paragraphs": ["One", "Two", "Three"],
+        "cover_letter_fact_ids": ["project:2:0"],
+    }
+
+    payload = _narrow_repair_payload(raw, ["project 1 has 0/2 accepted bullets"], bank, "job context")
+    repaired = _merge_repair(raw, {
+        "experience_entries": [],
+        "project_entries": [{"project_id": 1, "bullets": [{"text": "Built a durable queue for background work.", "fact_ids": ["project:1:0"]}]}],
+        "cover_letter_paragraphs": [],
+        "cover_letter_fact_ids": [],
+    })
+
+    assert [source["id"] for source in payload["evidence"]] == ["project:1"]
+    assert payload["rejected"]["cover_letter_paragraphs"] == []
+    assert repaired["project_entries"][1] == raw["project_entries"][1]
 
 
 def test_writer_recovery_uses_literal_source_facts_instead_of_failing_job():
