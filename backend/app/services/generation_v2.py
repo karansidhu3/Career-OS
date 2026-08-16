@@ -26,7 +26,7 @@ from app.services.pdf import compile_latex_to_pdf
 from app.services.profile_fact_bank import get_or_build_fact_bank, project_brand_from_url
 
 
-GENERATION_VERSION = "3.1"
+GENERATION_VERSION = "3.2"
 WRITER_MODEL = "claude-sonnet-4-6"
 MAX_CANDIDATE_PROJECTS = 5
 MAX_FACTS_PER_SOURCE = 8
@@ -124,7 +124,7 @@ PLAN INTERNALLY BEFORE WRITING
 2. Identify the 3-4 highest-weight requirements: required over preferred, repeated requirements over incidental wording, and technologies central to the title or responsibilities.
 3. Infer the employer signals that matter for this role. Weight the applicable signals rather than forcing one company label: product ownership, shipping breadth, backend correctness, reliability, distributed systems, developer tooling, data/ML depth, customer impact, research rigor, and collaboration.
 4. Rank sources by how strongly their supported evidence proves those requirements. Do not rank superficial keyword overlap or number-heavy sources above a better product and engineering story.
-5. Select 1-2 technical experiences and 3 projects. Select a fourth project only when it is strongly relevant and adds a distinct signal. Order projects by relevance to this exact role.
+5. Select 1-2 technical experiences and exactly application_context.project_limit projects. Never exceed that limit. Order projects by relevance to this exact role.
 
 EVIDENCE AND METRICS
 Use only supplied sources, fact IDs, and exact stored skill names. Every bullet must cite the fact IDs that fully support its technologies, scale, result, responsibility, ownership, and causal claims. Never convert an inference into candidate experience.
@@ -348,6 +348,39 @@ def _candidate_ids(
     return experience_ids, project_ids
 
 
+def _project_capacity(
+    bank: dict,
+    experiences: list[Experience],
+    projects: list[Project],
+    template: str = "jake",
+) -> int:
+    """Conservatively estimate whether a fourth two-bullet project can fit.
+
+    The estimate runs before generation so the model never writes content that
+    the renderer is already likely to discard. Named templates share a stable
+    section geometry; custom preambles are intentionally capped at three because
+    their usable page area cannot be known without compiling generated content.
+    """
+    if len(projects) <= 3 or template == "custom":
+        return min(3, len(projects))
+
+    facts = _fact_index(bank)
+    experience_fact_slots = [
+        min(2, sum(fact.get("source_key") == f"experience:{item.id}" for fact in facts.values()))
+        for item in experiences
+    ]
+    active_experiences = sum(slot > 0 for slot in experience_fact_slots)
+    experience_bullets = sum(experience_fact_slots)
+
+    # Approximate wrapped content lines at the template's normal density:
+    # contact/education/skills reserve 10, each experience/project heading 2,
+    # and each 16-26 word bullet 2. Four projects fit only under a conservative
+    # 42-line content budget. This admits four with one normal experience but
+    # keeps the common two-experience resume at three.
+    estimated_lines_with_four = 10 + (2 * active_experiences) + (2 * experience_bullets) + (4 * 6)
+    return 4 if estimated_lines_with_four <= 42 else 3
+
+
 _INCOMPLETE_ENDINGS = {
     "a", "an", "and", "as", "at", "by", "for", "from", "in", "include",
     "including", "into", "of", "on", "or", "produce", "the", "through", "to",
@@ -532,6 +565,7 @@ def _validate_plan(
     skills: list[SkillCategory],
     jd_text: str = "",
     experiences: list[Experience] | None = None,
+    project_limit: int = 3,
 ) -> dict:
     project_ids = {p.id for p in projects}
     experience_ids = {e.id for e in (experiences or [])}
@@ -542,7 +576,8 @@ def _validate_plan(
     for value in raw.get("selected_project_ids", []):
         if value in project_ids and value not in selected_projects:
             selected_projects.append(value)
-    project_target = min(3, len(projects))
+    project_limit = max(0, min(4, project_limit))
+    project_target = min(project_limit, len(projects))
     if len(selected_projects) < project_target:
         remaining = _rank_source_ids(
             [p.id for p in projects if p.id not in selected_projects],
@@ -552,7 +587,7 @@ def _validate_plan(
             all_skills,
         )
         selected_projects.extend(remaining[:project_target - len(selected_projects)])
-    selected_projects = selected_projects[:4]
+    selected_projects = selected_projects[:project_limit]
     selected_experiences = []
     for value in raw.get("selected_experience_ids", []):
         if value in experience_ids and value not in selected_experiences:
@@ -682,6 +717,12 @@ def _validate_bullet_detailed(
     text = _normalize_generated_prose(str(bullet.get("text") or ""))
     cited = [fid for fid in bullet.get("fact_ids", []) if fid in facts and fid.startswith(expected_prefix)]
     evidence = " ".join(facts[fid]["evidence"] + " " + facts[fid]["statement"] for fid in cited)
+    literal_citation = text.casefold() in {
+        _normalize_generated_prose(facts[fid].get(field, "")).casefold()
+        for fid in cited
+        for field in ("evidence", "statement")
+        if _normalize_generated_prose(facts[fid].get(field, ""))
+    }
     words = text.split()
     unsupported_skills = [skill for skill in (known_skills or []) if (
         re.search(rf"(?<![A-Za-z0-9]){re.escape(skill)}(?![A-Za-z0-9])", text, re.IGNORECASE)
@@ -699,7 +740,7 @@ def _validate_bullet_detailed(
         reasons.append(f"no valid citation beginning with {expected_prefix}")
     # Length is a quality bound, not a claim-grounding rule. Keep it broad so a
     # 25-word factual bullet cannot destroy an otherwise good application.
-    if enforce_length and text and not 6 <= len(words) <= 32:
+    if enforce_length and text and not literal_citation and not 6 <= len(words) <= 32:
         reasons.append(f"{len(words)} words (accepted range is 6-32)")
     if unsupported_skills:
         reasons.append(f"skills absent from cited evidence: {', '.join(unsupported_skills)}")
@@ -787,7 +828,14 @@ def _validated_cover(
     return paragraphs, cover_fact_ids, errors
 
 
-def _validate_writer(raw: dict, plan: dict, bank: dict, experiences: list[Experience], cover_context: str = "") -> dict:
+def _validate_writer(
+    raw: dict,
+    plan: dict,
+    bank: dict,
+    experiences: list[Experience],
+    cover_context: str = "",
+    optional_project_ids: set[int] | None = None,
+) -> dict:
     facts = _fact_index(bank)
     known_skills = [str(value) for values in bank.get("skills", {}).values() for value in values]
     forbidden_terms = [gap["label"] for gap in plan.get("gaps", [])]
@@ -813,6 +861,7 @@ def _validate_writer(raw: dict, plan: dict, bank: dict, experiences: list[Experi
         if bullets:
             exp_entries.append({"experience_id": eid, "bullets": bullets})
     project_entries = []
+    optional_project_ids = optional_project_ids or set()
     for pid in plan["selected_project_ids"]:
         match = next((e for e in raw.get("project_entries", []) if e.get("project_id") == pid), None)
         bullets = []
@@ -826,6 +875,8 @@ def _validate_writer(raw: dict, plan: dict, bank: dict, experiences: list[Experi
             if len(bullets) == 2:
                 break
         if len(bullets) != 2:
+            if pid in optional_project_ids:
+                continue
             detail = " | ".join(rejected) if rejected else "project entry missing"
             errors.append(f"project {pid} has {len(bullets)}/2 accepted bullets ({detail})")
         project_entries.append({"project_id": pid, "bullets": bullets})
@@ -899,6 +950,7 @@ def _recover_writer(
     plan: dict,
     bank: dict,
     cover_context: str,
+    optional_project_ids: set[int] | None = None,
 ) -> dict:
     """Preserve grounded content after the single paid repair is exhausted."""
     facts = _fact_index(bank)
@@ -915,6 +967,7 @@ def _recover_writer(
             exp_entries.append({"experience_id": eid, "bullets": valid})
 
     project_entries = []
+    optional_project_ids = optional_project_ids or set()
     for pid in plan.get("selected_project_ids", []):
         candidates = []
         for raw in outputs:
@@ -925,6 +978,8 @@ def _recover_writer(
             item = _validate_bullet(bullet, facts, f"project:{pid}:", known_skills)
             if item and item["text"] not in {existing["text"] for existing in valid}:
                 valid.append(item)
+        if pid in optional_project_ids and len(valid) < 2:
+            continue
         valid = _source_fallback_bullets(f"project:{pid}", facts, known_skills, valid[:2])
         if valid:
             project_entries.append({"project_id": pid, "bullets": valid})
@@ -953,6 +1008,60 @@ def _recover_writer(
         "cover_letter_fact_ids": cover_fact_ids,
         "fit_score": max(0, min(10, fit_score)),
     }
+
+
+def _locally_repair_bullets(
+    raw: dict,
+    plan: dict,
+    bank: dict,
+    optional_project_ids: set[int] | None = None,
+) -> tuple[dict, list[str]]:
+    """Replace rejected bullets with literal cited evidence before paying for repair."""
+    facts = _fact_index(bank)
+    known_skills = [str(value) for values in bank.get("skills", {}).values() for value in values]
+    optional_project_ids = optional_project_ids or set()
+    repaired = dict(raw)
+    changed_sources: list[str] = []
+
+    experience_entries = []
+    for eid in plan.get("selected_experience_ids", []):
+        source_key = f"experience:{eid}"
+        original = next((item for item in raw.get("experience_entries", []) if item.get("experience_id") == eid), None)
+        valid: list[dict] = []
+        for bullet in (original or {}).get("bullets", []):
+            item = _validate_bullet(bullet, facts, f"{source_key}:", known_skills)
+            if item and item["text"] not in {existing["text"] for existing in valid}:
+                valid.append(item)
+        grounded_count = len(valid)
+        bullets = _source_fallback_bullets(source_key, facts, known_skills, valid[:2])
+        entry = {"experience_id": eid, "bullets": bullets}
+        experience_entries.append(entry)
+        if len(bullets) > grounded_count:
+            changed_sources.append(source_key)
+
+    project_entries = []
+    for pid in plan.get("selected_project_ids", []):
+        source_key = f"project:{pid}"
+        original = next((item for item in raw.get("project_entries", []) if item.get("project_id") == pid), None)
+        valid: list[dict] = []
+        for bullet in (original or {}).get("bullets", []):
+            item = _validate_bullet(bullet, facts, f"{source_key}:", known_skills)
+            if item and item["text"] not in {existing["text"] for existing in valid}:
+                valid.append(item)
+        if pid in optional_project_ids and len(valid) < 2:
+            if original is not None:
+                changed_sources.append(source_key)
+            continue
+        grounded_count = len(valid)
+        bullets = _source_fallback_bullets(source_key, facts, known_skills, valid[:2])
+        entry = {"project_id": pid, "bullets": bullets}
+        project_entries.append(entry)
+        if len(bullets) > grounded_count:
+            changed_sources.append(source_key)
+
+    repaired["experience_entries"] = experience_entries
+    repaired["project_entries"] = project_entries
+    return repaired, changed_sources
 
 
 def _repair_targets(errors: list[str]) -> tuple[set[int], set[int], bool]:
@@ -1135,11 +1244,14 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
     candidate_experience_ids, candidate_project_ids = _candidate_ids(bank, experiences, projects, jd, skills)
     candidate_experiences = [item for item in experiences if item.id in candidate_experience_ids]
     candidate_projects = [item for item in projects if item.id in candidate_project_ids]
+    template = getattr(personal, "resume_template", None) or "jake"
+    project_limit = _project_capacity(bank, candidate_experiences, candidate_projects, template)
     compact_bank = _compact_profile_bank(bank)
     application_context = {
         "job_description": jd,
         "candidate_experience_ids": candidate_experience_ids,
         "candidate_project_ids": candidate_project_ids,
+        "project_limit": project_limit,
         "education_context": education_context,
         "availability_context": availability_context,
         "cover_letter_voice": (personal.cover_letter_voice if personal else "")[:500],
@@ -1164,55 +1276,118 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
         schema=_WRITER_SCHEMA,
         max_tokens=3500,
     )
-    plan = _validate_plan(writer_raw, bank, candidate_projects, skills, jd, candidate_experiences)
+    plan = _validate_plan(
+        writer_raw,
+        bank,
+        candidate_projects,
+        skills,
+        jd,
+        candidate_experiences,
+        project_limit=project_limit,
+    )
+    optional_project_ids = set(plan["selected_project_ids"][3:])
     repair_usage: ToolCallResult | None = None
     repair_cost = 0.0
     repair_failed = False
     writer_recovered = False
+    local_bullet_recovery = False
+    paid_repair_avoided = False
+    locally_recovered_sources: list[str] = []
     validation_errors: list[str] = []
+    post_local_validation_errors: list[str] = []
     repair_validation_errors: list[str] = []
     try:
-        writer = _validate_writer(writer_raw, plan, bank, experiences, cover_context)
+        writer = _validate_writer(
+            writer_raw,
+            plan,
+            bank,
+            experiences,
+            cover_context,
+            optional_project_ids,
+        )
     except WriterValidationError as validation_error:
         validation_errors = validation_error.errors
-        repair_payload = _narrow_repair_payload(writer_raw, validation_errors, bank, cover_context)
+        locally_repaired_raw, locally_recovered_sources = _locally_repair_bullets(
+            writer_raw,
+            plan,
+            bank,
+            optional_project_ids,
+        )
+        local_bullet_recovery = bool(locally_recovered_sources)
         try:
-            repaired_raw, repair_usage, repair_cost = await _call(
-                db,
-                llm,
-                user_id=user_id,
-                job_id=job_id,
-                purpose="application_section_repair",
-                model=WRITER_MODEL,
-                system=_REPAIR_SYSTEM,
-                payload=repair_payload,
-                schema=_REPAIR_SCHEMA,
-                max_tokens=1000,
+            writer = _validate_writer(
+                locally_repaired_raw,
+                plan,
+                bank,
+                experiences,
+                cover_context,
+                optional_project_ids,
             )
-        except Exception as repair_error:
-            repair_failed = True
-            # _call records structured-output failures before re-raising. Keep
-            # that paid usage in the successful recovery result as well.
-            failed_usage = getattr(repair_error, "usage", None)
-            if failed_usage is not None:
-                repair_usage = failed_usage
-                repair_cost = float(
-                    getattr(repair_error, "recorded_cost_usd", None)
-                    or calculate_llm_cost(WRITER_MODEL, failed_usage)
-                )
-            logger.warning("Writer repair call failed; recovering grounded initial output: %s", type(repair_error).__name__)
-            writer = _recover_writer([writer_raw], plan, bank, cover_context)
-            writer_recovered = True
-        else:
-            merged_raw = _merge_repair(writer_raw, repaired_raw)
+        except WriterValidationError as local_validation_error:
+            post_local_validation_errors = local_validation_error.errors
+            repair_payload = _narrow_repair_payload(
+                locally_repaired_raw,
+                post_local_validation_errors,
+                bank,
+                cover_context,
+            )
             try:
-                writer = _validate_writer(merged_raw, plan, bank, experiences, cover_context)
-            except WriterValidationError as repaired_validation_error:
-                repair_validation_errors = repaired_validation_error.errors
-                writer = _recover_writer([merged_raw, writer_raw], plan, bank, cover_context)
+                repaired_raw, repair_usage, repair_cost = await _call(
+                    db,
+                    llm,
+                    user_id=user_id,
+                    job_id=job_id,
+                    purpose="application_section_repair",
+                    model=WRITER_MODEL,
+                    system=_REPAIR_SYSTEM,
+                    payload=repair_payload,
+                    schema=_REPAIR_SCHEMA,
+                    max_tokens=1000,
+                )
+            except Exception as repair_error:
+                repair_failed = True
+                # _call records structured-output failures before re-raising. Keep
+                # that paid usage in the successful recovery result as well.
+                failed_usage = getattr(repair_error, "usage", None)
+                if failed_usage is not None:
+                    repair_usage = failed_usage
+                    repair_cost = float(
+                        getattr(repair_error, "recorded_cost_usd", None)
+                        or calculate_llm_cost(WRITER_MODEL, failed_usage)
+                    )
+                logger.warning("Writer repair call failed; recovering grounded initial output: %s", type(repair_error).__name__)
+                writer = _recover_writer(
+                    [locally_repaired_raw, writer_raw],
+                    plan,
+                    bank,
+                    cover_context,
+                    optional_project_ids,
+                )
                 writer_recovered = True
+            else:
+                merged_raw = _merge_repair(locally_repaired_raw, repaired_raw)
+                try:
+                    writer = _validate_writer(
+                        merged_raw,
+                        plan,
+                        bank,
+                        experiences,
+                        cover_context,
+                        optional_project_ids,
+                    )
+                except WriterValidationError as repaired_validation_error:
+                    repair_validation_errors = repaired_validation_error.errors
+                    writer = _recover_writer(
+                        [merged_raw, locally_repaired_raw, writer_raw],
+                        plan,
+                        bank,
+                        cover_context,
+                        optional_project_ids,
+                    )
+                    writer_recovered = True
+        else:
+            paid_repair_avoided = True
 
-    template = getattr(personal, "resume_template", None) or "jake"
     if template == "custom" and (getattr(personal, "custom_preamble", "") or "").strip():
         preamble = personal.custom_preamble
     else:
@@ -1271,11 +1446,18 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
         "generation_metadata": {
             "fact_bank_cache_hit": bank_hit, "matches": plan["matches"], "gaps": plan["gaps"],
             "candidate_experience_ids": candidate_experience_ids, "candidate_project_ids": candidate_project_ids,
+            "project_limit": project_limit,
+            "optional_project_ids": sorted(optional_project_ids),
+            "dropped_optional_project_ids": sorted(optional_project_ids - set(project_ids)),
             "selected_experience_ids": plan["selected_experience_ids"],
             "selected_project_ids": project_ids, "selected_fact_ids": sorted({fid for entry in writer["experience_entries"] + writer["project_entries"] for bullet in entry["bullets"] for fid in bullet["fact_ids"]}),
             "cover_letter_fact_ids": writer["cover_letter_fact_ids"], "layout_passes": layout_passes,
             "writer_recovered": writer_recovered,
+            "local_bullet_recovery": local_bullet_recovery,
+            "locally_recovered_sources": locally_recovered_sources,
+            "paid_repair_avoided": paid_repair_avoided,
             "writer_validation_errors": validation_errors,
+            "post_local_validation_errors": post_local_validation_errors,
             "repair_validation_errors": repair_validation_errors,
             "calls": call_metadata,
         },

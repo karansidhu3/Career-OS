@@ -15,11 +15,13 @@ from app.services.generation_v2 import (
     _compact_profile_bank,
     _eligible_experiences,
     _experience_display_role,
+    _locally_repair_bullets,
     _merge_repair,
     _metric_tier,
     _narrow_repair_payload,
     _normalize_generated_prose,
     _project_display_name,
+    _project_capacity,
     _recover_writer,
     _render_body,
     _validate_bullet,
@@ -211,7 +213,7 @@ def test_plan_restores_three_project_density_and_ranks_missing_slot_by_jd():
     assert plan["selected_skills"] == ["Python", "FastAPI", "React"]
 
 
-def test_plan_preserves_strong_optional_fourth_project_for_layout_filling():
+def test_plan_defaults_to_three_projects_even_when_writer_returns_four():
     projects = [ns(id=value) for value in (1, 2, 3, 4)]
     bank = {"sources": [
         {"source_key": f"project:{value}", "facts": [{"id": f"project:{value}:0", "evidence": f"Built project {value}."}]}
@@ -225,7 +227,54 @@ def test_plan_preserves_strong_optional_fourth_project_for_layout_filling():
         [],
     )
 
+    assert plan["selected_project_ids"] == [1, 2, 3]
+
+
+def test_plan_preserves_fourth_project_only_when_capacity_allows_it():
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [
+        {"source_key": f"project:{value}", "facts": [{"id": f"project:{value}:0", "evidence": f"Built project {value}."}]}
+        for value in (1, 2, 3, 4)
+    ]}
+
+    plan = _validate_plan(
+        {"selected_project_ids": [1, 2, 3, 4], "selected_skills": [], "matches": [], "gaps": []},
+        bank,
+        projects,
+        [],
+        project_limit=4,
+    )
+
     assert plan["selected_project_ids"] == [1, 2, 3, 4]
+
+
+def test_project_capacity_keeps_two_experience_resume_at_three_projects():
+    experiences = [ns(id=10), ns(id=11)]
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [
+        {"source_key": f"experience:{eid}", "facts": [
+            {"id": f"experience:{eid}:0", "source_key": f"experience:{eid}"},
+            {"id": f"experience:{eid}:1", "source_key": f"experience:{eid}"},
+        ]}
+        for eid in (10, 11)
+    ]}
+
+    assert _project_capacity(bank, experiences, projects) == 3
+
+
+def test_project_capacity_allows_four_with_one_normal_experience():
+    experiences = [ns(id=10)]
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [{
+        "source_key": "experience:10",
+        "facts": [
+            {"id": "experience:10:0", "source_key": "experience:10"},
+            {"id": "experience:10:1", "source_key": "experience:10"},
+        ],
+    }]}
+
+    assert _project_capacity(bank, experiences, projects) == 4
+    assert _project_capacity(bank, experiences, projects, "custom") == 3
 
 
 def test_plan_does_not_select_one_letter_skill_from_incidental_text():
@@ -460,6 +509,106 @@ def test_writer_recovery_uses_literal_source_facts_instead_of_failing_job():
     ]
     assert len(writer["cover_letter"].split("\n\n")) == 3
     assert writer["fit_score"] == 10
+
+
+def test_invalid_optional_fourth_project_is_dropped_without_validation_error():
+    bank = {"skills": {}, "sources": [{
+        "source_key": "project:4",
+        "name": "Relay",
+        "brand_name": "Relay",
+        "type": "project",
+        "facts": [
+            {"id": "project:4:0", "statement": "Built a durable background queue.", "evidence": "Built a durable background queue."},
+            {"id": "project:4:1", "statement": "Retried failed background tasks.", "evidence": "Retried failed background tasks."},
+        ],
+    }]}
+    raw = {
+        "experience_entries": [],
+        "project_entries": [{"project_id": 4, "bullets": [
+            {"text": "Processed 999 unsupported tasks through Relay.", "fact_ids": ["project:4:0"]},
+        ]}],
+        "cover_letter_paragraphs": [
+            "The backend engineering role centers on reliable asynchronous processing, clear ownership, and practical systems judgment. Those responsibilities align directly with the queueing and recovery work represented throughout my technical project background.",
+            "In Relay, I built a durable background queue around explicit retry boundaries. I focused on preserving failed tasks, keeping processing behavior observable, and making the execution path understandable enough to debug under pressure. That work taught me to connect architecture choices to operational consequences instead of treating infrastructure as an isolated implementation detail, while maintaining a clear product purpose for every technical decision.",
+            "My degree is complete, and I am available now to discuss how this evidence applies to the team's current engineering priorities, operating constraints, and product goals.",
+        ],
+        "cover_letter_fact_ids": ["project:4:0"],
+        "fit_score": 7,
+    }
+
+    writer = _validate_writer(
+        raw,
+        {"selected_project_ids": [4], "selected_experience_ids": [], "gaps": []},
+        bank,
+        [],
+        optional_project_ids={4},
+    )
+
+    assert writer["project_entries"] == []
+
+
+def test_local_bullet_recovery_uses_free_literal_evidence_before_model_repair():
+    bank = {"skills": {}, "sources": [{
+        "source_key": "project:1",
+        "name": "Relay",
+        "type": "project",
+        "facts": [
+            {"id": "project:1:0", "statement": "Processed 100 records through Redis.", "evidence": "Processed 100 records through Redis."},
+            {"id": "project:1:1", "statement": "Built durable retries.", "evidence": "Built durable retries."},
+        ],
+    }]}
+    raw = {
+        "experience_entries": [],
+        "project_entries": [{"project_id": 1, "bullets": [
+            {"text": "Processed 999 records through imaginary infrastructure.", "fact_ids": ["project:1:0"]},
+        ]}],
+    }
+
+    repaired, changed_sources = _locally_repair_bullets(
+        raw,
+        {"selected_project_ids": [1], "selected_experience_ids": []},
+        bank,
+    )
+
+    assert changed_sources == ["project:1"]
+    assert [bullet["text"] for bullet in repaired["project_entries"][0]["bullets"]] == [
+        "Processed 100 records through Redis.",
+        "Built durable retries.",
+    ]
+    assert _validate_bullet(
+        repaired["project_entries"][0]["bullets"][1],
+        {"project:1:1": {
+            "evidence": "Built durable retries.",
+            "statement": "Built durable retries.",
+        }},
+        "project:1:",
+    ) is not None
+
+
+def test_local_recovery_does_not_resurrect_invalid_optional_project():
+    bank = {"skills": {}, "sources": [{
+        "source_key": "project:4",
+        "name": "Relay",
+        "type": "project",
+        "facts": [
+            {"id": "project:4:0", "statement": "Built a durable queue.", "evidence": "Built a durable queue."},
+            {"id": "project:4:1", "statement": "Retried failed tasks.", "evidence": "Retried failed tasks."},
+        ],
+    }]}
+    raw = {"experience_entries": [], "project_entries": [{
+        "project_id": 4,
+        "bullets": [{"text": "Invented 999 results.", "fact_ids": ["project:4:0"]}],
+    }]}
+
+    repaired, changed_sources = _locally_repair_bullets(
+        raw,
+        {"selected_project_ids": [4], "selected_experience_ids": []},
+        bank,
+        {4},
+    )
+
+    assert repaired["project_entries"] == []
+    assert changed_sources == ["project:4"]
 
 
 def test_writer_requires_two_experience_bullets_when_two_facts_exist():
