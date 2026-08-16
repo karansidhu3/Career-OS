@@ -10,6 +10,7 @@ Run locally with: arq app.worker.WorkerSettings
 """
 import asyncio
 import logging
+import re
 import uuid
 
 import anthropic
@@ -28,7 +29,7 @@ from app.services.account_deletion import hard_delete_user
 from app.services.credentials import get_decrypted_key
 from app.services.crypto import validate_master_keys
 from app.services.error_tracking import init_error_tracking, set_user_context
-from app.services.generation_v2 import generate_materials_v2
+from app.services.generation_v2 import _normalize_generated_prose, generate_materials_v2
 from app.services.llm_client import StructuredOutputError, StructuredOutputTruncatedError
 from app.services.pdf_storage import cache_resume_pdf, get_pdf_storage, resume_pdf_key
 
@@ -77,10 +78,13 @@ def _apply_result(job: Job, result: dict) -> None:
     job.fit_score = result["fit_score"]
     # Cap AI output lengths — malformed responses cannot exhaust DB storage
     job.resume_latex = (result.get("resume_latex") or "")[:120_000]
-    # Strip em dashes from cover letter — model sometimes ignores the language rule.
-    # " — " → ", "  |  bare "—" → ", "  (handles spaced and unspaced variants)
+    # Preserve paragraph boundaries while applying the same safe punctuation
+    # normalization used by generation validation.
     cover = (result.get("cover_letter") or "")
-    cover = cover.replace(" — ", ", ").replace("— ", ", ").replace(" —", ",").replace("—", ", ")
+    cover = "\n\n".join(
+        _normalize_generated_prose(paragraph)
+        for paragraph in re.split(r"\n\s*\n", cover)
+    )
     job.cover_letter = cover[:10_000]
     job.strategic_note = (result.get("strategic_note") or None)
     if job.strategic_note:

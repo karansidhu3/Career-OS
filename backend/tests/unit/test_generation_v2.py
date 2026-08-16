@@ -10,6 +10,7 @@ from app.services.generation_v2 import (
     _WRITER_SCHEMA,
     WriterValidationError,
     _availability_context,
+    _bounded_complete_prose,
     _candidate_ids,
     _compact_profile_bank,
     _eligible_experiences,
@@ -17,6 +18,7 @@ from app.services.generation_v2 import (
     _merge_repair,
     _metric_tier,
     _narrow_repair_payload,
+    _normalize_generated_prose,
     _project_display_name,
     _recover_writer,
     _render_body,
@@ -255,7 +257,115 @@ def test_plan_keeps_compound_framework_gap_and_replaces_resume_spin_with_real_ac
     }, bank, [], [ns(items=["Python"])])
 
     assert plan["gaps"][0]["label"] == "Flask or Django experience"
-    assert plan["gaps"][0]["action"].startswith("Build a small, demonstrable project")
+    assert plan["gaps"][0]["action"] == (
+        "Build and deploy a Flask or Django REST service with PostgreSQL, authentication, and automated tests."
+    )
+
+
+def test_generated_prose_repairs_em_dash_spacing_without_damaging_numeric_commas():
+    text = "Three applications—CareerOS, TimeKeep, and MarketMind—orchestrate 4,083 records."
+
+    assert _normalize_generated_prose(text) == (
+        "Three applications, CareerOS, TimeKeep, and MarketMind, orchestrate 4,083 records."
+    )
+
+
+def test_cover_validation_applies_the_same_punctuation_normalization():
+    facts = {"project:1:0": {
+        "evidence": "Built CareerOS as an application platform.",
+        "source_name": "CareerOS",
+        "source_display_name": "CareerOS",
+        "source_brand_name": "CareerOS",
+        "source_type": "project",
+    }}
+    raw = {
+        "cover_letter_paragraphs": [
+            "Building fleet tooling—spanning security and automation—requires backend discipline.",
+            "I built CareerOS—an application platform—and made failures visible.",
+            "I am available now.",
+        ],
+        "cover_letter_fact_ids": ["project:1:0"],
+    }
+
+    paragraphs, _, errors = _validated_cover(raw, facts, "", enforce_style=False)
+
+    assert errors == []
+    assert paragraphs[0] == "Building fleet tooling, spanning security and automation, requires backend discipline."
+    assert paragraphs[1] == "I built CareerOS, an application platform, and made failures visible."
+
+
+def test_complete_prose_uses_a_real_clause_boundary_instead_of_slicing_words():
+    action = (
+        "Build a Flask service and publish it; extend an existing backend using the framework "
+        "to produce citable evidence for future applications"
+    )
+
+    assert _bounded_complete_prose(action, 12) == "Build a Flask service and publish it."
+    assert _bounded_complete_prose("Build a service using the", 12) == ""
+
+
+def test_plan_replaces_canonical_gap_failures_with_complete_deliverables():
+    bank = {"sources": [], "skills": {}}
+    plan = _validate_plan({
+        "selected_project_ids": [],
+        "selected_skills": [],
+        "matches": [],
+        "gaps": [
+            {
+                "key": "python-web-frameworks",
+                "label": "No demonstrated experience with Python web frameworks (Flask or Django)",
+                "action": "Build a small Flask or Django REST service and publish it; extend an existing project's backend using one of these frameworks to produce citable",
+            },
+            {
+                "key": "linux-ubuntu-platform",
+                "label": "No explicit Ubuntu or Linux development and deployment experience cited",
+                "action": "Develop and document a project using Ubuntu as the primary development platform; deploy a service to an Ubuntu server and include it in the",
+            },
+            {
+                "key": "open-source-contribution",
+                "label": "No open source contribution history referenced",
+                "action": "Build a small, demonstrable project using No open source contribution history referenced, then document its architecture, tests, and result.",
+            },
+        ],
+    }, bank, [], [])
+
+    actions = [gap["action"] for gap in plan["gaps"]]
+    assert actions == [
+        "Build a small Flask or Django REST service and publish it.",
+        "Develop and document a project using Ubuntu as the primary development platform.",
+        "Contribute a tested fix or documentation improvement to a public repository and link the accepted pull request.",
+    ]
+    assert all(action.endswith(".") for action in actions)
+    assert all("using No" not in action for action in actions)
+
+
+def test_plan_recovers_single_source_positive_match_when_model_matches_are_rejected():
+    projects = [ns(id=15)]
+    skills = [ns(items=["Python", "FastAPI", "PostgreSQL"])]
+    bank = {"sources": [{
+        "source_key": "project:15",
+        "type": "project",
+        "name": "CareerOS",
+        "display_name": "CareerOS | Application Intelligence Platform",
+        "facts": [{
+            "id": "project:15:0",
+            "statement": "Built a Python FastAPI service with PostgreSQL.",
+            "evidence": "Built a Python FastAPI service with PostgreSQL.",
+            "technologies": ["Python", "FastAPI", "PostgreSQL"],
+        }],
+    }], "skills": {"Languages": ["Python"], "Frameworks": ["FastAPI"], "Databases": ["PostgreSQL"]}}
+
+    plan = _validate_plan({
+        "selected_project_ids": [15],
+        "selected_skills": ["Python", "FastAPI", "PostgreSQL"],
+        "matches": [],
+        "gaps": [],
+    }, bank, projects, skills, "Build Python backend services with PostgreSQL and REST APIs")
+
+    assert plan["matches"] == [{
+        "text": "CareerOS | Application Intelligence Platform: Built a Python FastAPI service with PostgreSQL.",
+        "fact_ids": ["project:15:0"],
+    }]
 
 
 def test_bullet_rejects_number_not_present_in_cited_evidence():

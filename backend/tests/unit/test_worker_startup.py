@@ -3,6 +3,7 @@ JSON logging / Sentry init actually get wired for the API. Without its own
 on_startup hook, the worker (arguably the most exception-prone code in the
 app — Anthropic calls, LaTeX compilation) would silently never get either."""
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import anthropic
@@ -39,3 +40,21 @@ def test_timeout_is_classified_separately_from_other_failures():
 
 def test_truncated_structured_output_has_actionable_failure_code():
     assert worker._generation_failure_code(StructuredOutputTruncatedError("too large")) == "generation_output_too_large"
+
+
+def test_apply_result_preserves_paragraphs_and_repairs_em_dash_spacing():
+    job = SimpleNamespace()
+    worker._apply_result(job, {
+        "job_title": "Engineer",
+        "job_company": "Canonical",
+        "fit_score": 7,
+        "cover_letter": (
+            "Building fleet tooling—spanning 4,083 machines—requires discipline.\n\n"
+            "I built CareerOS—an application platform—and made failures visible."
+        ),
+    })
+
+    assert job.cover_letter == (
+        "Building fleet tooling, spanning 4,083 machines, requires discipline.\n\n"
+        "I built CareerOS, an application platform, and made failures visible."
+    )

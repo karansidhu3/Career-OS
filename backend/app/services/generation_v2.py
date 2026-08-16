@@ -26,7 +26,7 @@ from app.services.pdf import compile_latex_to_pdf
 from app.services.profile_fact_bank import get_or_build_fact_bank, project_brand_from_url
 
 
-GENERATION_VERSION = "3.0"
+GENERATION_VERSION = "3.1"
 WRITER_MODEL = "claude-sonnet-4-6"
 MAX_CANDIDATE_PROJECTS = 5
 MAX_FACTS_PER_SOURCE = 8
@@ -348,11 +348,51 @@ def _candidate_ids(
     return experience_ids, project_ids
 
 
-def _cap_words(text: str, maximum: int) -> str:
-    words = re.sub(r"\s+", " ", text).strip().split()
-    if len(words) <= maximum:
-        return " ".join(words)
-    return " ".join(words[:maximum]).rstrip(" ,;:")
+_INCOMPLETE_ENDINGS = {
+    "a", "an", "and", "as", "at", "by", "for", "from", "in", "include",
+    "including", "into", "of", "on", "or", "produce", "the", "through", "to",
+    "using", "with",
+}
+
+
+def _normalize_generated_prose(text: str) -> str:
+    """Normalize model punctuation without damaging numeric commas or ranges."""
+    normalized = re.sub(r"\s+", " ", str(text or "")).strip()
+    normalized = re.sub(r"\s*—\s*", ", ", normalized)
+    # The em-dash replacement used to create `apps,CareerOS`. Only add spacing
+    # before letters so numeric values such as 4,083 remain untouched.
+    normalized = re.sub(r",(?=[A-Za-z])", ", ", normalized)
+    normalized = re.sub(r"[ \t]+", " ", normalized)
+    return normalized.strip()
+
+
+def _has_incomplete_ending(text: str) -> bool:
+    words = re.findall(r"[A-Za-z]+", text.casefold())
+    return bool(words and words[-1] in _INCOMPLETE_ENDINGS)
+
+
+def _bounded_complete_prose(text: str, maximum: int) -> str:
+    """Return complete prose within a word budget; never slice a sentence."""
+    normalized = _normalize_generated_prose(text)
+    if not normalized:
+        return ""
+    within_budget = len(normalized.split()) <= maximum
+    if within_budget and not (";" in normalized and not re.search(r"[.!?]$", normalized)):
+        if _has_incomplete_ending(normalized):
+            return ""
+        return normalized if re.search(r"[.!?]$", normalized) else f"{normalized.rstrip(' ,;:')}."
+
+    # A semicolon can safely become a sentence boundary. Colons and commas are
+    # deliberately excluded because they frequently leave an incomplete setup.
+    candidates = []
+    for match in re.finditer(r"[.!?;]", normalized):
+        candidate = normalized[: match.end()].strip()
+        if 6 <= len(candidate.split()) <= maximum and not _has_incomplete_ending(candidate):
+            candidates.append(candidate)
+    if not candidates:
+        return ""
+    result = candidates[-1]
+    return f"{result[:-1].rstrip()}." if result.endswith(";") else result
 
 
 def _rank_source_ids(ids: list[int], prefix: str, bank: dict, jd_text: str, skill_names: list[str]) -> list[int]:
@@ -385,6 +425,104 @@ def _eligible_experiences(items: list[Experience]) -> list[Experience]:
         and "sales associate" not in (item.role or "").casefold()
         and (item.description or "").strip()
     ]
+
+
+def _clean_gap_subject(label: str) -> str:
+    subject = _normalize_generated_prose(label).rstrip(".!?:")
+    subject = re.sub(
+        r"^(?:no|missing|lack of|without)\s+(?:demonstrated\s+|explicit\s+|stated\s+)?",
+        "",
+        subject,
+        flags=re.IGNORECASE,
+    )
+    subject = re.sub(
+        r"\b(?:experience|history|referenced|cited|listed|demonstrated)\b",
+        " ",
+        subject,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", subject).strip(" ,;:-")
+
+
+def _default_gap_action(label: str) -> str:
+    """Create a concrete pre-application deliverable without employer assumptions."""
+    subject = _clean_gap_subject(label)
+    subject_cf = subject.casefold()
+    if "flask" in subject_cf or "django" in subject_cf:
+        return "Build and deploy a Flask or Django REST service with PostgreSQL, authentication, and automated tests."
+    if "ubuntu" in subject_cf or "linux" in subject_cf:
+        return "Build and deploy a small service on Ubuntu, documenting its setup, automated tests, and production URL."
+    if "open source" in subject_cf:
+        return "Contribute a tested fix or documentation improvement to a public repository and link the accepted pull request."
+    if "kubernetes" in subject_cf:
+        return "Deploy a tested service to Kubernetes with manifests, health checks, and a documented rollback procedure."
+    if re.search(r"\b(?:azure|gcp|google cloud|multi-cloud)\b", subject_cf):
+        return "Deploy one existing project to the missing cloud provider and document its architecture, monitoring, and operating cost."
+    target = subject or "the missing requirement"
+    return f"Build and publish a small project demonstrating {target}, with automated tests and a concise architecture note."
+
+
+def _validated_gap_action(label: str, action: str) -> str:
+    candidate = _bounded_complete_prose(action, 32)
+    assumes_employment = re.search(
+        r"\b(?:highlight|emphasize|frame|position|note|signal|readiness|"
+        r"contribute to|pair programming|team members|release management)\b",
+        candidate,
+        re.IGNORECASE,
+    )
+    starts_with_deliverable = re.match(
+        r"^(?:add|build|complete|configure|contribute|create|deploy|develop|document|"
+        r"earn|implement|migrate|prototype|publish|write)\b",
+        candidate,
+        re.IGNORECASE,
+    )
+    contains_proof = re.search(
+        r"\b(?:architecture|benchmark|certification|commit|demo|deploy|documentation|"
+        r"implementation|project|pull request|repository|service|test|url)\b",
+        candidate,
+        re.IGNORECASE,
+    )
+    repeats_gap = label.casefold() in candidate.casefold() or "using no " in candidate.casefold()
+    if not candidate or assumes_employment or repeats_gap or not starts_with_deliverable or not contains_proof:
+        return _default_gap_action(label)
+    return candidate
+
+
+def _fallback_matches(
+    bank: dict,
+    selected_source_keys: set[str],
+    jd_text: str,
+    skill_names: list[str],
+    limit: int = 2,
+) -> list[dict]:
+    """Recover literal, single-source positive matches when model prose is rejected."""
+    candidates = []
+    for source_order, source in enumerate(bank.get("sources", [])):
+        if source.get("source_key") not in selected_source_keys:
+            continue
+        best_fact = None
+        best_excerpt = ""
+        best_score = -10_000
+        for fact in source.get("facts", []):
+            excerpt = _bounded_complete_prose(str(fact.get("evidence") or ""), 40)
+            if not excerpt:
+                continue
+            score = _writer_fact_score(fact, jd_text)
+            if score > best_score:
+                best_fact, best_excerpt, best_score = fact, excerpt, score
+        if best_fact is None:
+            continue
+        relevance = _source_relevance(source, jd_text, skill_names)
+        candidates.append((relevance, best_score, -source_order, source, best_fact, best_excerpt))
+
+    matches = []
+    for _, _, _, source, fact, excerpt in sorted(candidates, reverse=True, key=lambda item: item[:3])[:limit]:
+        name = str(source.get("display_name") or source.get("name") or "Relevant evidence").strip()
+        organization = str(source.get("organization") or "").strip()
+        if source.get("type") == "experience" and organization:
+            name = f"{organization} — {name}" if name else organization
+        matches.append({"text": f"{name}: {excerpt}", "fact_ids": [fact["id"]]})
+    return matches
 
 
 def _validate_plan(
@@ -463,7 +601,7 @@ def _validate_plan(
         for tech in fact.get("technologies", [])
     }
     for gap in raw.get("gaps", [])[:4]:
-        label = str(gap.get("label") or "").strip()
+        label = _normalize_generated_prose(str(gap.get("label") or "")).rstrip(".!?:")
         label_cf = label.casefold()
         normalized_label = re.sub(
             r"\b(?:explicit|professional|production|hands-on|experience|proficiency|knowledge|skills?|background|with|in)\b",
@@ -476,19 +614,12 @@ def _validate_plan(
         already_present = label_cf in present or normalized_label in known_terms
         if label and not already_present:
             key = re.sub(r"[^a-z0-9]+", "-", str(gap.get("key") or label).casefold()).strip("-")
-            action = str(gap.get("action") or "").strip()
-            if re.search(
-                r"\b(?:highlight|emphasize|frame|position|note|signal|readiness|"
-                r"contribute to|pair programming|team members|release management)\b",
-                action,
-                re.IGNORECASE,
-            ):
-                action = f"Build a small, demonstrable project using {label}, then document its architecture, tests, and result."
-            gaps.append({"key": key[:80], "label": _cap_words(label, 12), "action": _cap_words(action, 24)})
+            action = _validated_gap_action(label, str(gap.get("action") or ""))
+            gaps.append({"key": key[:80], "label": label, "action": action})
     fact_index = _fact_index(bank)
     matches = []
     for match in raw.get("matches", [])[:4]:
-        text = str(match.get("text") or "").strip()
+        text = _bounded_complete_prose(str(match.get("text") or ""), 40)
         cited = [fid for fid in match.get("fact_ids", []) if fid in fact_index]
         evidence = " ".join(fact_index[fid].get("evidence", "") for fid in cited)
         unsupported_skill = any(
@@ -502,7 +633,9 @@ def _validate_plan(
             label = _source_label(fact_index, cited)
             if label and label.casefold() not in text.casefold():
                 text = f"{label}: {text}"
-            matches.append({"text": _cap_words(text, 28), "fact_ids": cited})
+            matches.append({"text": text, "fact_ids": cited})
+    if not matches:
+        matches = _fallback_matches(bank, selected_source_keys, jd_text, all_skills)
     return {
         "job_title": str(raw.get("job_title") or "Untitled Role")[:200],
         "company": str(raw.get("company") or "")[:200],
@@ -546,7 +679,7 @@ def _validate_bullet_detailed(
     *,
     enforce_length: bool = True,
 ) -> tuple[dict | None, list[str]]:
-    text = re.sub(r"\s+", " ", str(bullet.get("text") or "")).strip().replace("—", ",")
+    text = _normalize_generated_prose(str(bullet.get("text") or ""))
     cited = [fid for fid in bullet.get("fact_ids", []) if fid in facts and fid.startswith(expected_prefix)]
     evidence = " ".join(facts[fid]["evidence"] + " " + facts[fid]["statement"] for fid in cited)
     words = text.split()
@@ -586,7 +719,7 @@ def _validated_cover(
     *,
     enforce_style: bool = True,
 ) -> tuple[list[str], list[str], list[str]]:
-    paragraphs = [re.sub(r"\s+", " ", str(x)).strip().replace("—", ",") for x in raw.get("cover_letter_paragraphs", [])]
+    paragraphs = [_normalize_generated_prose(str(x)) for x in raw.get("cover_letter_paragraphs", [])]
     cover_fact_ids = [fid for fid in raw.get("cover_letter_fact_ids", []) if fid in facts]
     cover_evidence = " ".join(facts[fid]["evidence"] for fid in cover_fact_ids) + " " + cover_context
     cover_text = " ".join(paragraphs)
@@ -605,6 +738,13 @@ def _validated_cover(
         errors.append(f"cover letter has {len(paragraphs)} paragraphs; exactly 3 required")
     elif not all(paragraphs):
         errors.append("cover letter contains an empty paragraph")
+    else:
+        for index, paragraph in enumerate(paragraphs, start=1):
+            if _has_incomplete_ending(paragraph):
+                errors.append(f"cover letter paragraph {index} ends with an incomplete clause")
+            elif not re.search(r"[.!?]$", paragraph):
+                paragraphs[index - 1] = f"{paragraph.rstrip(' ,;:')}."
+        cover_text = " ".join(paragraphs)
     unsupported_numbers = sorted(_numbers(cover_text) - _numbers(cover_evidence))
     if unsupported_numbers:
         errors.append(f"cover letter numbers absent from cited evidence or job context: {', '.join(unsupported_numbers)}")
@@ -714,10 +854,11 @@ def _source_fallback_bullets(
     for fact_id, fact in facts.items():
         if fact.get("source_key") != source_key:
             continue
-        text = re.sub(r"^\s*[-*•]+\s*", "", re.sub(r"\s+", " ", fact.get("evidence", ""))).strip()
-        words = text.split()
-        if len(words) > 32:
-            text = " ".join(words[:32]).rstrip(" ,;:")
+        text = re.sub(r"^\s*[-*•]+\s*", "", _normalize_generated_prose(fact.get("evidence", ""))).strip()
+        if len(text.split()) > 32:
+            text = _bounded_complete_prose(text, 32)
+        if not text:
+            continue
         candidate, _ = _validate_bullet_detailed(
             {"text": text, "fact_ids": [fact_id]},
             facts,
