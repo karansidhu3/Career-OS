@@ -22,6 +22,8 @@ from app.services.generation_v2 import (
     _normalize_generated_prose,
     _project_display_name,
     _project_capacity,
+    _project_selection_card,
+    _rank_project_ids,
     _recover_writer,
     _render_body,
     _validate_bullet,
@@ -81,6 +83,88 @@ def test_candidate_ranking_prefers_role_relevance_over_number_density():
     _, ranked = _candidate_ids(bank, [], projects, "Python and FastAPI platform engineering", skills)
 
     assert ranked[0] == 2
+
+
+def test_project_selector_uses_role_weighted_canonical_ordering():
+    skills = ["Python", "FastAPI", "PostgreSQL", "Java", "Spring Boot", "AWS", "Linux"]
+    bank = {"sources": [
+        {"source_key": "project:1", "name": "CareerOS", "facts": [
+            {"id": "project:1:0", "evidence": "Built a Python FastAPI backend service and APIs that replaced a 30 minute manual application workflow for users.", "technologies": ["Python", "FastAPI"]},
+            {"id": "project:1:1", "evidence": "Moved synchronous generation to async workers after 30 second timeouts, improving reliability and feedback latency.", "technologies": ["Python"]},
+        ]},
+        {"source_key": "project:2", "name": "Ledger", "facts": [
+            {"id": "project:2:0", "evidence": "Designed Java Spring Boot REST APIs with PostgreSQL transactions and authentication for financial operations.", "technologies": ["Java", "Spring Boot", "PostgreSQL"]},
+            {"id": "project:2:1", "evidence": "Validated backend correctness with 92 unit tests and 31 PostgreSQL integration tests.", "technologies": ["Java", "PostgreSQL"]},
+        ]},
+        {"source_key": "project:3", "name": "MarketMind", "facts": [
+            {"id": "project:3:0", "evidence": "Built a Python FastAPI AI data pipeline ingesting filings for investment research users.", "technologies": ["Python", "FastAPI"]},
+            {"id": "project:3:1", "evidence": "Orchestrated model pipelines with vector search and PostgreSQL.", "technologies": ["Python", "PostgreSQL"]},
+        ]},
+        {"source_key": "project:4", "name": "Relay", "facts": [
+            {"id": "project:4:0", "evidence": "Built serverless AWS event-driven infrastructure with asynchronous queues and workers for three production applications.", "technologies": ["AWS"]},
+            {"id": "project:4:1", "evidence": "Designed retries and dead-letter handling after synchronous timeouts failed.", "technologies": ["AWS"]},
+        ]},
+    ]}
+    jd = (
+        "Canonical seeks a Python backend engineer to build and maintain FastAPI REST APIs on Linux, "
+        "design reliable services, test database integrations, and troubleshoot production operations."
+    )
+
+    ranked, scorecards = _rank_project_ids([1, 2, 3, 4], bank, jd, skills)
+
+    assert ranked == [1, 2, 3, 4]
+    assert scorecards[0]["role_relevance"] > scorecards[1]["role_relevance"]
+    assert scorecards[1]["responsibility_proof"] > scorecards[2]["responsibility_proof"]
+
+
+def test_project_score_total_uses_agreed_component_weights():
+    source = {"source_key": "project:1", "name": "CareerOS", "facts": [{
+        "id": "project:1:0",
+        "evidence": "Built a Python FastAPI backend service that replaced manual work for users after synchronous timeouts failed.",
+        "technologies": ["Python", "FastAPI"],
+    }]}
+
+    card = _project_selection_card(
+        1,
+        source,
+        "Build reliable Python FastAPI backend APIs and troubleshoot production failures.",
+        ["Python", "FastAPI"],
+        [],
+    )
+
+    expected = (
+        (0.35 * card["role_relevance"])
+        + (0.25 * card["responsibility_proof"])
+        + (0.20 * card["outcome_value"])
+        + (0.15 * card["engineering_depth"])
+        + (0.05 * card["distinctiveness"])
+    )
+    assert card["total"] == pytest.approx(expected, abs=0.01)
+
+
+def test_project_selector_rewards_marginal_job_coverage_after_first_choice():
+    bank = {"sources": [
+        {"source_key": "project:1", "name": "Primary API", "facts": [{
+            "id": "project:1:0", "evidence": "Built Python FastAPI backend APIs with PostgreSQL transactions for users, replacing manual processing.",
+        }]},
+        {"source_key": "project:2", "name": "Duplicate API", "facts": [{
+            "id": "project:2:0", "evidence": "Built Python FastAPI backend APIs with PostgreSQL transactions for users, replacing manual processing.",
+        }]},
+        {"source_key": "project:3", "name": "Security API", "facts": [{
+            "id": "project:3:0", "evidence": "Built Python FastAPI authentication and authorization controls with security tests for users.",
+        }]},
+    ]}
+    jd = "Build Python FastAPI backend APIs with PostgreSQL, authentication, authorization, security, and automated testing."
+
+    ranked, scorecards = _rank_project_ids(
+        [1, 2, 3],
+        bank,
+        jd,
+        ["Python", "FastAPI", "PostgreSQL"],
+    )
+
+    assert ranked[:2] == [1, 3]
+    assert scorecards[1]["distinctiveness"] > scorecards[2]["distinctiveness"]
 
 
 def test_anthropic_transforms_unsupported_writer_schema_constraints():
@@ -246,6 +330,28 @@ def test_plan_preserves_fourth_project_only_when_capacity_allows_it():
     )
 
     assert plan["selected_project_ids"] == [1, 2, 3, 4]
+
+
+def test_plan_enforces_deterministic_project_recommendation_over_model_choice():
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [
+        {"source_key": f"project:{value}", "facts": [{
+            "id": f"project:{value}:0",
+            "evidence": f"Built project {value}.",
+        }]}
+        for value in (1, 2, 3, 4)
+    ]}
+
+    plan = _validate_plan(
+        {"selected_project_ids": [4, 3, 2], "selected_skills": [], "matches": [], "gaps": []},
+        bank,
+        projects,
+        [],
+        project_limit=3,
+        preferred_project_ids=[1, 2, 3],
+    )
+
+    assert plan["selected_project_ids"] == [1, 2, 3]
 
 
 def test_project_capacity_keeps_two_experience_resume_at_three_projects():

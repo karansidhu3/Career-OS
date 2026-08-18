@@ -1,7 +1,7 @@
 """Evidence-backed, cost-aware resume generation pipeline.
 
-The model chooses and writes; code owns identity, section structure, LaTeX, cost
-accounting, provenance, and the one-page acceptance gate.
+The model interprets and writes; code owns project selection, identity, section
+structure, LaTeX, cost accounting, provenance, and the one-page acceptance gate.
 """
 
 from __future__ import annotations
@@ -26,11 +26,37 @@ from app.services.pdf import compile_latex_to_pdf
 from app.services.profile_fact_bank import get_or_build_fact_bank, project_brand_from_url
 
 
-GENERATION_VERSION = "3.2"
+GENERATION_VERSION = "3.3"
 WRITER_MODEL = "claude-sonnet-4-6"
 MAX_CANDIDATE_PROJECTS = 5
 MAX_FACTS_PER_SOURCE = 8
 logger = logging.getLogger(__name__)
+
+_SELECTION_STOPWORDS = {
+    "about", "after", "also", "and", "are", "being", "build", "built", "candidate",
+    "could", "develop", "developer", "development", "experience", "for", "from", "have",
+    "into", "more", "our", "role", "software", "that", "their", "these", "this", "using",
+    "with", "will", "work", "working", "you", "your",
+}
+_ROLE_TERMS = {
+    "api", "backend", "cloud", "data", "database", "distributed", "frontend", "full-stack",
+    "infrastructure", "linux", "machine", "mobile", "platform", "reliability", "research",
+    "security", "service", "system", "testing", "web",
+}
+_RESPONSIBILITY_PATTERNS = {
+    "api-services": r"\b(?:api|apis|backend|microservice|rest|service|services)\b",
+    "cloud-infrastructure": r"\b(?:aws|azure|cloud|deployment|devops|infrastructure|kubernetes|serverless)\b",
+    "data-pipelines": r"\b(?:analytics|data pipeline|etl|ingestion|pipeline|pipelines|streaming)\b",
+    "databases": r"\b(?:data model|database|databases|postgres|postgresql|schema|sql|transaction)\b",
+    "distributed-events": r"\b(?:asynchronous|distributed|event-driven|events|message queue|queue|queues|worker|workers)\b",
+    "frontend-product": r"\b(?:frontend|interface|react|ui|user experience|web application)\b",
+    "machine-learning": r"\b(?:ai|artificial intelligence|machine learning|ml|model|models|rag)\b",
+    "performance-scale": r"\b(?:latency|optimization|performance|scale|scaling|throughput)\b",
+    "reliability-operations": r"\b(?:availability|failure|monitoring|observability|operations|reliability|retry|retries|timeout)\b",
+    "research-analysis": r"\b(?:algorithm|analysis|experiment|research|simulation|statistical)\b",
+    "security-auth": r"\b(?:authentication|authorization|oauth|privacy|security)\b",
+    "testing-quality": r"\b(?:ci/cd|integration test|quality|test|testing|tests|validation)\b",
+}
 
 
 class WriterValidationError(ValueError):
@@ -123,8 +149,8 @@ PLAN INTERNALLY BEFORE WRITING
 1. Extract the employer and role conservatively.
 2. Identify the 3-4 highest-weight requirements: required over preferred, repeated requirements over incidental wording, and technologies central to the title or responsibilities.
 3. Infer the employer signals that matter for this role. Weight the applicable signals rather than forcing one company label: product ownership, shipping breadth, backend correctness, reliability, distributed systems, developer tooling, data/ML depth, customer impact, research rigor, and collaboration.
-4. Rank sources by how strongly their supported evidence proves those requirements. Do not rank superficial keyword overlap or number-heavy sources above a better product and engineering story.
-5. Select 1-2 technical experiences and exactly application_context.project_limit projects. Never exceed that limit. Order projects by relevance to this exact role.
+4. Rank experience sources by how strongly their supported evidence proves those requirements. Do not rank superficial keyword overlap or number-heavy sources above a better product and engineering story.
+5. Project selection is already computed from role relevance, responsibility proof, outcome value, engineering depth, and marginal distinctiveness. Use application_context.recommended_project_ids exactly and in that order; write no other projects.
 
 EVIDENCE AND METRICS
 Use only supplied sources, fact IDs, and exact stored skill names. Every bullet must cite the fact IDs that fully support its technologies, scale, result, responsibility, ownership, and causal claims. Never convert an inference into candidate experience.
@@ -263,6 +289,191 @@ def _source_relevance(source: dict, jd_text: str, skill_names: list[str]) -> int
     return score
 
 
+def _source_text(source: dict) -> str:
+    return " ".join(
+        [str(source.get("name") or ""), str(source.get("summary") or "")]
+        + [str(fact.get("evidence") or "") for fact in source.get("facts", [])]
+    )
+
+
+def _selection_tokens(text: str) -> set[str]:
+    tokens = set()
+    for token in re.findall(r"[a-z][a-z0-9+#.-]{2,}", text.casefold()):
+        normalized = token.rstrip(".,")
+        if normalized.endswith("ies") and len(normalized) > 5:
+            normalized = f"{normalized[:-3]}y"
+        elif normalized.endswith("s") and not normalized.endswith(("ss", "ics")) and len(normalized) > 4:
+            normalized = normalized[:-1]
+        if normalized not in _SELECTION_STOPWORDS:
+            tokens.add(normalized)
+    return tokens
+
+
+def _responsibility_signals(text: str) -> set[str]:
+    return {
+        label
+        for label, pattern in _RESPONSIBILITY_PATTERNS.items()
+        if re.search(pattern, text, re.IGNORECASE)
+    }
+
+
+def _coverage_score(overlap: set[str], targets: set[str], target_cap: int) -> float:
+    if not targets:
+        return 0.0
+    return min(100.0, 100.0 * len(overlap) / min(target_cap, len(targets)))
+
+
+def _project_selection_card(
+    project_id: int,
+    source: dict,
+    jd_text: str,
+    skill_names: list[str],
+    selected_sources: list[dict],
+) -> dict:
+    """Score one project against the role and the projects already selected."""
+    content = _source_text(source)
+    job_technologies = {
+        skill.casefold()
+        for skill in skill_names
+        if str(skill).strip() and _mentions_term(jd_text, str(skill))
+    }
+    source_technologies = {
+        skill.casefold()
+        for skill in skill_names
+        if str(skill).strip() and _mentions_term(content, str(skill))
+    }
+    job_tokens = _selection_tokens(jd_text)
+    source_tokens = _selection_tokens(content)
+    job_roles = job_tokens & _ROLE_TERMS
+    source_roles = source_tokens & _ROLE_TERMS
+
+    technology_score = _coverage_score(source_technologies & job_technologies, job_technologies, 3)
+    role_score = _coverage_score(source_roles & job_roles, job_roles, 3)
+    if job_technologies and job_roles:
+        role_relevance = (0.7 * technology_score) + (0.3 * role_score)
+    else:
+        role_relevance = technology_score or role_score
+
+    job_responsibilities = _responsibility_signals(jd_text)
+    source_responsibilities = _responsibility_signals(content)
+    category_score = _coverage_score(
+        source_responsibilities & job_responsibilities,
+        job_responsibilities,
+        3,
+    )
+    job_technology_tokens = {
+        token
+        for technology in job_technologies
+        for token in _selection_tokens(technology)
+    }
+    focus_tokens = job_tokens - job_technology_tokens - job_roles
+    lexical_score = _coverage_score(source_tokens & focus_tokens, focus_tokens, 8)
+    responsibility_proof = (
+        (0.8 * category_score) + (0.2 * lexical_score)
+        if job_responsibilities
+        else lexical_score
+    )
+
+    facts = source.get("facts", [])
+    tier_one_metrics = sum(_metric_tier(str(fact.get("evidence") or "")) == 1 for fact in facts)
+    outcome_terms = len(set(re.findall(
+        r"\b(?:automated|customer|improved|reduced|replaced|saved|shipped|student|team|user)\w*\b",
+        content.casefold(),
+    )))
+    beneficiary = bool(re.search(
+        r"\b(?:applications?|customers?|employees?|students?|teams?|users?)\b",
+        content,
+        re.IGNORECASE,
+    ))
+    outcome_value = min(100.0, (45 * min(2, tier_one_metrics)) + min(30, 10 * outcome_terms) + (20 if beneficiary else 0))
+
+    decision_signals = len(set(re.findall(
+        r"\b(?:architected|because|chose|designed|failed|instead of|migrated|replaced|timeout|trade-?off)\b",
+        content,
+        re.IGNORECASE,
+    )))
+    depth_signals = len(set(re.findall(
+        r"\b(?:architecture|authorization|concurrency|distributed|idempotency|indexing|orchestration|"
+        r"pipeline|queue|reliability|retry|schema|state machine|transaction|worker)\w*\b",
+        content,
+        re.IGNORECASE,
+    )))
+    tier_two_metrics = sum(_metric_tier(str(fact.get("evidence") or "")) == 2 for fact in facts)
+    engineering_depth = min(
+        100.0,
+        (30 if decision_signals else 0) + min(45, 9 * depth_signals) + min(30, 15 * tier_two_metrics),
+    )
+
+    project_signals = source_technologies | source_roles | source_responsibilities
+    job_signals = job_technologies | job_roles | job_responsibilities
+    if not selected_sources:
+        distinctiveness = 100.0
+    else:
+        selected_signals: set[str] = set()
+        for selected in selected_sources:
+            selected_text = _source_text(selected)
+            selected_signals.update(
+                {skill.casefold() for skill in skill_names if _mentions_term(selected_text, str(skill))}
+                | (_selection_tokens(selected_text) & _ROLE_TERMS)
+                | _responsibility_signals(selected_text)
+            )
+        relevant_signals = project_signals & job_signals
+        novel_relevant = relevant_signals - selected_signals
+        novel_overall = project_signals - selected_signals
+        relevant_ratio = len(novel_relevant) / max(1, len(relevant_signals))
+        overall_ratio = len(novel_overall) / max(1, len(project_signals))
+        distinctiveness = min(100.0, (70 * relevant_ratio) + (30 * overall_ratio))
+
+    components = {
+        "role_relevance": round(role_relevance, 1),
+        "responsibility_proof": round(responsibility_proof, 1),
+        "outcome_value": round(outcome_value, 1),
+        "engineering_depth": round(engineering_depth, 1),
+        "distinctiveness": round(distinctiveness, 1),
+    }
+    total = (
+        (0.35 * components["role_relevance"])
+        + (0.25 * components["responsibility_proof"])
+        + (0.20 * components["outcome_value"])
+        + (0.15 * components["engineering_depth"])
+        + (0.05 * components["distinctiveness"])
+    )
+    return {"project_id": project_id, **components, "total": round(total, 2)}
+
+
+def _rank_project_ids(
+    ids: list[int],
+    bank: dict,
+    jd_text: str,
+    skill_names: list[str],
+) -> tuple[list[int], list[dict]]:
+    """Rank projects greedily so later choices add marginal job coverage."""
+    source_map = {source.get("source_key"): source for source in bank.get("sources", [])}
+    order = {value: index for index, value in enumerate(ids)}
+    remaining = list(ids)
+    ranked: list[int] = []
+    scorecards: list[dict] = []
+    selected_sources: list[dict] = []
+    while remaining:
+        cards = [
+            _project_selection_card(
+                project_id,
+                source_map.get(f"project:{project_id}", {}),
+                jd_text,
+                skill_names,
+                selected_sources,
+            )
+            for project_id in remaining
+        ]
+        chosen = max(cards, key=lambda card: (card["total"], -order[card["project_id"]]))
+        project_id = chosen["project_id"]
+        ranked.append(project_id)
+        scorecards.append(chosen)
+        selected_sources.append(source_map.get(f"project:{project_id}", {}))
+        remaining.remove(project_id)
+    return ranked, scorecards
+
+
 def _metric_tier(evidence: str) -> int | None:
     """Approximate the original prompt's metric hierarchy without an AI call."""
     if not _numbers(evidence):
@@ -344,7 +555,8 @@ def _candidate_ids(
 ) -> tuple[list[int], list[int]]:
     skill_names = _all_skill_names(skills)
     experience_ids = _rank_source_ids([item.id for item in experiences], "experience", bank, jd_text, skill_names)[:2]
-    project_ids = _rank_source_ids([item.id for item in projects], "project", bank, jd_text, skill_names)[:MAX_CANDIDATE_PROJECTS]
+    project_ids, _ = _rank_project_ids([item.id for item in projects], bank, jd_text, skill_names)
+    project_ids = project_ids[:MAX_CANDIDATE_PROJECTS]
     return experience_ids, project_ids
 
 
@@ -566,22 +778,23 @@ def _validate_plan(
     jd_text: str = "",
     experiences: list[Experience] | None = None,
     project_limit: int = 3,
+    preferred_project_ids: list[int] | None = None,
 ) -> dict:
     project_ids = {p.id for p in projects}
     experience_ids = {e.id for e in (experiences or [])}
     fact_ids = set(_fact_index(bank))
     all_skills = _all_skill_names(skills)
     skill_lookup = {name.casefold(): name for name in all_skills}
-    selected_projects = []
-    for value in raw.get("selected_project_ids", []):
-        if value in project_ids and value not in selected_projects:
-            selected_projects.append(value)
     project_limit = max(0, min(4, project_limit))
     project_target = min(project_limit, len(projects))
+    selected_projects = []
+    requested_projects = preferred_project_ids if preferred_project_ids is not None else raw.get("selected_project_ids", [])
+    for value in requested_projects:
+        if value in project_ids and value not in selected_projects:
+            selected_projects.append(value)
     if len(selected_projects) < project_target:
-        remaining = _rank_source_ids(
+        remaining, _ = _rank_project_ids(
             [p.id for p in projects if p.id not in selected_projects],
-            "project",
             bank,
             jd_text,
             all_skills,
@@ -1246,12 +1459,20 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
     candidate_projects = [item for item in projects if item.id in candidate_project_ids]
     template = getattr(personal, "resume_template", None) or "jake"
     project_limit = _project_capacity(bank, candidate_experiences, candidate_projects, template)
+    recommended_project_ids = candidate_project_ids[:project_limit]
+    _, project_selection_scores = _rank_project_ids(
+        candidate_project_ids,
+        bank,
+        jd,
+        _all_skill_names(skills),
+    )
     compact_bank = _compact_profile_bank(bank)
     application_context = {
         "job_description": jd,
         "candidate_experience_ids": candidate_experience_ids,
         "candidate_project_ids": candidate_project_ids,
         "project_limit": project_limit,
+        "recommended_project_ids": recommended_project_ids,
         "education_context": education_context,
         "availability_context": availability_context,
         "cover_letter_voice": (personal.cover_letter_voice if personal else "")[:500],
@@ -1284,6 +1505,7 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
         jd,
         candidate_experiences,
         project_limit=project_limit,
+        preferred_project_ids=recommended_project_ids,
     )
     optional_project_ids = set(plan["selected_project_ids"][3:])
     repair_usage: ToolCallResult | None = None
@@ -1447,6 +1669,8 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
             "fact_bank_cache_hit": bank_hit, "matches": plan["matches"], "gaps": plan["gaps"],
             "candidate_experience_ids": candidate_experience_ids, "candidate_project_ids": candidate_project_ids,
             "project_limit": project_limit,
+            "recommended_project_ids": recommended_project_ids,
+            "project_selection_scores": project_selection_scores,
             "optional_project_ids": sorted(optional_project_ids),
             "dropped_optional_project_ids": sorted(optional_project_ids - set(project_ids)),
             "selected_experience_ids": plan["selected_experience_ids"],
