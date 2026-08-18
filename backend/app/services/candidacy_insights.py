@@ -28,11 +28,14 @@ def synthesize_insight(jobs: list, total_count: int) -> dict[str, str | None]:
         gaps = metadata.get("gaps") if isinstance(metadata, dict) else None
         for gap in (gaps or _legacy_gaps(job.strategic_note)):
             key = str(gap.get("key") or "").strip()
-            label = str(gap.get("label") or "").strip()
+            label = str(gap.get("requirement") or gap.get("label") or "").strip()
             if not key or not label:
                 continue
             occurrences[key] += 1
-            examples.setdefault(key, {"label": label, "action": str(gap.get("action") or "")})
+            examples.setdefault(key, {
+                "label": label,
+                "action": str(gap.get("deliverable") or gap.get("action") or ""),
+            })
     repeated = [(count, key) for key, count in occurrences.items() if count >= 2]
     if not repeated:
         return {"headline": None, "observed": None, "gap": None, "action": None}

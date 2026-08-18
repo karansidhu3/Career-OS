@@ -28,6 +28,7 @@ from app.services.generation_v2 import (
     _rank_project_ids,
     _recover_writer,
     _render_body,
+    _strategic_note,
     _validate_bullet,
     _validate_plan,
     _validated_cover,
@@ -407,14 +408,15 @@ def test_plan_keeps_compound_framework_gap_and_replaces_resume_spin_with_real_ac
         "selected_skills": ["Python"],
         "matches": [],
         "gaps": [{
-            "key": "flask-django",
-            "label": "Flask or Django experience",
-            "action": "Highlight Python patterns to signal readiness for Flask.",
+            "requirement": "Flask or Django experience",
+            "evidence_missing": "No cited project uses Flask or Django.",
+            "deliverable": "Highlight Python patterns to signal readiness for Flask.",
+            "completion_signal": "A public repository and deployed URL.",
         }],
     }, bank, [], [ns(items=["Python"])])
 
-    assert plan["gaps"][0]["label"] == "Flask or Django experience"
-    assert plan["gaps"][0]["action"] == (
+    assert plan["gaps"][0]["requirement"] == "Flask or Django experience"
+    assert plan["gaps"][0]["deliverable"] == (
         "Build and deploy a Flask or Django REST service with PostgreSQL, authentication, and automated tests."
     )
 
@@ -562,24 +564,27 @@ def test_plan_replaces_canonical_gap_failures_with_complete_deliverables():
         "matches": [],
         "gaps": [
             {
-                "key": "python-web-frameworks",
-                "label": "No demonstrated experience with Python web frameworks (Flask or Django)",
-                "action": "Build a small Flask or Django REST service and publish it; extend an existing project's backend using one of these frameworks to produce citable",
+                "requirement": "Python web frameworks (Flask or Django)",
+                "evidence_missing": "No cited profile fact uses Flask or Django.",
+                "deliverable": "Build a small Flask or Django REST service and publish it; extend an existing project's backend using one of these frameworks to produce citable",
+                "completion_signal": "A public repository, passing tests, and deployed URL.",
             },
             {
-                "key": "linux-ubuntu-platform",
-                "label": "No explicit Ubuntu or Linux development and deployment experience cited",
-                "action": "Develop and document a project using Ubuntu as the primary development platform; deploy a service to an Ubuntu server and include it in the",
+                "requirement": "Ubuntu or Linux deployment",
+                "evidence_missing": "No cited profile fact demonstrates an Ubuntu or Linux deployment.",
+                "deliverable": "Develop and document a project using Ubuntu as the primary development platform; deploy a service to an Ubuntu server and include it in the",
+                "completion_signal": "A production URL, passing health check, and deployment documentation.",
             },
             {
-                "key": "open-source-contribution",
-                "label": "No open source contribution history referenced",
-                "action": "Build a small, demonstrable project using No open source contribution history referenced, then document its architecture, tests, and result.",
+                "requirement": "Open source contribution",
+                "evidence_missing": "No accepted public contribution is cited.",
+                "deliverable": "Build a small, demonstrable project using No open source contribution history referenced, then document its architecture, tests, and result.",
+                "completion_signal": "An accepted public pull request with linked tests.",
             },
         ],
     }, bank, [], [])
 
-    actions = [gap["action"] for gap in plan["gaps"]]
+    actions = [gap["deliverable"] for gap in plan["gaps"]]
     assert actions == [
         "Build a small Flask or Django REST service and publish it.",
         "Develop and document a project using Ubuntu as the primary development platform.",
@@ -613,9 +618,110 @@ def test_plan_recovers_single_source_positive_match_when_model_matches_are_rejec
     }, bank, projects, skills, "Build Python backend services with PostgreSQL and REST APIs")
 
     assert plan["matches"] == [{
-        "text": "CareerOS | Application Intelligence Platform: Built a Python FastAPI service with PostgreSQL.",
+        "requirement": "Python and PostgreSQL",
+        "source": "CareerOS | Application Intelligence Platform",
+        "evidence": "Built a Python FastAPI service with PostgreSQL.",
+        "explanation": "The cited work directly demonstrates the requested capability.",
         "fact_ids": ["project:15:0"],
     }]
+
+
+def test_plan_validates_structured_analysis_and_renders_final_language_in_code():
+    projects = [ns(id=15)]
+    skills = [ns(items=["Python", "FastAPI", "PostgreSQL"])]
+    bank = {"sources": [{
+        "source_key": "project:15",
+        "type": "project",
+        "name": "CareerOS",
+        "display_name": "CareerOS",
+        "facts": [{
+            "id": "project:15:0",
+            "statement": "Built a Python FastAPI service with PostgreSQL.",
+            "evidence": "Built a Python FastAPI service with PostgreSQL.",
+            "technologies": ["Python", "FastAPI", "PostgreSQL"],
+        }],
+    }], "skills": {"Languages": ["Python"], "Frameworks": ["FastAPI"], "Databases": ["PostgreSQL"]}}
+    raw = {
+        "selected_project_ids": [15],
+        "selected_skills": ["Python", "FastAPI", "PostgreSQL"],
+        "matches": [{
+            "requirement": "Python backend services",
+            "source": "anything the model wrote here is ignored",
+            "evidence": "Built a Python FastAPI service with PostgreSQL.",
+            "explanation": "uses Python and FastAPI to implement the requested backend service.",
+            "fact_ids": ["project:15:0"],
+        }],
+        "gaps": [{
+            "requirement": "Kubernetes deployment",
+            "evidence_missing": "No cited profile fact demonstrates Kubernetes deployment.",
+            "deliverable": "Deploy a tested service to Kubernetes with health checks.",
+            "completion_signal": "Finish learning Kubernetes.",
+        }],
+    }
+
+    plan = _validate_plan(
+        raw,
+        bank,
+        projects,
+        skills,
+        "Build Python backend services with FastAPI, PostgreSQL, and Kubernetes deployment.",
+    )
+    note = _strategic_note(plan)
+
+    assert plan["matches"][0]["source"] == "CareerOS"
+    assert plan["gaps"][0]["completion_signal"] == (
+        "A public repository, production URL, passing health check, and documented deployment steps."
+    )
+    assert "• Python backend services: CareerOS built a Python FastAPI service with PostgreSQL." in note
+    assert "• Kubernetes deployment: No cited profile fact demonstrates Kubernetes deployment." in note
+    assert "Completion signal: A public repository, production URL" in note
+
+
+def test_structured_gap_must_come_from_the_job_description():
+    plan = _validate_plan({
+        "selected_project_ids": [],
+        "selected_skills": [],
+        "matches": [],
+        "gaps": [{
+            "requirement": "Kubernetes deployment",
+            "evidence_missing": "No cited profile fact demonstrates Kubernetes deployment.",
+            "deliverable": "Deploy a tested service to Kubernetes.",
+            "completion_signal": "A public repository and production URL.",
+        }],
+    }, {"sources": [], "skills": {}}, [], [], "Build accessible React interfaces")
+
+    assert plan["gaps"] == []
+
+
+def test_structured_match_rejects_unsupported_metrics_and_recovers_from_cited_evidence():
+    projects = [ns(id=15)]
+    bank = {"sources": [{
+        "source_key": "project:15",
+        "type": "project",
+        "name": "CareerOS",
+        "facts": [{
+            "id": "project:15:0",
+            "statement": "Built a Python service.",
+            "evidence": "Built a Python service.",
+            "technologies": ["Python"],
+        }],
+    }], "skills": {"Languages": ["Python"]}}
+
+    plan = _validate_plan({
+        "selected_project_ids": [15],
+        "selected_skills": ["Python"],
+        "matches": [{
+            "requirement": "Python services",
+            "source": "CareerOS",
+            "evidence": "Served 10,000 users with Python.",
+            "explanation": "supports production Python services.",
+            "fact_ids": ["project:15:0"],
+        }],
+        "gaps": [],
+    }, bank, projects, [ns(items=["Python"])], "Build Python services")
+
+    assert plan["matches"][0]["evidence"] == "Built a Python service."
+    assert plan["matches"][0]["fact_ids"] == ["project:15:0"]
 
 
 def test_bullet_rejects_number_not_present_in_cited_evidence():
@@ -894,9 +1000,9 @@ def test_old_navy_and_sales_associate_are_excluded_in_code():
 
 def test_insights_are_free_deterministic_and_require_repetition():
     jobs = [
-        ns(generation_metadata={"gaps": [{"key": "kubernetes", "label": "Kubernetes", "action": "Deploy MarketMind on Kubernetes."}]}, strategic_note=None),
-        ns(generation_metadata={"gaps": [{"key": "kubernetes", "label": "Kubernetes", "action": "Deploy MarketMind on Kubernetes."}]}, strategic_note=None),
-        ns(generation_metadata={"gaps": [{"key": "go", "label": "Go", "action": "Build one Go service."}]}, strategic_note=None),
+        ns(generation_metadata={"gaps": [{"key": "kubernetes", "requirement": "Kubernetes", "deliverable": "Deploy MarketMind on Kubernetes."}]}, strategic_note=None),
+        ns(generation_metadata={"gaps": [{"key": "kubernetes", "requirement": "Kubernetes", "deliverable": "Deploy MarketMind on Kubernetes."}]}, strategic_note=None),
+        ns(generation_metadata={"gaps": [{"key": "go", "requirement": "Go", "deliverable": "Build one Go service."}]}, strategic_note=None),
     ]
     result = synthesize_insight(jobs, 3)
     assert result["headline"] == "Kubernetes Repeats Across Roles"

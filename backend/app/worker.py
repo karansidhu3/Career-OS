@@ -88,7 +88,10 @@ def _apply_result(job: Job, result: dict) -> None:
     job.cover_letter = cover[:10_000]
     job.strategic_note = (result.get("strategic_note") or None)
     if job.strategic_note:
-        job.strategic_note = job.strategic_note[:2_000]
+        # Structured analysis is bounded before rendering. Keep the complete
+        # sections instead of slicing a recommendation in the middle of a
+        # sentence at the historical 2,000-character boundary.
+        job.strategic_note = job.strategic_note[:10_000]
     job.selected_projects = result.get("selected_projects") or None
     job.input_tokens = result.get("input_tokens")
     job.output_tokens = result.get("output_tokens")

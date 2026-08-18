@@ -58,3 +58,18 @@ def test_apply_result_preserves_paragraphs_and_repairs_em_dash_spacing():
         "Building fleet tooling, spanning 4,083 machines, requires discipline.\n\n"
         "I built CareerOS, an application platform, and made failures visible."
     )
+
+
+def test_apply_result_does_not_cut_structured_analysis_at_legacy_boundary():
+    job = SimpleNamespace()
+    strategic_note = "GOOD FIT\n• " + ("Grounded evidence. " * 140)
+
+    worker._apply_result(job, {
+        "job_title": "Engineer",
+        "job_company": "Canonical",
+        "fit_score": 7,
+        "strategic_note": strategic_note,
+    })
+
+    assert len(strategic_note) > 2_000
+    assert job.strategic_note == strategic_note
