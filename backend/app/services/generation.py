@@ -13,6 +13,7 @@ from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
+GENERATION_VERSION = "original-prompt-v1"
 
 # ── Shared LaTeX command set ──────────────────────────────────────────────────
 # All templates use the same command names so Claude's body output is template-
