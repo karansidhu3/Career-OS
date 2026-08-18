@@ -13,8 +13,10 @@ from app.services.generation_v2 import (
     _bounded_complete_prose,
     _candidate_ids,
     _compact_profile_bank,
+    _cover_story_errors,
     _eligible_experiences,
     _experience_display_role,
+    _fallback_cover_letter,
     _locally_repair_bullets,
     _merge_repair,
     _metric_tier,
@@ -447,6 +449,99 @@ def test_cover_validation_applies_the_same_punctuation_normalization():
     assert errors == []
     assert paragraphs[0] == "Building fleet tooling, spanning security and automation, requires backend discipline."
     assert paragraphs[1] == "I built CareerOS, an application platform, and made failures visible."
+
+
+def test_cover_story_accepts_one_problem_decision_and_result_with_two_metrics():
+    paragraph = (
+        "In CareerOS, synchronous generation failed at 30 seconds. I moved document work to "
+        "background workers, which reduced time-to-first-feedback to under 1 second."
+    )
+
+    assert _cover_story_errors(paragraph) == []
+
+
+def test_cover_story_rejects_more_than_two_metrics():
+    paragraph = (
+        "In CareerOS, synchronous generation failed at 30 seconds. I moved document work to "
+        "4 background workers, which reduced time-to-first-feedback to under 1 second."
+    )
+
+    assert "cover letter second paragraph contains more than 2 numeric metrics" in _cover_story_errors(paragraph)
+
+
+def test_cover_story_rejects_test_suite_inventory():
+    paragraph = (
+        "In CareerOS, unreliable releases created a testing constraint. I introduced 269 backend "
+        "tests and 43 frontend unit tests, which prevented regressions."
+    )
+
+    assert "cover letter second paragraph enumerates test suites" in _cover_story_errors(paragraph)
+
+
+def test_cover_rejects_a_second_named_and_cited_project():
+    facts = {
+        "project:1:0": {
+            "evidence": "Moved synchronous generation to workers after timeouts failed.",
+            "source_key": "project:1",
+            "source_name": "CareerOS",
+            "source_display_name": "CareerOS",
+            "source_brand_name": "CareerOS",
+            "source_type": "project",
+        },
+        "project:2:0": {
+            "evidence": "Reduced manual financial reconciliation in Ledger.",
+            "source_key": "project:2",
+            "source_name": "Ledger",
+            "source_display_name": "Ledger",
+            "source_brand_name": "Ledger",
+            "source_type": "project",
+        },
+    }
+    raw = {
+        "cover_letter_paragraphs": [
+            "The backend role centers on reliable asynchronous processing and practical systems judgment.",
+            (
+                "In CareerOS, synchronous generation failed under timeouts, so I moved document work to "
+                "background workers and preserved a responsive request path. I also reduced manual financial "
+                "reconciliation in Ledger, demonstrating a second product context."
+            ),
+            "My degree is complete, and I am available now to discuss the role.",
+        ],
+        "cover_letter_fact_ids": ["project:1:0", "project:2:0"],
+    }
+
+    _, _, errors = _validated_cover(raw, facts, "")
+
+    assert "cover letter cites more than one profile source" in errors
+    assert "cover letter second paragraph names more than one project" in errors
+
+
+def test_fallback_cover_avoids_metric_and_test_suite_inventory():
+    bank = {"sources": [{
+        "source_key": "project:1",
+        "name": "CareerOS",
+        "display_name": "CareerOS",
+        "facts": [
+            {
+                "id": "project:1:0",
+                "evidence": "Synchronous generation failed at 30 seconds, so workers reduced feedback to under 1 second.",
+            },
+            {
+                "id": "project:1:1",
+                "evidence": "Validated releases with 269 backend tests and 43 frontend unit tests.",
+            },
+        ],
+    }]}
+
+    paragraphs, fact_ids = _fallback_cover_letter(
+        {"company": "Acme", "job_title": "Backend Engineer"},
+        bank,
+        [1],
+    )
+
+    assert fact_ids == ["project:1:0"]
+    assert "269" not in paragraphs[1]
+    assert "frontend unit tests" not in paragraphs[1]
 
 
 def test_complete_prose_uses_a_real_clause_boundary_instead_of_slicing_words():

@@ -26,7 +26,7 @@ from app.services.pdf import compile_latex_to_pdf
 from app.services.profile_fact_bank import get_or_build_fact_bank, project_brand_from_url
 
 
-GENERATION_VERSION = "3.3"
+GENERATION_VERSION = "3.4"
 WRITER_MODEL = "claude-sonnet-4-6"
 MAX_CANDIDATE_PROJECTS = 5
 MAX_FACTS_PER_SOURCE = 8
@@ -185,7 +185,7 @@ Return exact stored skill names only. Front-load skills explicitly required by t
 COVER LETTER
 Write exactly three paragraphs totaling 150-220 words. Apply the supplied voice guidance.
 Paragraph 1: 1-2 sentences about a concrete technical problem, product, or responsibility in this exact role. Do not open with first person and do not perform generic enthusiasm.
-Paragraph 2: center on one selected project by name. Use first person. Explain one concrete problem, why the obvious or previous approach failed when supported, the architecture or implementation decision, and a result. Keep one coherent engineering story rather than listing every metric and service.
+Paragraph 2: center on exactly one selected project by name and cite facts from that project only. Use first person. Tell one coherent story in this order: one concrete problem or constraint, one architecture or implementation decision, then one result. Explain why the obvious or previous approach failed only when supported. Use at most two numeric metrics. Never mention a second project, enumerate test-suite counts, or turn the paragraph into another resume.
 Paragraph 3: 1 concise sentence following the supplied date and availability guidance exactly.
 Never use an em dash. Never use “I am excited,” “I am writing to express my interest,” “leveraging,” “proven track record,” “great fit,” “hit the ground running,” “contribute to the team,” or a sentence that could belong to a different candidate.
 
@@ -198,7 +198,7 @@ The result is not an inventory of facts. It is an ordered argument: relevance fi
 _REPAIR_SYSTEM = """Repair only the rejected fields in an evidence-backed application draft.
 Use only the supplied source facts and exact fact IDs. Preserve every valid field verbatim.
 For a rejected bullet, return a replacement only for that source ID. It must be 16-26 words when possible, fully supported, recruiter-legible for bullet 1 and technically specific for bullet 2.
-For a rejected cover letter, return exactly three paragraphs totaling 150-220 words, naming one cited project in paragraph 2 and following the supplied availability guidance. Never use an em dash or generic enthusiasm.
+For a rejected cover letter, return exactly three paragraphs totaling 150-220 words. Paragraph 2 must name and cite exactly one project, use at most two numeric metrics, and tell one problem -> one decision -> one result story. Never mention a second project or enumerate test-suite counts. Follow the supplied availability guidance. Never use an em dash or generic enthusiasm.
 Return empty arrays for sections that do not need repair. Do not change selection, fit score, employer, or role."""
 
 _REPAIR_SCHEMA = {
@@ -966,6 +966,64 @@ def _validate_bullet_detailed(
     return {"text": text, "fact_ids": cited}, []
 
 
+def _fact_source_key(fact_id: str, fact: dict) -> str:
+    source_key = str(fact.get("source_key") or "").strip()
+    if source_key:
+        return source_key
+    parts = fact_id.split(":")
+    return ":".join(parts[:2]) if len(parts) >= 2 else ""
+
+
+def _has_test_suite_inventory(text: str) -> bool:
+    text_cf = text.casefold()
+    suite_mentions = re.findall(
+        r"\b(?:backend|browser|e2e|end-to-end|frontend|integration|unit)"
+        r"(?:\s+(?:backend|browser|e2e|end-to-end|frontend|integration|unit))*\s+tests?\b",
+        text_cf,
+    )
+    suite_enumeration = re.search(
+        r"\b(?:e2e|end-to-end|integration|unit)(?:\s+tests?)?\s*(?:,|and)\s*"
+        r"(?:e2e|end-to-end|integration|unit)\b",
+        text_cf,
+    )
+    return len(set(suite_mentions)) > 1 or bool(suite_enumeration)
+
+
+def _cover_story_errors(second_paragraph: str) -> list[str]:
+    """Validate focus without pretending deterministic code understands prose."""
+    second_cf = second_paragraph.casefold()
+    errors = []
+    if len(re.findall(r"(?<![A-Za-z])\d+(?:[.,]\d+)?%?\+?", second_paragraph)) > 2:
+        errors.append("cover letter second paragraph contains more than 2 numeric metrics")
+    if _has_test_suite_inventory(second_paragraph):
+        errors.append("cover letter second paragraph enumerates test suites")
+
+    story_signals = {
+        "problem": re.search(
+            r"\b(?:after|before|block\w*|bottleneck|challenge|constraint|contention|delay\w*|"
+            r"error\w*|fail(?:ed|ing|ure)?|fragil\w*|inconsisten\w*|latency|limit\w*|manual|"
+            r"needed|problem|required|risk|slow|synchronous|timeouts?|unreliable|without)\b",
+            second_cf,
+        ),
+        "decision": re.search(
+            r"\bi\s+(?:added|adopted|architected|built|chose|combined|configured|created|designed|"
+            r"developed|implemented|introduced|migrated|modeled|moved|orchestrated|refactored|"
+            r"replaced|routed|selected|shifted|split|structured|wrote)\b",
+            second_cf,
+        ),
+        "result": re.search(
+            r"\b(?:allow\w*|avoid\w*|cut|deliver\w*|eliminat\w*|enabl\w*|ensur\w*|improv\w*|"
+            r"increas\w*|keep|keeping|kept|lower\w*|made|minimiz\w*|now|prevent\w*|preserv\w*|"
+            r"reduc\w*|remov\w*|resolv\w*|result\w*|sav\w*|shorten\w*|stabiliz\w*|under|yield\w*)\b",
+            second_cf,
+        ),
+    }
+    missing = [name for name, signal in story_signals.items() if not signal]
+    if missing:
+        errors.append(f"cover letter second paragraph lacks a focused story element: {', '.join(missing)}")
+    return errors
+
+
 def _validated_cover(
     raw: dict,
     facts: dict[str, dict],
@@ -1015,23 +1073,50 @@ def _validated_cover(
             errors.append(f"cover letter contains banned phrasing: {', '.join(found)}")
         if len(paragraphs) == 3:
             second_cf = paragraphs[1].casefold()
-            cited_names = {
-                str(value).strip()
+            cited_project_sources = {
+                _fact_source_key(fid, facts[fid])
                 for fid in cover_fact_ids
-                for value in (
-                    facts[fid].get("source_brand_name"),
-                    facts[fid].get("source_name"),
-                    facts[fid].get("source_display_name"),
-                )
-                if str(value or "").strip()
-                and facts[fid].get("source_type") == "project"
+                if facts[fid].get("source_type") == "project"
+                or _fact_source_key(fid, facts[fid]).startswith("project:")
             }
-            if not cited_names:
+            cited_non_project_sources = {
+                _fact_source_key(fid, facts[fid])
+                for fid in cover_fact_ids
+                if not (
+                    facts[fid].get("source_type") == "project"
+                    or _fact_source_key(fid, facts[fid]).startswith("project:")
+                )
+            }
+            project_aliases: dict[str, set[str]] = {}
+            for fid, fact in facts.items():
+                source_key = _fact_source_key(fid, fact)
+                if not (fact.get("source_type") == "project" or source_key.startswith("project:")):
+                    continue
+                project_aliases.setdefault(source_key, set()).update(
+                    str(value).strip()
+                    for value in (
+                        fact.get("source_brand_name"),
+                        fact.get("source_name"),
+                        fact.get("source_display_name"),
+                    )
+                    if str(value or "").strip()
+                )
+            mentioned_project_sources = {
+                source_key
+                for source_key, aliases in project_aliases.items()
+                if any(_mentions_term(paragraphs[1], alias) for alias in aliases)
+            }
+            if not cited_project_sources:
                 errors.append("cover letter does not cite a selected project")
-            elif not any(name.casefold() in second_cf for name in cited_names):
+            elif len(cited_project_sources) != 1 or cited_non_project_sources:
+                errors.append("cover letter cites more than one profile source")
+            if len(mentioned_project_sources) > 1:
+                errors.append("cover letter second paragraph names more than one project")
+            elif not mentioned_project_sources or mentioned_project_sources != cited_project_sources:
                 errors.append("cover letter second paragraph does not name its cited project")
             if not re.search(r"\b(?:i|my)\b", second_cf):
                 errors.append("cover letter second paragraph is not written in first person")
+            errors.extend(_cover_story_errors(paragraphs[1]))
         if "education completion is in the past" in cover_context.casefold() and re.search(
             r"\b(?:will graduate|graduates? in|completes? in|availability (?:begins|starts))\b",
             cover_text,
@@ -1146,11 +1231,24 @@ def _fallback_cover_letter(plan: dict, bank: dict, project_ids: list[int], cover
         (item for item in bank.get("sources", []) if item.get("source_key") == f"project:{project_ids[0]}"),
         None,
     ) if project_ids else None
-    facts = (source or {}).get("facts", [])[:2]
+    candidates = list((source or {}).get("facts", []))
+    facts = []
+    for fact in candidates:
+        candidate = " ".join([*(item.get("evidence", "") for item in facts), fact.get("evidence", "")]).strip()
+        if len(re.findall(r"(?<![A-Za-z])\d+(?:[.,]\d+)?%?\+?", candidate)) > 2:
+            continue
+        if _has_test_suite_inventory(candidate):
+            continue
+        facts.append(fact)
+        if len(facts) == 2:
+            break
     fact_ids = [fact["id"] for fact in facts]
     evidence = " ".join(fact["evidence"] for fact in facts).strip()
     if source and evidence:
-        second = f"In {source.get('display_name') or source.get('name') or 'a relevant project'}, I delivered the following documented technical work: {evidence}"
+        second = (
+            f"In {source.get('display_name') or source.get('name') or 'a relevant project'}, "
+            f"I focused on one concrete engineering thread: {evidence}"
+        )
     else:
         second = "My background includes directly relevant technical work that I would be glad to discuss in detail."
     availability = " I have completed my degree and am available for full-time work now." if "education completion is in the past" in cover_context.casefold() else ""
