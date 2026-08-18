@@ -26,7 +26,7 @@ from app.services.pdf import compile_latex_to_pdf
 from app.services.profile_fact_bank import get_or_build_fact_bank, project_brand_from_url
 
 
-GENERATION_VERSION = "3.5"
+GENERATION_VERSION = "3.6"
 WRITER_MODEL = "claude-sonnet-4-6"
 MAX_CANDIDATE_PROJECTS = 5
 MAX_FACTS_PER_SOURCE = 8
@@ -624,6 +624,8 @@ def _normalize_generated_prose(text: str) -> str:
 
 
 def _has_incomplete_ending(text: str) -> bool:
+    if re.search(r"\d%?\+?[.!?]?$", text.strip()):
+        return False
     words = re.findall(r"[A-Za-z]+", text.casefold())
     return bool(words and words[-1] in _INCOMPLETE_ENDINGS)
 
@@ -1651,6 +1653,63 @@ def _strategic_note(plan: dict) -> str:
     return f"GOOD FIT\n{fits}\n\nGAPS\n{gaps}\n\nIMPROVEMENT PLAN\n{actions}"
 
 
+def _build_evaluation_artifact(
+    writer: dict,
+    plan: dict,
+    bank: dict,
+    project_ids: list[int],
+    project_map: dict[int, Project],
+    pages: int,
+    total_cost: float,
+    repair_used: bool,
+    writer_recovered: bool,
+) -> dict:
+    resume_entries = [
+        {
+            "source_key": f"experience:{entry['experience_id']}",
+            "source_type": "experience",
+            "bullets": entry["bullets"],
+        }
+        for entry in writer["experience_entries"]
+    ] + [
+        {
+            "source_key": f"project:{entry['project_id']}",
+            "source_type": "project",
+            "bullets": entry["bullets"],
+        }
+        for entry in writer["project_entries"]
+        if entry["project_id"] in project_ids
+    ]
+    fact_ids = {
+        fact_id
+        for entry in resume_entries
+        for bullet in entry["bullets"]
+        for fact_id in bullet["fact_ids"]
+    } | set(writer["cover_letter_fact_ids"])
+    facts = _fact_index(bank)
+    return {
+        "resume_entries": resume_entries,
+        "facts": {
+            fact_id: facts[fact_id]
+            for fact_id in sorted(fact_ids)
+            if fact_id in facts
+        },
+        "known_skills": [
+            str(skill)
+            for values in bank.get("skills", {}).values()
+            for skill in values
+        ],
+        "selected_skills": plan["selected_skills"],
+        "selected_projects": [_project_display_name(project_map[project_id]) for project_id in project_ids],
+        "cover_letter": writer["cover_letter"],
+        "cover_letter_fact_ids": writer["cover_letter_fact_ids"],
+        "page_count": pages,
+        "total_cost_usd": total_cost,
+        "repair_used": repair_used,
+        "writer_recovered": writer_recovered,
+    }
+
+
 async def _call(
     db: AsyncSession,
     llm: LLMClient,
@@ -1905,6 +1964,17 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
             "input_tokens": repair_usage.input_tokens, "output_tokens": repair_usage.output_tokens,
             "cache_read_tokens": repair_usage.cache_read_tokens, "cache_write_tokens": repair_usage.cache_write_tokens,
         })
+    evaluation_artifact = _build_evaluation_artifact(
+        writer,
+        plan,
+        bank,
+        project_ids,
+        project_map,
+        pages,
+        total_cost,
+        repair_usage is not None,
+        writer_recovered,
+    )
     return {
         "job_title": plan["job_title"], "job_company": plan["company"], "fit_score": writer["fit_score"],
         "resume_latex": latex, "cover_letter": writer["cover_letter"], "strategic_note": _strategic_note(plan),
@@ -1934,5 +2004,6 @@ async def generate_materials_v2(db: AsyncSession, jd_text: str, api_key: str, *,
             "post_local_validation_errors": post_local_validation_errors,
             "repair_validation_errors": repair_validation_errors,
             "calls": call_metadata,
+            "evaluation_artifact": evaluation_artifact,
         },
     }

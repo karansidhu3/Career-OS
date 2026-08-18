@@ -11,6 +11,7 @@ from app.services.generation_v2 import (
     WriterValidationError,
     _availability_context,
     _bounded_complete_prose,
+    _build_evaluation_artifact,
     _candidate_ids,
     _compact_profile_bank,
     _cover_story_errors,
@@ -1007,6 +1008,44 @@ def test_insights_are_free_deterministic_and_require_repetition():
     result = synthesize_insight(jobs, 3)
     assert result["headline"] == "Kubernetes Repeats Across Roles"
     assert "2 of your 3" in result["observed"]
+
+
+def test_evaluation_artifact_keeps_only_rendered_projects_and_cited_facts():
+    writer = {
+        "experience_entries": [],
+        "project_entries": [
+            {"project_id": 1, "bullets": [{"text": "Built one service.", "fact_ids": ["project:1:0"]}]},
+            {"project_id": 2, "bullets": [{"text": "Built dropped service.", "fact_ids": ["project:2:0"]}]},
+        ],
+        "cover_letter": "One.\n\nTwo.\n\nThree.",
+        "cover_letter_fact_ids": ["project:1:1"],
+    }
+    bank = {"sources": [
+        {"source_key": "project:1", "type": "project", "name": "CareerOS", "facts": [
+            {"id": "project:1:0", "evidence": "Built one service.", "statement": "Built one service."},
+            {"id": "project:1:1", "evidence": "Moved work to a queue.", "statement": "Moved work to a queue."},
+        ]},
+        {"source_key": "project:2", "type": "project", "name": "Dropped", "facts": [
+            {"id": "project:2:0", "evidence": "Built dropped service.", "statement": "Built dropped service."},
+        ]},
+    ]}
+
+    artifact = _build_evaluation_artifact(
+        writer,
+        {"selected_skills": ["Python"]},
+        bank,
+        [1],
+        {1: ns(id=1, name="CareerOS", github_url=None)},
+        1,
+        0.04,
+        False,
+        False,
+    )
+
+    assert [entry["source_key"] for entry in artifact["resume_entries"]] == ["project:1"]
+    assert set(artifact["facts"]) == {"project:1:0", "project:1:1"}
+    assert artifact["selected_projects"] == ["CareerOS"]
+    assert artifact["repair_used"] is False
 
 
 @pytest.mark.asyncio

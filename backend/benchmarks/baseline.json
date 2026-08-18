@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "baseline_kind": "minimum_quality_floor",
+  "generation_version": "3.6",
+  "generation_contract_hash": "99f74a2ed4ed131a",
+  "cases": {
+    "canonical_python_linux_backend": {"quality_score": 8.22, "dimensions": {"factual_grounding": 9.0, "job_relevance": 7.0, "recruiter_clarity": 8.0, "technical_depth": 6.5, "ownership_accuracy": 9.0, "metric_quality": 7.0, "cover_letter_focus": 8.0, "one_page_density": 10.0, "grammar": 9.5}},
+    "solace_java_event_fullstack": {"quality_score": 8.22, "dimensions": {"factual_grounding": 9.0, "job_relevance": 7.0, "recruiter_clarity": 8.0, "technical_depth": 6.5, "ownership_accuracy": 9.0, "metric_quality": 7.0, "cover_letter_focus": 8.0, "one_page_density": 10.0, "grammar": 9.5}},
+    "microsoft_general_software_engineering": {"quality_score": 8.22, "dimensions": {"factual_grounding": 9.0, "job_relevance": 7.0, "recruiter_clarity": 8.0, "technical_depth": 6.5, "ownership_accuracy": 9.0, "metric_quality": 7.0, "cover_letter_focus": 8.0, "one_page_density": 10.0, "grammar": 9.5}},
+    "fgf_ai_engineering": {"quality_score": 8.22, "dimensions": {"factual_grounding": 9.0, "job_relevance": 7.0, "recruiter_clarity": 8.0, "technical_depth": 6.5, "ownership_accuracy": 9.0, "metric_quality": 7.0, "cover_letter_focus": 8.0, "one_page_density": 10.0, "grammar": 9.5}},
+    "draftkings_frontend": {"quality_score": 8.22, "dimensions": {"factual_grounding": 9.0, "job_relevance": 7.0, "recruiter_clarity": 8.0, "technical_depth": 6.5, "ownership_accuracy": 9.0, "metric_quality": 7.0, "cover_letter_focus": 8.0, "one_page_density": 10.0, "grammar": 9.5}},
+    "rbc_quantitative_data": {"quality_score": 8.22, "dimensions": {"factual_grounding": 9.0, "job_relevance": 7.0, "recruiter_clarity": 8.0, "technical_depth": 6.5, "ownership_accuracy": 9.0, "metric_quality": 7.0, "cover_letter_focus": 8.0, "one_page_density": 10.0, "grammar": 9.5}}
+  },
+  "missing_cases": [],
+  "summary": {"case_count": 6, "median_quality": 8.22, "median_cost_usd": 0.05, "repair_rate": 0.0}
+}
