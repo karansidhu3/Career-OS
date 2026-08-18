@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "canonical_python_linux_backend",
+      "source_job_id": 66,
+      "company": "Canonical",
+      "role": "Software Engineer, Landscape",
+      "job_description_file": "jds/canonical.md",
+      "requirements": [
+        {"name": "Python web services", "aliases": ["Python", "API", "web application"], "weight": 3},
+        {"name": "PostgreSQL and ORM", "aliases": ["PostgreSQL", "ORM", "database"], "weight": 2},
+        {"name": "Automated testing", "aliases": ["automated testing", "tests", "CI"], "weight": 2},
+        {"name": "Linux and Ubuntu", "aliases": ["Linux", "Ubuntu"], "weight": 2},
+        {"name": "Ownership", "aliases": ["owned", "designed", "implemented"], "weight": 1}
+      ]
+    },
+    {
+      "id": "solace_java_event_fullstack",
+      "source_job_id": 65,
+      "company": "Solace",
+      "role": "Full-Stack Software Developer",
+      "job_description_file": "jds/solace.md",
+      "requirements": [
+        {"name": "Java and Spring Boot", "aliases": ["Java", "Spring Boot"], "weight": 3},
+        {"name": "React frontend", "aliases": ["React", "JavaScript"], "weight": 2},
+        {"name": "Event-driven systems", "aliases": ["event-driven", "queue", "asynchronous"], "weight": 2},
+        {"name": "Cloud and containers", "aliases": ["AWS", "cloud", "Docker", "Kubernetes"], "weight": 2},
+        {"name": "Automated delivery", "aliases": ["CI/CD", "GitHub Actions", "automated tests"], "weight": 1}
+      ]
+    },
+    {
+      "id": "microsoft_general_software_engineering",
+      "source_job_id": 63,
+      "company": "Microsoft",
+      "role": "Software Engineer",
+      "job_description_file": "jds/microsoft.md",
+      "requirements": [
+        {"name": "Software development", "aliases": ["Python", "Java", "JavaScript", "C++"], "weight": 3},
+        {"name": "Reliability and diagnosability", "aliases": ["reliability", "telemetry", "monitoring", "logging"], "weight": 2},
+        {"name": "Testing and code review", "aliases": ["tests", "code review", "validation"], "weight": 2},
+        {"name": "Scalable data systems", "aliases": ["PostgreSQL", "data", "scalable", "performance"], "weight": 2},
+        {"name": "Deployment automation", "aliases": ["deployment", "automation", "CI/CD"], "weight": 1}
+      ]
+    },
+    {
+      "id": "fgf_ai_engineering",
+      "source_job_id": 60,
+      "company": "FGF Brands",
+      "role": "AI Engineer",
+      "job_description_file": "jds/fgf.md",
+      "requirements": [
+        {"name": "Python AI engineering", "aliases": ["Python", "AI", "LLM"], "weight": 3},
+        {"name": "Agentic systems", "aliases": ["agent", "agentic", "multi-agent"], "weight": 2},
+        {"name": "RAG and retrieval", "aliases": ["RAG", "retrieval", "Qdrant", "embeddings"], "weight": 2},
+        {"name": "Rapid product delivery", "aliases": ["shipped", "deployed", "prototype", "production"], "weight": 2},
+        {"name": "APIs and system design", "aliases": ["API", "FastAPI", "architecture"], "weight": 1}
+      ]
+    },
+    {
+      "id": "draftkings_frontend",
+      "source_job_id": 59,
+      "company": "DraftKings",
+      "role": "Software Engineer, Frontend",
+      "job_description_file": "jds/draftkings.md",
+      "requirements": [
+        {"name": "Modern frontend development", "aliases": ["React", "JavaScript", "Next.js"], "weight": 3},
+        {"name": "Performance and scale", "aliases": ["performance", "responsive", "scalable"], "weight": 2},
+        {"name": "Accessible interfaces", "aliases": ["accessibility", "accessible", "WCAG"], "weight": 2},
+        {"name": "Automated frontend testing", "aliases": ["unit tests", "integration tests", "end-to-end"], "weight": 2},
+        {"name": "Product collaboration", "aliases": ["designers", "product", "user experience"], "weight": 1}
+      ]
+    },
+    {
+      "id": "rbc_quantitative_data",
+      "source_job_id": 62,
+      "company": "RBC",
+      "role": "Quantitative Developer",
+      "job_description_file": "jds/rbc.md",
+      "requirements": [
+        {"name": "Python", "aliases": ["Python"], "weight": 3},
+        {"name": "Scalable computation", "aliases": ["scalable", "computation", "distributed"], "weight": 2},
+        {"name": "Performance engineering", "aliases": ["performance", "latency", "optimization"], "weight": 2},
+        {"name": "Data and quantitative analysis", "aliases": ["data", "analysis", "statistical", "model"], "weight": 2},
+        {"name": "System stability", "aliases": ["stability", "reliability", "testing"], "weight": 1}
+      ]
+    }
+  ]
+}

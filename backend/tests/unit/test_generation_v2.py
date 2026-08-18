@@ -10,16 +10,26 @@ from app.services.generation_v2 import (
     _WRITER_SCHEMA,
     WriterValidationError,
     _availability_context,
+    _bounded_complete_prose,
+    _build_evaluation_artifact,
     _candidate_ids,
     _compact_profile_bank,
+    _cover_story_errors,
     _eligible_experiences,
     _experience_display_role,
+    _fallback_cover_letter,
+    _locally_repair_bullets,
     _merge_repair,
     _metric_tier,
     _narrow_repair_payload,
+    _normalize_generated_prose,
     _project_display_name,
+    _project_capacity,
+    _project_selection_card,
+    _rank_project_ids,
     _recover_writer,
     _render_body,
+    _strategic_note,
     _validate_bullet,
     _validate_plan,
     _validated_cover,
@@ -77,6 +87,88 @@ def test_candidate_ranking_prefers_role_relevance_over_number_density():
     _, ranked = _candidate_ids(bank, [], projects, "Python and FastAPI platform engineering", skills)
 
     assert ranked[0] == 2
+
+
+def test_project_selector_uses_role_weighted_canonical_ordering():
+    skills = ["Python", "FastAPI", "PostgreSQL", "Java", "Spring Boot", "AWS", "Linux"]
+    bank = {"sources": [
+        {"source_key": "project:1", "name": "CareerOS", "facts": [
+            {"id": "project:1:0", "evidence": "Built a Python FastAPI backend service and APIs that replaced a 30 minute manual application workflow for users.", "technologies": ["Python", "FastAPI"]},
+            {"id": "project:1:1", "evidence": "Moved synchronous generation to async workers after 30 second timeouts, improving reliability and feedback latency.", "technologies": ["Python"]},
+        ]},
+        {"source_key": "project:2", "name": "Ledger", "facts": [
+            {"id": "project:2:0", "evidence": "Designed Java Spring Boot REST APIs with PostgreSQL transactions and authentication for financial operations.", "technologies": ["Java", "Spring Boot", "PostgreSQL"]},
+            {"id": "project:2:1", "evidence": "Validated backend correctness with 92 unit tests and 31 PostgreSQL integration tests.", "technologies": ["Java", "PostgreSQL"]},
+        ]},
+        {"source_key": "project:3", "name": "MarketMind", "facts": [
+            {"id": "project:3:0", "evidence": "Built a Python FastAPI AI data pipeline ingesting filings for investment research users.", "technologies": ["Python", "FastAPI"]},
+            {"id": "project:3:1", "evidence": "Orchestrated model pipelines with vector search and PostgreSQL.", "technologies": ["Python", "PostgreSQL"]},
+        ]},
+        {"source_key": "project:4", "name": "Relay", "facts": [
+            {"id": "project:4:0", "evidence": "Built serverless AWS event-driven infrastructure with asynchronous queues and workers for three production applications.", "technologies": ["AWS"]},
+            {"id": "project:4:1", "evidence": "Designed retries and dead-letter handling after synchronous timeouts failed.", "technologies": ["AWS"]},
+        ]},
+    ]}
+    jd = (
+        "Canonical seeks a Python backend engineer to build and maintain FastAPI REST APIs on Linux, "
+        "design reliable services, test database integrations, and troubleshoot production operations."
+    )
+
+    ranked, scorecards = _rank_project_ids([1, 2, 3, 4], bank, jd, skills)
+
+    assert ranked == [1, 2, 3, 4]
+    assert scorecards[0]["role_relevance"] > scorecards[1]["role_relevance"]
+    assert scorecards[1]["responsibility_proof"] > scorecards[2]["responsibility_proof"]
+
+
+def test_project_score_total_uses_agreed_component_weights():
+    source = {"source_key": "project:1", "name": "CareerOS", "facts": [{
+        "id": "project:1:0",
+        "evidence": "Built a Python FastAPI backend service that replaced manual work for users after synchronous timeouts failed.",
+        "technologies": ["Python", "FastAPI"],
+    }]}
+
+    card = _project_selection_card(
+        1,
+        source,
+        "Build reliable Python FastAPI backend APIs and troubleshoot production failures.",
+        ["Python", "FastAPI"],
+        [],
+    )
+
+    expected = (
+        (0.35 * card["role_relevance"])
+        + (0.25 * card["responsibility_proof"])
+        + (0.20 * card["outcome_value"])
+        + (0.15 * card["engineering_depth"])
+        + (0.05 * card["distinctiveness"])
+    )
+    assert card["total"] == pytest.approx(expected, abs=0.01)
+
+
+def test_project_selector_rewards_marginal_job_coverage_after_first_choice():
+    bank = {"sources": [
+        {"source_key": "project:1", "name": "Primary API", "facts": [{
+            "id": "project:1:0", "evidence": "Built Python FastAPI backend APIs with PostgreSQL transactions for users, replacing manual processing.",
+        }]},
+        {"source_key": "project:2", "name": "Duplicate API", "facts": [{
+            "id": "project:2:0", "evidence": "Built Python FastAPI backend APIs with PostgreSQL transactions for users, replacing manual processing.",
+        }]},
+        {"source_key": "project:3", "name": "Security API", "facts": [{
+            "id": "project:3:0", "evidence": "Built Python FastAPI authentication and authorization controls with security tests for users.",
+        }]},
+    ]}
+    jd = "Build Python FastAPI backend APIs with PostgreSQL, authentication, authorization, security, and automated testing."
+
+    ranked, scorecards = _rank_project_ids(
+        [1, 2, 3],
+        bank,
+        jd,
+        ["Python", "FastAPI", "PostgreSQL"],
+    )
+
+    assert ranked[:2] == [1, 3]
+    assert scorecards[1]["distinctiveness"] > scorecards[2]["distinctiveness"]
 
 
 def test_anthropic_transforms_unsupported_writer_schema_constraints():
@@ -209,7 +301,7 @@ def test_plan_restores_three_project_density_and_ranks_missing_slot_by_jd():
     assert plan["selected_skills"] == ["Python", "FastAPI", "React"]
 
 
-def test_plan_preserves_strong_optional_fourth_project_for_layout_filling():
+def test_plan_defaults_to_three_projects_even_when_writer_returns_four():
     projects = [ns(id=value) for value in (1, 2, 3, 4)]
     bank = {"sources": [
         {"source_key": f"project:{value}", "facts": [{"id": f"project:{value}:0", "evidence": f"Built project {value}."}]}
@@ -223,7 +315,76 @@ def test_plan_preserves_strong_optional_fourth_project_for_layout_filling():
         [],
     )
 
+    assert plan["selected_project_ids"] == [1, 2, 3]
+
+
+def test_plan_preserves_fourth_project_only_when_capacity_allows_it():
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [
+        {"source_key": f"project:{value}", "facts": [{"id": f"project:{value}:0", "evidence": f"Built project {value}."}]}
+        for value in (1, 2, 3, 4)
+    ]}
+
+    plan = _validate_plan(
+        {"selected_project_ids": [1, 2, 3, 4], "selected_skills": [], "matches": [], "gaps": []},
+        bank,
+        projects,
+        [],
+        project_limit=4,
+    )
+
     assert plan["selected_project_ids"] == [1, 2, 3, 4]
+
+
+def test_plan_enforces_deterministic_project_recommendation_over_model_choice():
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [
+        {"source_key": f"project:{value}", "facts": [{
+            "id": f"project:{value}:0",
+            "evidence": f"Built project {value}.",
+        }]}
+        for value in (1, 2, 3, 4)
+    ]}
+
+    plan = _validate_plan(
+        {"selected_project_ids": [4, 3, 2], "selected_skills": [], "matches": [], "gaps": []},
+        bank,
+        projects,
+        [],
+        project_limit=3,
+        preferred_project_ids=[1, 2, 3],
+    )
+
+    assert plan["selected_project_ids"] == [1, 2, 3]
+
+
+def test_project_capacity_keeps_two_experience_resume_at_three_projects():
+    experiences = [ns(id=10), ns(id=11)]
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [
+        {"source_key": f"experience:{eid}", "facts": [
+            {"id": f"experience:{eid}:0", "source_key": f"experience:{eid}"},
+            {"id": f"experience:{eid}:1", "source_key": f"experience:{eid}"},
+        ]}
+        for eid in (10, 11)
+    ]}
+
+    assert _project_capacity(bank, experiences, projects) == 3
+
+
+def test_project_capacity_allows_four_with_one_normal_experience():
+    experiences = [ns(id=10)]
+    projects = [ns(id=value) for value in (1, 2, 3, 4)]
+    bank = {"sources": [{
+        "source_key": "experience:10",
+        "facts": [
+            {"id": "experience:10:0", "source_key": "experience:10"},
+            {"id": "experience:10:1", "source_key": "experience:10"},
+        ],
+    }]}
+
+    assert _project_capacity(bank, experiences, projects) == 4
+    assert _project_capacity(bank, experiences, projects, "custom") == 3
 
 
 def test_plan_does_not_select_one_letter_skill_from_incidental_text():
@@ -248,14 +409,320 @@ def test_plan_keeps_compound_framework_gap_and_replaces_resume_spin_with_real_ac
         "selected_skills": ["Python"],
         "matches": [],
         "gaps": [{
-            "key": "flask-django",
-            "label": "Flask or Django experience",
-            "action": "Highlight Python patterns to signal readiness for Flask.",
+            "requirement": "Flask or Django experience",
+            "evidence_missing": "No cited project uses Flask or Django.",
+            "deliverable": "Highlight Python patterns to signal readiness for Flask.",
+            "completion_signal": "A public repository and deployed URL.",
         }],
     }, bank, [], [ns(items=["Python"])])
 
-    assert plan["gaps"][0]["label"] == "Flask or Django experience"
-    assert plan["gaps"][0]["action"].startswith("Build a small, demonstrable project")
+    assert plan["gaps"][0]["requirement"] == "Flask or Django experience"
+    assert plan["gaps"][0]["deliverable"] == (
+        "Build and deploy a Flask or Django REST service with PostgreSQL, authentication, and automated tests."
+    )
+
+
+def test_generated_prose_repairs_em_dash_spacing_without_damaging_numeric_commas():
+    text = "Three applications—CareerOS, TimeKeep, and MarketMind—orchestrate 4,083 records."
+
+    assert _normalize_generated_prose(text) == (
+        "Three applications, CareerOS, TimeKeep, and MarketMind, orchestrate 4,083 records."
+    )
+
+
+def test_cover_validation_applies_the_same_punctuation_normalization():
+    facts = {"project:1:0": {
+        "evidence": "Built CareerOS as an application platform.",
+        "source_name": "CareerOS",
+        "source_display_name": "CareerOS",
+        "source_brand_name": "CareerOS",
+        "source_type": "project",
+    }}
+    raw = {
+        "cover_letter_paragraphs": [
+            "Building fleet tooling—spanning security and automation—requires backend discipline.",
+            "I built CareerOS—an application platform—and made failures visible.",
+            "I am available now.",
+        ],
+        "cover_letter_fact_ids": ["project:1:0"],
+    }
+
+    paragraphs, _, errors = _validated_cover(raw, facts, "", enforce_style=False)
+
+    assert errors == []
+    assert paragraphs[0] == "Building fleet tooling, spanning security and automation, requires backend discipline."
+    assert paragraphs[1] == "I built CareerOS, an application platform, and made failures visible."
+
+
+def test_cover_story_accepts_one_problem_decision_and_result_with_two_metrics():
+    paragraph = (
+        "In CareerOS, synchronous generation failed at 30 seconds. I moved document work to "
+        "background workers, which reduced time-to-first-feedback to under 1 second."
+    )
+
+    assert _cover_story_errors(paragraph) == []
+
+
+def test_cover_story_rejects_more_than_two_metrics():
+    paragraph = (
+        "In CareerOS, synchronous generation failed at 30 seconds. I moved document work to "
+        "4 background workers, which reduced time-to-first-feedback to under 1 second."
+    )
+
+    assert "cover letter second paragraph contains more than 2 numeric metrics" in _cover_story_errors(paragraph)
+
+
+def test_cover_story_rejects_test_suite_inventory():
+    paragraph = (
+        "In CareerOS, unreliable releases created a testing constraint. I introduced 269 backend "
+        "tests and 43 frontend unit tests, which prevented regressions."
+    )
+
+    assert "cover letter second paragraph enumerates test suites" in _cover_story_errors(paragraph)
+
+
+def test_cover_rejects_a_second_named_and_cited_project():
+    facts = {
+        "project:1:0": {
+            "evidence": "Moved synchronous generation to workers after timeouts failed.",
+            "source_key": "project:1",
+            "source_name": "CareerOS",
+            "source_display_name": "CareerOS",
+            "source_brand_name": "CareerOS",
+            "source_type": "project",
+        },
+        "project:2:0": {
+            "evidence": "Reduced manual financial reconciliation in Ledger.",
+            "source_key": "project:2",
+            "source_name": "Ledger",
+            "source_display_name": "Ledger",
+            "source_brand_name": "Ledger",
+            "source_type": "project",
+        },
+    }
+    raw = {
+        "cover_letter_paragraphs": [
+            "The backend role centers on reliable asynchronous processing and practical systems judgment.",
+            (
+                "In CareerOS, synchronous generation failed under timeouts, so I moved document work to "
+                "background workers and preserved a responsive request path. I also reduced manual financial "
+                "reconciliation in Ledger, demonstrating a second product context."
+            ),
+            "My degree is complete, and I am available now to discuss the role.",
+        ],
+        "cover_letter_fact_ids": ["project:1:0", "project:2:0"],
+    }
+
+    _, _, errors = _validated_cover(raw, facts, "")
+
+    assert "cover letter cites more than one profile source" in errors
+    assert "cover letter second paragraph names more than one project" in errors
+
+
+def test_fallback_cover_avoids_metric_and_test_suite_inventory():
+    bank = {"sources": [{
+        "source_key": "project:1",
+        "name": "CareerOS",
+        "display_name": "CareerOS",
+        "facts": [
+            {
+                "id": "project:1:0",
+                "evidence": "Synchronous generation failed at 30 seconds, so workers reduced feedback to under 1 second.",
+            },
+            {
+                "id": "project:1:1",
+                "evidence": "Validated releases with 269 backend tests and 43 frontend unit tests.",
+            },
+        ],
+    }]}
+
+    paragraphs, fact_ids = _fallback_cover_letter(
+        {"company": "Acme", "job_title": "Backend Engineer"},
+        bank,
+        [1],
+    )
+
+    assert fact_ids == ["project:1:0"]
+    assert "269" not in paragraphs[1]
+    assert "frontend unit tests" not in paragraphs[1]
+
+
+def test_complete_prose_uses_a_real_clause_boundary_instead_of_slicing_words():
+    action = (
+        "Build a Flask service and publish it; extend an existing backend using the framework "
+        "to produce citable evidence for future applications"
+    )
+
+    assert _bounded_complete_prose(action, 12) == "Build a Flask service and publish it."
+    assert _bounded_complete_prose("Build a service using the", 12) == ""
+
+
+def test_plan_replaces_canonical_gap_failures_with_complete_deliverables():
+    bank = {"sources": [], "skills": {}}
+    plan = _validate_plan({
+        "selected_project_ids": [],
+        "selected_skills": [],
+        "matches": [],
+        "gaps": [
+            {
+                "requirement": "Python web frameworks (Flask or Django)",
+                "evidence_missing": "No cited profile fact uses Flask or Django.",
+                "deliverable": "Build a small Flask or Django REST service and publish it; extend an existing project's backend using one of these frameworks to produce citable",
+                "completion_signal": "A public repository, passing tests, and deployed URL.",
+            },
+            {
+                "requirement": "Ubuntu or Linux deployment",
+                "evidence_missing": "No cited profile fact demonstrates an Ubuntu or Linux deployment.",
+                "deliverable": "Develop and document a project using Ubuntu as the primary development platform; deploy a service to an Ubuntu server and include it in the",
+                "completion_signal": "A production URL, passing health check, and deployment documentation.",
+            },
+            {
+                "requirement": "Open source contribution",
+                "evidence_missing": "No accepted public contribution is cited.",
+                "deliverable": "Build a small, demonstrable project using No open source contribution history referenced, then document its architecture, tests, and result.",
+                "completion_signal": "An accepted public pull request with linked tests.",
+            },
+        ],
+    }, bank, [], [])
+
+    actions = [gap["deliverable"] for gap in plan["gaps"]]
+    assert actions == [
+        "Build a small Flask or Django REST service and publish it.",
+        "Develop and document a project using Ubuntu as the primary development platform.",
+        "Contribute a tested fix or documentation improvement to a public repository and link the accepted pull request.",
+    ]
+    assert all(action.endswith(".") for action in actions)
+    assert all("using No" not in action for action in actions)
+
+
+def test_plan_recovers_single_source_positive_match_when_model_matches_are_rejected():
+    projects = [ns(id=15)]
+    skills = [ns(items=["Python", "FastAPI", "PostgreSQL"])]
+    bank = {"sources": [{
+        "source_key": "project:15",
+        "type": "project",
+        "name": "CareerOS",
+        "display_name": "CareerOS | Application Intelligence Platform",
+        "facts": [{
+            "id": "project:15:0",
+            "statement": "Built a Python FastAPI service with PostgreSQL.",
+            "evidence": "Built a Python FastAPI service with PostgreSQL.",
+            "technologies": ["Python", "FastAPI", "PostgreSQL"],
+        }],
+    }], "skills": {"Languages": ["Python"], "Frameworks": ["FastAPI"], "Databases": ["PostgreSQL"]}}
+
+    plan = _validate_plan({
+        "selected_project_ids": [15],
+        "selected_skills": ["Python", "FastAPI", "PostgreSQL"],
+        "matches": [],
+        "gaps": [],
+    }, bank, projects, skills, "Build Python backend services with PostgreSQL and REST APIs")
+
+    assert plan["matches"] == [{
+        "requirement": "Python and PostgreSQL",
+        "source": "CareerOS | Application Intelligence Platform",
+        "evidence": "Built a Python FastAPI service with PostgreSQL.",
+        "explanation": "The cited work directly demonstrates the requested capability.",
+        "fact_ids": ["project:15:0"],
+    }]
+
+
+def test_plan_validates_structured_analysis_and_renders_final_language_in_code():
+    projects = [ns(id=15)]
+    skills = [ns(items=["Python", "FastAPI", "PostgreSQL"])]
+    bank = {"sources": [{
+        "source_key": "project:15",
+        "type": "project",
+        "name": "CareerOS",
+        "display_name": "CareerOS",
+        "facts": [{
+            "id": "project:15:0",
+            "statement": "Built a Python FastAPI service with PostgreSQL.",
+            "evidence": "Built a Python FastAPI service with PostgreSQL.",
+            "technologies": ["Python", "FastAPI", "PostgreSQL"],
+        }],
+    }], "skills": {"Languages": ["Python"], "Frameworks": ["FastAPI"], "Databases": ["PostgreSQL"]}}
+    raw = {
+        "selected_project_ids": [15],
+        "selected_skills": ["Python", "FastAPI", "PostgreSQL"],
+        "matches": [{
+            "requirement": "Python backend services",
+            "source": "anything the model wrote here is ignored",
+            "evidence": "Built a Python FastAPI service with PostgreSQL.",
+            "explanation": "uses Python and FastAPI to implement the requested backend service.",
+            "fact_ids": ["project:15:0"],
+        }],
+        "gaps": [{
+            "requirement": "Kubernetes deployment",
+            "evidence_missing": "No cited profile fact demonstrates Kubernetes deployment.",
+            "deliverable": "Deploy a tested service to Kubernetes with health checks.",
+            "completion_signal": "Finish learning Kubernetes.",
+        }],
+    }
+
+    plan = _validate_plan(
+        raw,
+        bank,
+        projects,
+        skills,
+        "Build Python backend services with FastAPI, PostgreSQL, and Kubernetes deployment.",
+    )
+    note = _strategic_note(plan)
+
+    assert plan["matches"][0]["source"] == "CareerOS"
+    assert plan["gaps"][0]["completion_signal"] == (
+        "A public repository, production URL, passing health check, and documented deployment steps."
+    )
+    assert "• Python backend services: CareerOS built a Python FastAPI service with PostgreSQL." in note
+    assert "• Kubernetes deployment: No cited profile fact demonstrates Kubernetes deployment." in note
+    assert "Completion signal: A public repository, production URL" in note
+
+
+def test_structured_gap_must_come_from_the_job_description():
+    plan = _validate_plan({
+        "selected_project_ids": [],
+        "selected_skills": [],
+        "matches": [],
+        "gaps": [{
+            "requirement": "Kubernetes deployment",
+            "evidence_missing": "No cited profile fact demonstrates Kubernetes deployment.",
+            "deliverable": "Deploy a tested service to Kubernetes.",
+            "completion_signal": "A public repository and production URL.",
+        }],
+    }, {"sources": [], "skills": {}}, [], [], "Build accessible React interfaces")
+
+    assert plan["gaps"] == []
+
+
+def test_structured_match_rejects_unsupported_metrics_and_recovers_from_cited_evidence():
+    projects = [ns(id=15)]
+    bank = {"sources": [{
+        "source_key": "project:15",
+        "type": "project",
+        "name": "CareerOS",
+        "facts": [{
+            "id": "project:15:0",
+            "statement": "Built a Python service.",
+            "evidence": "Built a Python service.",
+            "technologies": ["Python"],
+        }],
+    }], "skills": {"Languages": ["Python"]}}
+
+    plan = _validate_plan({
+        "selected_project_ids": [15],
+        "selected_skills": ["Python"],
+        "matches": [{
+            "requirement": "Python services",
+            "source": "CareerOS",
+            "evidence": "Served 10,000 users with Python.",
+            "explanation": "supports production Python services.",
+            "fact_ids": ["project:15:0"],
+        }],
+        "gaps": [],
+    }, bank, projects, [ns(items=["Python"])], "Build Python services")
+
+    assert plan["matches"][0]["evidence"] == "Built a Python service."
+    assert plan["matches"][0]["fact_ids"] == ["project:15:0"]
 
 
 def test_bullet_rejects_number_not_present_in_cited_evidence():
@@ -352,6 +819,106 @@ def test_writer_recovery_uses_literal_source_facts_instead_of_failing_job():
     assert writer["fit_score"] == 10
 
 
+def test_invalid_optional_fourth_project_is_dropped_without_validation_error():
+    bank = {"skills": {}, "sources": [{
+        "source_key": "project:4",
+        "name": "Relay",
+        "brand_name": "Relay",
+        "type": "project",
+        "facts": [
+            {"id": "project:4:0", "statement": "Built a durable background queue.", "evidence": "Built a durable background queue."},
+            {"id": "project:4:1", "statement": "Retried failed background tasks.", "evidence": "Retried failed background tasks."},
+        ],
+    }]}
+    raw = {
+        "experience_entries": [],
+        "project_entries": [{"project_id": 4, "bullets": [
+            {"text": "Processed 999 unsupported tasks through Relay.", "fact_ids": ["project:4:0"]},
+        ]}],
+        "cover_letter_paragraphs": [
+            "The backend engineering role centers on reliable asynchronous processing, clear ownership, and practical systems judgment. Those responsibilities align directly with the queueing and recovery work represented throughout my technical project background.",
+            "In Relay, I built a durable background queue around explicit retry boundaries. I focused on preserving failed tasks, keeping processing behavior observable, and making the execution path understandable enough to debug under pressure. That work taught me to connect architecture choices to operational consequences instead of treating infrastructure as an isolated implementation detail, while maintaining a clear product purpose for every technical decision.",
+            "My degree is complete, and I am available now to discuss how this evidence applies to the team's current engineering priorities, operating constraints, and product goals.",
+        ],
+        "cover_letter_fact_ids": ["project:4:0"],
+        "fit_score": 7,
+    }
+
+    writer = _validate_writer(
+        raw,
+        {"selected_project_ids": [4], "selected_experience_ids": [], "gaps": []},
+        bank,
+        [],
+        optional_project_ids={4},
+    )
+
+    assert writer["project_entries"] == []
+
+
+def test_local_bullet_recovery_uses_free_literal_evidence_before_model_repair():
+    bank = {"skills": {}, "sources": [{
+        "source_key": "project:1",
+        "name": "Relay",
+        "type": "project",
+        "facts": [
+            {"id": "project:1:0", "statement": "Processed 100 records through Redis.", "evidence": "Processed 100 records through Redis."},
+            {"id": "project:1:1", "statement": "Built durable retries.", "evidence": "Built durable retries."},
+        ],
+    }]}
+    raw = {
+        "experience_entries": [],
+        "project_entries": [{"project_id": 1, "bullets": [
+            {"text": "Processed 999 records through imaginary infrastructure.", "fact_ids": ["project:1:0"]},
+        ]}],
+    }
+
+    repaired, changed_sources = _locally_repair_bullets(
+        raw,
+        {"selected_project_ids": [1], "selected_experience_ids": []},
+        bank,
+    )
+
+    assert changed_sources == ["project:1"]
+    assert [bullet["text"] for bullet in repaired["project_entries"][0]["bullets"]] == [
+        "Processed 100 records through Redis.",
+        "Built durable retries.",
+    ]
+    assert _validate_bullet(
+        repaired["project_entries"][0]["bullets"][1],
+        {"project:1:1": {
+            "evidence": "Built durable retries.",
+            "statement": "Built durable retries.",
+        }},
+        "project:1:",
+    ) is not None
+
+
+def test_local_recovery_does_not_resurrect_invalid_optional_project():
+    bank = {"skills": {}, "sources": [{
+        "source_key": "project:4",
+        "name": "Relay",
+        "type": "project",
+        "facts": [
+            {"id": "project:4:0", "statement": "Built a durable queue.", "evidence": "Built a durable queue."},
+            {"id": "project:4:1", "statement": "Retried failed tasks.", "evidence": "Retried failed tasks."},
+        ],
+    }]}
+    raw = {"experience_entries": [], "project_entries": [{
+        "project_id": 4,
+        "bullets": [{"text": "Invented 999 results.", "fact_ids": ["project:4:0"]}],
+    }]}
+
+    repaired, changed_sources = _locally_repair_bullets(
+        raw,
+        {"selected_project_ids": [4], "selected_experience_ids": []},
+        bank,
+        {4},
+    )
+
+    assert repaired["project_entries"] == []
+    assert changed_sources == ["project:4"]
+
+
 def test_writer_requires_two_experience_bullets_when_two_facts_exist():
     bank = {"skills": {}, "sources": [{
         "source_key": "experience:2", "name": "Developer", "type": "experience", "organization": "UBC",
@@ -434,13 +1001,51 @@ def test_old_navy_and_sales_associate_are_excluded_in_code():
 
 def test_insights_are_free_deterministic_and_require_repetition():
     jobs = [
-        ns(generation_metadata={"gaps": [{"key": "kubernetes", "label": "Kubernetes", "action": "Deploy MarketMind on Kubernetes."}]}, strategic_note=None),
-        ns(generation_metadata={"gaps": [{"key": "kubernetes", "label": "Kubernetes", "action": "Deploy MarketMind on Kubernetes."}]}, strategic_note=None),
-        ns(generation_metadata={"gaps": [{"key": "go", "label": "Go", "action": "Build one Go service."}]}, strategic_note=None),
+        ns(generation_metadata={"gaps": [{"key": "kubernetes", "requirement": "Kubernetes", "deliverable": "Deploy MarketMind on Kubernetes."}]}, strategic_note=None),
+        ns(generation_metadata={"gaps": [{"key": "kubernetes", "requirement": "Kubernetes", "deliverable": "Deploy MarketMind on Kubernetes."}]}, strategic_note=None),
+        ns(generation_metadata={"gaps": [{"key": "go", "requirement": "Go", "deliverable": "Build one Go service."}]}, strategic_note=None),
     ]
     result = synthesize_insight(jobs, 3)
     assert result["headline"] == "Kubernetes Repeats Across Roles"
     assert "2 of your 3" in result["observed"]
+
+
+def test_evaluation_artifact_keeps_only_rendered_projects_and_cited_facts():
+    writer = {
+        "experience_entries": [],
+        "project_entries": [
+            {"project_id": 1, "bullets": [{"text": "Built one service.", "fact_ids": ["project:1:0"]}]},
+            {"project_id": 2, "bullets": [{"text": "Built dropped service.", "fact_ids": ["project:2:0"]}]},
+        ],
+        "cover_letter": "One.\n\nTwo.\n\nThree.",
+        "cover_letter_fact_ids": ["project:1:1"],
+    }
+    bank = {"sources": [
+        {"source_key": "project:1", "type": "project", "name": "CareerOS", "facts": [
+            {"id": "project:1:0", "evidence": "Built one service.", "statement": "Built one service."},
+            {"id": "project:1:1", "evidence": "Moved work to a queue.", "statement": "Moved work to a queue."},
+        ]},
+        {"source_key": "project:2", "type": "project", "name": "Dropped", "facts": [
+            {"id": "project:2:0", "evidence": "Built dropped service.", "statement": "Built dropped service."},
+        ]},
+    ]}
+
+    artifact = _build_evaluation_artifact(
+        writer,
+        {"selected_skills": ["Python"]},
+        bank,
+        [1],
+        {1: ns(id=1, name="CareerOS", github_url=None)},
+        1,
+        0.04,
+        False,
+        False,
+    )
+
+    assert [entry["source_key"] for entry in artifact["resume_entries"]] == ["project:1"]
+    assert set(artifact["facts"]) == {"project:1:0", "project:1:1"}
+    assert artifact["selected_projects"] == ["CareerOS"]
+    assert artifact["repair_used"] is False
 
 
 @pytest.mark.asyncio
