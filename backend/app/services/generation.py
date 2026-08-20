@@ -1,4 +1,5 @@
 import asyncio
+from difflib import SequenceMatcher
 import io
 import logging
 import re
@@ -13,6 +14,7 @@ from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
+GENERATION_VERSION = "ultimate-prompt-v2-quality-gated"
 
 # ── Shared LaTeX command set ──────────────────────────────────────────────────
 # All templates use the same command names so Claude's body output is template-
@@ -498,13 +500,41 @@ earns the hiring manager's call. If bullet 1 fails the recruiter, bullet 2 never
 Both must succeed. You are generating for Karanveer Sidhu, a UBC Computer Science graduate \
 targeting software engineering roles in Canada.
 
+━━━ PRIMARY OBJECTIVE — MAXIMUM DEFENSIBLE LEVERAGE ━━━
+
+Build the strongest truthful argument that this specific company should interview Karan.
+The profile is source material, not finished copy. Do not merely repeat it and do not require
+the profile to use the JD's exact wording before evidence can be valuable. Interpret, combine,
+position, and translate supported facts aggressively. Truth is the boundary; persuasive,
+job-specific positioning is the objective.
+
+Atomic claims must remain defensible: technologies used, numbers, dates, users served,
+ownership scope, architecture, failures, decisions, and outcomes must come from the profile.
+The wording and conclusion do not need to appear verbatim in the profile. You may synthesize
+multiple facts from the same role or project into a stronger claim, explain what those facts
+prove, and frame adjacent experience as transferable evidence. Never invent an atomic fact.
+
+EXAMPLE — JD asks for Flask or Django; profile proves production FastAPI work:
+  Correct: position the FastAPI service, API design, SQLAlchemy, PostgreSQL, background jobs,
+  and production failure handling as strong Python web-backend evidence.
+  Wrong: omit Python evidence because the framework name differs.
+  Wrong: claim Flask or Django.
+
+EXAMPLE — JD asks for Ubuntu; profile proves Docker, Fly.io, AWS, and production deployment:
+  Correct: surface containerized deployment, operations, reliability, and infrastructure work.
+  Wrong: claim Ubuntu.
+  Wrong: make the missing keyword the resume's central story.
+
+The resume and cover letter advocate. They contain strengths and transferable proof, not
+disclaimers. Genuine missing requirements belong in GAPS, never inside resume bullets.
+
 ━━━ PLAN BEFORE YOU WRITE ━━━
 
 STEP 0 — Extract and tier all metrics from the profile. Do this first.
 Go through every experience and project description. List every figure.
 Then classify each:
 
-  TIER 1 — Always include (business-legible to a non-engineer):
+  TIER 1 — Prefer whenever job-relevant (business-legible to a non-engineer):
     • Time saved in person-hours
     • Users, employees, customers, or entities served
     • Latency or throughput with context that makes it meaningful
@@ -523,10 +553,11 @@ Then classify each:
 For every metric before including it, ask: "If this number disappeared, would anyone
 reading the resume lose meaningful understanding?" If no — drop it.
 
-A Tier 1 metric missing from its bullet is a generation failure.
+A selected source's strongest job-relevant Tier 1 metric missing from its bullets is a
+generation failure. Do not force an irrelevant metric merely because it is Tier 1.
 A Tier 3 metric that fails the disappearance test is a quality failure.
 
-STEP 1 — Classify the company and role type. State it explicitly.
+STEP 1 — Classify the company and role type internally.
 
   STARTUP (early-stage, growth-stage, Series A-C):
     Prioritize: end-to-end ownership, shipping velocity, product thinking, breadth
@@ -548,12 +579,26 @@ STEP 1 — Classify the company and role type. State it explicitly.
     "large-scale systems", "millions of users", "cross-functional" → Big Tech
     "reliability", "latency", "developer experience", "infrastructure" → Infra/Dev Tools
 
-  Once classified: state the type, then list the top 3 signals to emphasize.
-  This classification governs bullet emphasis for the entire generation.
+  Companies can combine registers. Choose a primary type and, when the JD supports it, one
+  secondary type. Rank the top 3 signals to emphasize rather than forcing every company into
+  one label. This weighting governs bullet emphasis for the entire generation.
 
 STEP 2 — Identify the 3-4 highest-weight JD requirements.
 Required over preferred. Repeated mentions. Technologies in the job title.
 These signals determine project selection and bullet emphasis.
+
+For each requirement, classify the evidence internally:
+  DIRECT — the profile proves the named technology, responsibility, or outcome.
+  TRANSFERABLE — the profile proves the underlying engineering capability through an adjacent
+    stack, environment, domain, or scale. State the proven capability strongly; do not pretend
+    the adjacent technology is the exact requested one.
+  ABSENT — neither direct nor transferable evidence exists. Keep this out of the resume and
+    cover letter; report it honestly in GAPS.
+
+Then write one internal POSITIONING THESIS:
+  "For this role, Karan is a [specific engineering identity] who has already [two strongest
+  directly relevant or transferable proofs]."
+Every content decision must reinforce this thesis. Never output the thesis as a summary section.
 
 STEP 3 — For each role and project, build an engineering signal profile:
   (a) RECRUITER FACT: what the system does and who or what it serves —
@@ -563,7 +608,8 @@ STEP 3 — For each role and project, build an engineering signal profile:
       Examples: "Chose async background tasks over synchronous calls because Railway
       proxy times out at 30s." "Chose Testcontainers over mocks because prior mock/prod
       divergence masked a broken migration." If no meaningful decision exists, find the
-      next-best signal.
+      next-best signal. Never invent a rejected alternative. When the source does not support
+      one, use a real constraint, failure mode, testing choice, or reliability boundary instead.
   (c) NARRATIVE: map the project to Problem → Decision → Implementation → Outcome.
       Keep it to one phrase per stage. This is your internal compression framework —
       do not write it out, use it to ensure the bullets tell a coherent story.
@@ -571,12 +617,19 @@ STEP 3 — For each role and project, build an engineering signal profile:
       "why X instead of Y?", "what failed before this?", or "what would you change?"
       If no — the bullet is describing an outcome, not a decision. Find the decision.
   (e) BEST METRIC: the Tier 1 or Tier 2 number that proves scale or impact
+  (f) LEVERAGE TRANSLATION: which high-weight JD responsibility this evidence proves, directly
+      or transferably, and the strongest defensible way to state that connection
 
 These elements are the raw material for your two bullets per project. Emphasize whichever
 signals the Step 1 company classification identified as highest priority.
 
 STEP 4 — Select 2-4 projects covering the most high-weight JD requirements.
 A project covering 3 requirements beats two projects each covering 1.
+Treat the selected set as a portfolio: every additional project must add a requirement,
+engineering signal, domain, or outcome not already proven more strongly elsewhere.
+Prefer 3-4 projects when each adds distinct leverage and the evidence is strong. Use only 2
+when a third would be filler. Do not choose four merely to fill space, and do not stop at three
+when a fourth contains material evidence the employer is likely to value.
 Commit to selected_projects before writing. List highest-relevance first.
 
 STEP 5 — Generate a descriptor for every selected project.
@@ -622,8 +675,13 @@ could ask a 10-minute follow-up question about it.
            replacing synchronous generation calls that exceeded Railway's 30s proxy timeout"
   WEAK:   "Implemented resilient processing pipeline using Amazon SQS with configurable
            exponential backoff and dead-letter queues"
-  (Strong names the specific problem. Weak describes the implementation without explaining
+(Strong names the specific problem. Weak describes the implementation without explaining
    why it was necessary.)
+
+The two bullets must be complementary, not paraphrases. Bullet 2 cannot restate bullet 1 with
+more technology names. Never use a raw profile sentence as a fallback merely because it is true.
+Rewrite source material into complete, polished resume language. A technology inventory is not
+a bullet. A fragment, project name alone, or sentence without an action and consequence fails.
 
 EXPERIENCE BULLETS — same two-layer priority:
   Bullet 1: Ownership scope + business outcome + Tier 1 metric
@@ -674,9 +732,10 @@ subordinate to recruiter comprehension. Technical precision in bullet 2 is manda
 
 ━━━ WORD DENSITY ━━━
 
-Target 12-16 words per bullet. Up to 20 if every word carries specific technical meaning —
-no word can be removed without losing information. If a bullet exceeds 20 words, find and
-cut the weakest phrase — usually a purpose clause or a scope adjective.
+Target 18-26 words per bullet. Up to 32 when the extra words preserve a distinct supported
+problem, decision, metric, or outcome. Do not compress until the engineering meaning disappears.
+If a bullet exceeds 32 words, cut the weakest phrase — usually a purpose clause, redundant
+technology, or scope adjective.
 
 STRONG VERBS. Vary across bullets. Never repeat a verb within the same section:
   Built / Architected / Designed / Engineered / Automated / Deployed /
@@ -713,22 +772,41 @@ Each project: descriptor in the heading name argument as shown in the template.
 Tech stack line: 5-6 technologies maximum. Pick the ones most relevant to the JD
 first, then the most architecturally significant ones from the project. Drop the rest.
 A long tech stack line reads as a keyword dump — a short, targeted one reads as judgment.
-No project that doesn't directly address a high-weight JD requirement belongs here.
+Every technology must appear in that project's source material. Prefer technologies that also
+appear in its bullets; the heading and evidence should tell the same technical story.
+No project that doesn't directly or transferably address a high-weight JD responsibility
+belongs here.
 
 ━━━ ATS KEYWORD MIRRORING ━━━
 
-Extract 10-15 JD terms. They appear as natural technical nouns in bullets — not retrofitted
-with explanatory context. "Built Redis-backed rate limiter" contains "Redis" naturally.
-Exact JD terms beat synonyms everywhere they fit truthfully.
-Skills section should front-load whatever the JD prioritizes.
+Extract the 10-15 highest-weight JD terms, then classify them:
+  SUPPORTED EXACT — use the exact JD term naturally in a bullet, technology line, or Skills.
+  SUPPORTED CAPABILITY — the exact product or framework is absent, but adjacent evidence proves
+    the underlying responsibility. Use truthful capability language and the actual technology.
+  UNSUPPORTED — do not place the term in the resume merely for ATS coverage.
+
+"Built Redis-backed rate limiter" contains Redis naturally. "Designed production Python APIs
+with FastAPI and SQLAlchemy" is strong transferable backend evidence for a Django role without
+claiming Django. Exact JD terms beat synonyms only where the exact term is defensible.
+Distribute supported terms across bullets, project technology lines, and Skills; do not dump
+them into one section. Skills should front-load the job's supported priorities.
 
 ━━━ ONE-PAGE HARD LIMIT ━━━
 
-The resume must fit on exactly one page. Enforce through compression:
+The resume must fit on exactly one page and should feel deliberately full, not skeletal.
+Treat the page as a value budget: use the available space for the strongest distinct evidence,
+then compress repetition before deleting substance. A normal target is 2 technical experiences
+with 2 strong bullets each plus 3 projects with 2 bullets each; add a fourth project or a strong
+third experience bullet when it adds material JD coverage and space permits.
+
+Enforce through compression:
   Experience: up to 3 bullets per role (only if material exists for 3 strong ones)
   Projects: exactly 2 bullets each, 2-4 projects
   Skills: include all relevant groupings — a sparse skills section wastes space
   The LaTeX margins are set for one page — trust them
+
+Never fill space with repetition, raw profile prose, generic claims, or weak skills. Never leave
+large unused space while strong job-relevant evidence from the profile remains omitted.
 
 ━━━ LANGUAGE RULES ━━━
 
@@ -770,19 +848,22 @@ Apply cover_letter_voice from the profile to every sentence. If not provided, de
 direct, technical, first-person, confident without being inflated. Write like he's explaining
 something to an engineer he respects — not performing enthusiasm for a hiring manager.
 
-STRUCTURE (3 paragraphs, no more):
+STRUCTURE (3 paragraphs, approximately 180-240 words total):
 
-Para 1 — Why this role specifically (3-4 sentences):
+Para 1 — Why this role specifically (2-3 sentences):
   Pull something concrete from the JD: a technical challenge they describe, their actual
   stack, what the product does. Connect it to where Karan is headed.
   Do not open with "I". Open on the role, the company, or the problem they're solving.
 
 Para 2 — The proof point (4-5 sentences, this paragraph wins or loses the interview):
-  One project at genuine technical depth. Name the project. Name the specific technical
+  One primary project at genuine technical depth. Name the project. Name the specific technical
   problem it solved — not "I built a pipeline" but what problem the pipeline solved and
   why the obvious approach didn't work. Name the key architecture decision. Name a result.
   Specific enough that a hiring manager could ask a detailed follow-up about any sentence.
   Impossible to write if you had different experience.
+  A second project may receive one concise supporting sentence only when the JD has a separate
+  top requirement that the primary story cannot prove. Never write a second case study and never
+  turn this paragraph into a prose version of the resume.
 
 Para 3 — Close (1-2 sentences):
   Available immediately. Open to discussing. Nothing else.
@@ -824,8 +905,8 @@ Score honestly. An inflated score helps nobody.
 Generate in EXACTLY this format. No deviations. No prose.
 
 GOOD FIT
-• [specific reason — name the technology or experience match, under 12 words]
-• [second reason if genuinely distinct]
+• [strongest direct match — specific technology, responsibility, outcome, or scale]
+• [strongest distinct transferable or direct proof]
 
 GAPS
 • [specific missing technology or experience named in the JD]
@@ -836,7 +917,10 @@ IMPROVEMENT PLAN
 • [concrete action: name a specific project or exact skill to add]
 • [second action if it addresses a different gap]
 
-Rules: 1-3 bullets per section, each under 12 words, specific names only.
+Rules: 1-3 bullets per section, each concise and specific.
+Transferable evidence belongs in GOOD FIT when it genuinely proves the underlying responsibility.
+Do not call an adjacent framework or environment a total absence. Do not expose internal language
+such as "no cited fact," "evidence is limited," "source material," or "profile evidence."
 NEVER write "Strong match", "Great fit", "Consider improving" — too vague to be useful.
 
 ━━━ SELF-REVIEW ━━━
@@ -844,6 +928,8 @@ NEVER write "Strong match", "Great fit", "Consider improving" — too vague to b
 Run recruiter checks first. Then engineering checks. Fix every failure before outputting.
 
 RECRUITER CHECKS:
+□ LEVERAGE: Is this the strongest defensible argument available for this exact company, or did
+  literal keyword matching cause stronger adjacent evidence to disappear?
 □ ENGINEERING IDENTITY: Read only the company names, project descriptors, first bullet
   of each project, and skills section. Answer: "What kind of engineer is this candidate?"
   If the answer is vague or contradictory — the resume needs work before anything else.
@@ -859,8 +945,15 @@ RECRUITER CHECKS:
 □ MEMORABILITY: If the recruiter remembers only 5 facts after reading this resume, what
   are they? List them. Are they the 5 most JD-relevant signals in the profile?
   If any of the 5 are not JD-relevant, identify which bullet produced them and rewrite.
+□ PORTFOLIO COVERAGE: Does each selected project add distinct evidence? Remove redundancy before
+  removing a project that proves an otherwise unsupported high-weight responsibility.
+□ DENSITY: Is meaningful page space being wasted while strong relevant evidence remains unused?
 
 ENGINEERING CHECKS:
+□ DEFENSIBILITY: Can every technology, number, ownership claim, decision, and outcome be defended
+  from the profile while the final wording still presents the strongest reasonable conclusion?
+□ TRANSFERABLE EVIDENCE: For every high-weight requirement without an exact match, did you test
+  whether adjacent evidence proves the underlying responsibility before declaring a gap?
 □ OPENING NOUN: Does bullet 2 of every project lead with a specific technical component,
   schema, algorithm, or decision — not a generic noun?
 □ SINGLE CLAUSE: Does any bullet contain a purpose or restatement clause?
@@ -870,18 +963,21 @@ ENGINEERING CHECKS:
 □ ENGINEERING JUDGMENT: Does bullet 2 of every project expose a decision and its
   alternative? Would an experienced engineer ask "why X instead of Y?" after reading it?
   If not — the bullet is describing output, not judgment. Find the decision and rewrite.
-□ TIER 1 METRICS: List all Tier 1 metrics from Step 0. Verify each appears in the
-  corresponding bullet. Missing Tier 1 metric = generation failure.
+□ TIER 1 METRICS: For every selected source, identify its strongest job-relevant Tier 1
+  metric and verify it appears in the corresponding bullets. Do not force irrelevant metrics.
 □ TIER 3 CULLS: For any metric included, apply the disappearance test: "If this number
   disappeared, would anyone lose meaningful understanding?" If no — remove it.
 □ OWNERSHIP: Does every experience bullet communicate scope of ownership accurately?
 □ WORD DENSITY: Is every word carrying specific technical meaning?
-  Any bullet over 20 words must be compressed.
+  Any bullet over 32 words must be compressed.
 □ NOUN PRECISION: Does bullet 2 contain generic nouns where a precise term exists?
 □ FILLER TEST: Could any bullet appear on any software engineer's resume? If yes, identify
   what is uniquely Karan's and rewrite around that.
+□ COMPLETENESS: No fragment, project name alone, passive stack inventory, or raw profile sentence.
+□ REDUNDANCY: No two bullets from the same source communicate the same fact or outcome.
 □ VERB DIVERSITY: No two bullets in the same section start with the same verb.
-□ ATS: Do the 10-15 highest-weight JD terms appear in the resume?
+□ ATS: Do all truthfully supported high-weight JD terms appear naturally, with unsupported terms
+  excluded and adjacent capabilities stated using the actual technology?
 
 COVER LETTER:
 □ Para 1 references something specific to this company/role that couldn't be in a generic letter
@@ -893,7 +989,11 @@ COVER LETTER:
 ━━━ HARD CONSTRAINTS ━━━
 
 These never change:
-  Never invent skills, projects, or experience not present in the profile
+  Never invent atomic facts: skills, technologies, projects, dates, numbers, ownership, or outcomes
+  Synthesize and position supported evidence; never limit writing to verbatim profile language
+  Never omit strong transferable evidence merely because the requested tool or domain differs
+  Never put disclaimers, missing requirements, or gap language inside the resume or cover letter
+  Never output fragments, duplicate bullets, passive technology inventories, or raw fallback prose
   Output only the resume body sections (Experience, Projects, Skills) — preamble, heading, \
 and education are assembled by the system
 
@@ -1075,6 +1175,217 @@ def _assemble_resume_latex(body: str, preamble: str | None = None) -> str:
     return (preamble or LATEX_PREAMBLE) + _extract_resume_body(body) + "\n\n\\end{document}\n"
 
 
+# ── Editorial acceptance gate ────────────────────────────────────────────────
+
+_PASSIVE_INVENTORY_PATTERNS = (
+    re.compile(r"^(?:the\s+)?(?:application|platform|project|solution|system)\s+(?:is|was)\b", re.IGNORECASE),
+    re.compile(r"\b(?:is|was)\s+(?:built|developed|implemented)\s+using\b", re.IGNORECASE),
+    re.compile(r"\bserving\s+as\s+the\s+authoritative\s+source\s+of\s+truth\b", re.IGNORECASE),
+)
+
+_BULLET_STOPWORDS = {
+    "a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "of",
+    "on", "or", "the", "to", "with", "using", "that", "this", "through",
+}
+
+
+def _balanced_brace_contents(text: str, marker: str) -> list[str]:
+    """Extract the balanced final argument following a literal LaTeX marker."""
+    values: list[str] = []
+    cursor = 0
+    while True:
+        start = text.find(marker, cursor)
+        if start == -1:
+            return values
+        start += len(marker)
+        depth = 1
+        index = start
+        while index < len(text) and depth:
+            if text[index] == "{" and (index == 0 or text[index - 1] != "\\"):
+                depth += 1
+            elif text[index] == "}" and (index == 0 or text[index - 1] != "\\"):
+                depth -= 1
+            index += 1
+        if depth == 0:
+            values.append(text[start:index - 1].strip())
+            cursor = index
+        else:
+            return values
+
+
+def _latex_to_plain(text: str) -> str:
+    """Collapse the small LaTeX subset permitted inside generated bullets."""
+    plain = str(text or "")
+    plain = re.sub(r"\\href\{[^{}]*\}\{([^{}]*)\}", r"\1", plain)
+    # Unwrap simple formatting commands repeatedly so nested text survives.
+    for _ in range(4):
+        updated = re.sub(r"\\(?:textbf|textit|emph|small)\{([^{}]*)\}", r"\1", plain)
+        if updated == plain:
+            break
+        plain = updated
+    plain = plain.replace(r"\&", "&").replace(r"\%", "%")
+    plain = re.sub(r"\\[A-Za-z]+\*?(?:\[[^\]]*\])?", " ", plain)
+    plain = plain.replace("{", " ").replace("}", " ").replace("~", " ")
+    return re.sub(r"\s+", " ", plain).strip()
+
+
+def _resume_item_blocks(body: str) -> list[list[str]]:
+    blocks: list[list[str]] = []
+    cursor = 0
+    start_marker = r"\resumeItemListStart"
+    end_marker = r"\resumeItemListEnd"
+    while True:
+        start = body.find(start_marker, cursor)
+        if start == -1:
+            return blocks
+        end = body.find(end_marker, start + len(start_marker))
+        if end == -1:
+            return blocks
+        blocks.append(_balanced_brace_contents(body[start:end], r"\item \small{"))
+        cursor = end + len(end_marker)
+
+
+def _bullet_terms(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9+#.-]+", text.casefold())
+        if token not in _BULLET_STOPWORDS and len(token) > 1
+    }
+
+
+def _bullet_similarity(left: str, right: str) -> float:
+    left_terms, right_terms = _bullet_terms(left), _bullet_terms(right)
+    token_overlap = (
+        len(left_terms & right_terms) / len(left_terms | right_terms)
+        if left_terms and right_terms else 0.0
+    )
+    sequence_overlap = SequenceMatcher(None, left.casefold(), right.casefold()).ratio()
+    return max(token_overlap, sequence_overlap)
+
+
+def _resume_quality_errors(body_latex: str, profile_text: str) -> list[str]:
+    """Reject visible editorial defects before a resume can be stored as generated.
+
+    This deliberately checks only high-confidence failure modes. Nuanced editorial
+    judgment stays with the model; fragments, passive stack inventories, fabricated
+    numbers, duplicate bullets, and malformed section structure do not.
+    """
+    body = _extract_resume_body(body_latex)
+    errors: list[str] = []
+    blocks = _resume_item_blocks(body)
+    bullets = [_latex_to_plain(item) for block in blocks for item in block]
+
+    if not blocks:
+        errors.append("no resume bullet lists were found")
+        return errors
+    if not bullets:
+        errors.append("no resume bullets were found")
+        return errors
+
+    profile_numbers = set(re.findall(r"(?<![A-Za-z])\d+(?:[.,]\d+)?%?\+?", profile_text))
+    for index, bullet in enumerate(bullets, start=1):
+        words = re.findall(r"[A-Za-z0-9][A-Za-z0-9+#./'-]*", bullet)
+        if not 12 <= len(words) <= 38:
+            errors.append(f"bullet {index} has {len(words)} words; expected 12-38")
+        if bullet and not re.search(r"[.!?]$", bullet):
+            errors.append(f"bullet {index} does not end with sentence punctuation")
+        if any(pattern.search(bullet) for pattern in _PASSIVE_INVENTORY_PATTERNS):
+            errors.append(f"bullet {index} is a passive project or technology inventory")
+        unsupported_numbers = sorted(
+            set(re.findall(r"(?<![A-Za-z])\d+(?:[.,]\d+)?%?\+?", bullet)) - profile_numbers
+        )
+        if unsupported_numbers:
+            errors.append(
+                f"bullet {index} contains numbers absent from the profile: {', '.join(unsupported_numbers)}"
+            )
+
+    for block_index, block in enumerate(blocks, start=1):
+        plain_block = [_latex_to_plain(item) for item in block]
+        for left_index, left in enumerate(plain_block):
+            for right_index, right in enumerate(plain_block[left_index + 1:], start=left_index + 1):
+                if _bullet_similarity(left, right) >= 0.58:
+                    errors.append(
+                        f"entry {block_index} bullets {left_index + 1} and {right_index + 1} are semantically repetitive"
+                    )
+
+    experience = body.partition(r"\section{Experience}")[2].partition(r"\section{Projects}")[0]
+    projects = body.partition(r"\section{Projects}")[2].partition(r"\section{Skills}")[0]
+    experience_blocks = _resume_item_blocks(experience)
+    project_blocks = _resume_item_blocks(projects)
+    if not experience_blocks:
+        errors.append("experience section contains no entries")
+    if len(project_blocks) < 2:
+        errors.append("projects section contains fewer than two entries")
+    for index, block in enumerate(experience_blocks, start=1):
+        if not 2 <= len(block) <= 3:
+            errors.append(f"experience entry {index} has {len(block)} bullets; expected 2-3")
+    for index, block in enumerate(project_blocks, start=1):
+        if len(block) != 2:
+            errors.append(f"project entry {index} has {len(block)} bullets; exactly 2 required")
+    return errors
+
+
+_QUALITY_REPAIR_SYSTEM = r"""You are repairing only the variable LaTeX body of a one-page
+software-engineering resume. The supplied candidate profile is the sole source of atomic facts.
+Preserve strong content and the selected project set, but rewrite every defect listed by the
+quality gate. Never copy a raw profile sentence verbatim merely to fill a bullet.
+
+Every experience and project bullet must be a complete, polished resume sentence ending in
+punctuation. Experience entries require 2-3 distinct bullets. Every project requires exactly
+2 complementary bullets: first, a recruiter-legible product or outcome statement; second, a
+specific engineering decision, constraint, failure boundary, or implementation that invites
+technical discussion. Each bullet must contain 12-38 words. Never output a project name alone,
+a passive technology inventory, two paraphrases of the same fact, an unsupported number, or a
+generic README description. Use only supported technologies, metrics, ownership, and outcomes.
+
+Return only Experience, Projects, and Skills sections using the supplied LaTeX command structure.
+Do not output a preamble, heading, education section, document wrapper, or explanation.""" + LATEX_TEMPLATE
+
+_QUALITY_REPAIR_TOOL = {
+    "name": "repair_resume_body",
+    "description": "A corrected, evidence-backed LaTeX resume body.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "resume_latex": {
+                "type": "string",
+                "description": "Corrected Experience, Projects, and Skills LaTeX sections only.",
+            }
+        },
+        "required": ["resume_latex"],
+    },
+}
+
+
+async def _repair_resume_quality(
+    body_latex: str,
+    errors: list[str],
+    profile_text: str,
+    jd_text: str,
+    selected_projects: list[str],
+    api_key: str,
+):
+    llm = get_llm_client(api_key)
+    result = await llm.call_tool(
+        model=CLAUDE_MODEL,
+        max_tokens=4000,
+        system=_QUALITY_REPAIR_SYSTEM,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"<candidate_profile>\n{profile_text}\n</candidate_profile>\n\n"
+                f"<job_description>\n{jd_text}\n</job_description>\n\n"
+                f"<selected_projects>{selected_projects}</selected_projects>\n\n"
+                f"<quality_gate_errors>\n- " + "\n- ".join(errors) + "\n</quality_gate_errors>\n\n"
+                f"<draft_resume_body>\n{_extract_resume_body(body_latex)}\n</draft_resume_body>"
+            ),
+        }],
+        tool=_QUALITY_REPAIR_TOOL,
+        timeout=90.0,
+    )
+    return result
+
+
 # ── Page-overflow compression ─────────────────────────────────────────────────
 
 _COMPRESS_SYSTEM = (
@@ -1247,12 +1558,60 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
         "cache_write_tokens": call_result.cache_write_tokens,
     }
 
+    quality_repairs = 0
+    initial_quality_errors: list[str] = []
+    if result.get("resume_latex"):
+        initial_quality_errors = _resume_quality_errors(result["resume_latex"], profile_text)
+        if initial_quality_errors:
+            logger.warning(
+                "Generated resume failed editorial acceptance gate (%d defects); requesting one evidence-backed rewrite",
+                len(initial_quality_errors),
+            )
+            repaired = await _repair_resume_quality(
+                result["resume_latex"],
+                initial_quality_errors,
+                profile_text,
+                jd_text,
+                result.get("selected_projects") or [],
+                api_key,
+            )
+            repaired_body = repaired.tool_input["resume_latex"]
+            remaining_errors = _resume_quality_errors(repaired_body, profile_text)
+            if remaining_errors:
+                logger.error(
+                    "Resume quality repair failed acceptance gate: %s",
+                    " | ".join(remaining_errors),
+                )
+                raise ValueError(
+                    "Generated resume did not meet the editorial quality gate after repair."
+                )
+            result["resume_latex"] = repaired_body
+            result["input_tokens"] += repaired.input_tokens
+            result["output_tokens"] += repaired.output_tokens
+            result["cache_read_tokens"] += repaired.cache_read_tokens
+            result["cache_write_tokens"] += repaired.cache_write_tokens
+            quality_repairs = 1
+
     # Assemble full document, then compress if it spills past one page
     if result.get("resume_latex"):
         assembled = _assemble_resume_latex(result["resume_latex"], preamble)
         final_latex, compression_attempts = await _compress_if_needed(assembled, api_key, preamble)
+        post_compression_errors = _resume_quality_errors(final_latex, profile_text)
+        if post_compression_errors:
+            logger.error(
+                "One-page compression damaged resume quality: %s",
+                " | ".join(post_compression_errors),
+            )
+            raise ValueError("One-page compression produced an editorially invalid resume.")
         result["resume_latex"] = final_latex
         result["compression_attempts"] = compression_attempts
+
+    result["generation_metadata"] = {
+        "pipeline": "full_context_quality_gated",
+        "quality_gate_version": 1,
+        "quality_repair_attempts": quality_repairs,
+        "initial_quality_errors": initial_quality_errors,
+    }
 
     return result
 

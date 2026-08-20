@@ -29,7 +29,8 @@ from app.services.account_deletion import hard_delete_user
 from app.services.credentials import get_decrypted_key
 from app.services.crypto import validate_master_keys
 from app.services.error_tracking import init_error_tracking, set_user_context
-from app.services.generation_v2 import _normalize_generated_prose, generate_materials_v2
+from app.services.generation import GENERATION_VERSION, generate_materials
+from app.services.generation_v2 import _normalize_generated_prose
 from app.services.llm_client import StructuredOutputError, StructuredOutputTruncatedError
 from app.services.pdf_storage import cache_resume_pdf, get_pdf_storage, resume_pdf_key
 
@@ -130,13 +131,14 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             api_key = await get_decrypted_key(db, uuid.UUID(str(user_id)))
             if not api_key:
                 raise ValueError("No Anthropic API key on file")
-            result = await generate_materials_v2(
-                db,
-                jd_text,
-                api_key,
-                user_id=uuid.UUID(str(user_id)),
-                job_id=job_id,
-            )
+            result = await generate_materials(db, jd_text, api_key)
+            result["generation_version"] = GENERATION_VERSION
+            result["page_count"] = 1
+            result["generation_metadata"] = {
+                **(result.get("generation_metadata") or {}),
+                "pipeline": "full_context_quality_gated",
+                "temporary_quality_rollback": False,
+            }
             generated_pdf = result.pop("pdf_bytes", None)
             _apply_result(job, result)
             job.status = "generated"
