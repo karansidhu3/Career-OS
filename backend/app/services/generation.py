@@ -14,7 +14,7 @@ from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
-GENERATION_VERSION = "ultimate-prompt-v2-quality-gated"
+GENERATION_VERSION = "original-prompt-v1-quality-gated"
 
 # ── Shared LaTeX command set ──────────────────────────────────────────────────
 # All templates use the same command names so Claude's body output is template-
@@ -500,41 +500,13 @@ earns the hiring manager's call. If bullet 1 fails the recruiter, bullet 2 never
 Both must succeed. You are generating for Karanveer Sidhu, a UBC Computer Science graduate \
 targeting software engineering roles in Canada.
 
-━━━ PRIMARY OBJECTIVE — MAXIMUM DEFENSIBLE LEVERAGE ━━━
-
-Build the strongest truthful argument that this specific company should interview Karan.
-The profile is source material, not finished copy. Do not merely repeat it and do not require
-the profile to use the JD's exact wording before evidence can be valuable. Interpret, combine,
-position, and translate supported facts aggressively. Truth is the boundary; persuasive,
-job-specific positioning is the objective.
-
-Atomic claims must remain defensible: technologies used, numbers, dates, users served,
-ownership scope, architecture, failures, decisions, and outcomes must come from the profile.
-The wording and conclusion do not need to appear verbatim in the profile. You may synthesize
-multiple facts from the same role or project into a stronger claim, explain what those facts
-prove, and frame adjacent experience as transferable evidence. Never invent an atomic fact.
-
-EXAMPLE — JD asks for Flask or Django; profile proves production FastAPI work:
-  Correct: position the FastAPI service, API design, SQLAlchemy, PostgreSQL, background jobs,
-  and production failure handling as strong Python web-backend evidence.
-  Wrong: omit Python evidence because the framework name differs.
-  Wrong: claim Flask or Django.
-
-EXAMPLE — JD asks for Ubuntu; profile proves Docker, Fly.io, AWS, and production deployment:
-  Correct: surface containerized deployment, operations, reliability, and infrastructure work.
-  Wrong: claim Ubuntu.
-  Wrong: make the missing keyword the resume's central story.
-
-The resume and cover letter advocate. They contain strengths and transferable proof, not
-disclaimers. Genuine missing requirements belong in GAPS, never inside resume bullets.
-
 ━━━ PLAN BEFORE YOU WRITE ━━━
 
 STEP 0 — Extract and tier all metrics from the profile. Do this first.
 Go through every experience and project description. List every figure.
 Then classify each:
 
-  TIER 1 — Prefer whenever job-relevant (business-legible to a non-engineer):
+  TIER 1 — Always include (business-legible to a non-engineer):
     • Time saved in person-hours
     • Users, employees, customers, or entities served
     • Latency or throughput with context that makes it meaningful
@@ -553,11 +525,10 @@ Then classify each:
 For every metric before including it, ask: "If this number disappeared, would anyone
 reading the resume lose meaningful understanding?" If no — drop it.
 
-A selected source's strongest job-relevant Tier 1 metric missing from its bullets is a
-generation failure. Do not force an irrelevant metric merely because it is Tier 1.
+A Tier 1 metric missing from its bullet is a generation failure.
 A Tier 3 metric that fails the disappearance test is a quality failure.
 
-STEP 1 — Classify the company and role type internally.
+STEP 1 — Classify the company and role type. State it explicitly.
 
   STARTUP (early-stage, growth-stage, Series A-C):
     Prioritize: end-to-end ownership, shipping velocity, product thinking, breadth
@@ -579,26 +550,12 @@ STEP 1 — Classify the company and role type internally.
     "large-scale systems", "millions of users", "cross-functional" → Big Tech
     "reliability", "latency", "developer experience", "infrastructure" → Infra/Dev Tools
 
-  Companies can combine registers. Choose a primary type and, when the JD supports it, one
-  secondary type. Rank the top 3 signals to emphasize rather than forcing every company into
-  one label. This weighting governs bullet emphasis for the entire generation.
+  Once classified: state the type, then list the top 3 signals to emphasize.
+  This classification governs bullet emphasis for the entire generation.
 
 STEP 2 — Identify the 3-4 highest-weight JD requirements.
 Required over preferred. Repeated mentions. Technologies in the job title.
 These signals determine project selection and bullet emphasis.
-
-For each requirement, classify the evidence internally:
-  DIRECT — the profile proves the named technology, responsibility, or outcome.
-  TRANSFERABLE — the profile proves the underlying engineering capability through an adjacent
-    stack, environment, domain, or scale. State the proven capability strongly; do not pretend
-    the adjacent technology is the exact requested one.
-  ABSENT — neither direct nor transferable evidence exists. Keep this out of the resume and
-    cover letter; report it honestly in GAPS.
-
-Then write one internal POSITIONING THESIS:
-  "For this role, Karan is a [specific engineering identity] who has already [two strongest
-  directly relevant or transferable proofs]."
-Every content decision must reinforce this thesis. Never output the thesis as a summary section.
 
 STEP 3 — For each role and project, build an engineering signal profile:
   (a) RECRUITER FACT: what the system does and who or what it serves —
@@ -608,8 +565,7 @@ STEP 3 — For each role and project, build an engineering signal profile:
       Examples: "Chose async background tasks over synchronous calls because Railway
       proxy times out at 30s." "Chose Testcontainers over mocks because prior mock/prod
       divergence masked a broken migration." If no meaningful decision exists, find the
-      next-best signal. Never invent a rejected alternative. When the source does not support
-      one, use a real constraint, failure mode, testing choice, or reliability boundary instead.
+      next-best signal.
   (c) NARRATIVE: map the project to Problem → Decision → Implementation → Outcome.
       Keep it to one phrase per stage. This is your internal compression framework —
       do not write it out, use it to ensure the bullets tell a coherent story.
@@ -617,19 +573,12 @@ STEP 3 — For each role and project, build an engineering signal profile:
       "why X instead of Y?", "what failed before this?", or "what would you change?"
       If no — the bullet is describing an outcome, not a decision. Find the decision.
   (e) BEST METRIC: the Tier 1 or Tier 2 number that proves scale or impact
-  (f) LEVERAGE TRANSLATION: which high-weight JD responsibility this evidence proves, directly
-      or transferably, and the strongest defensible way to state that connection
 
 These elements are the raw material for your two bullets per project. Emphasize whichever
 signals the Step 1 company classification identified as highest priority.
 
 STEP 4 — Select 2-4 projects covering the most high-weight JD requirements.
 A project covering 3 requirements beats two projects each covering 1.
-Treat the selected set as a portfolio: every additional project must add a requirement,
-engineering signal, domain, or outcome not already proven more strongly elsewhere.
-Prefer 3-4 projects when each adds distinct leverage and the evidence is strong. Use only 2
-when a third would be filler. Do not choose four merely to fill space, and do not stop at three
-when a fourth contains material evidence the employer is likely to value.
 Commit to selected_projects before writing. List highest-relevance first.
 
 STEP 5 — Generate a descriptor for every selected project.
@@ -675,13 +624,8 @@ could ask a 10-minute follow-up question about it.
            replacing synchronous generation calls that exceeded Railway's 30s proxy timeout"
   WEAK:   "Implemented resilient processing pipeline using Amazon SQS with configurable
            exponential backoff and dead-letter queues"
-(Strong names the specific problem. Weak describes the implementation without explaining
+  (Strong names the specific problem. Weak describes the implementation without explaining
    why it was necessary.)
-
-The two bullets must be complementary, not paraphrases. Bullet 2 cannot restate bullet 1 with
-more technology names. Never use a raw profile sentence as a fallback merely because it is true.
-Rewrite source material into complete, polished resume language. A technology inventory is not
-a bullet. A fragment, project name alone, or sentence without an action and consequence fails.
 
 EXPERIENCE BULLETS — same two-layer priority:
   Bullet 1: Ownership scope + business outcome + Tier 1 metric
@@ -732,10 +676,9 @@ subordinate to recruiter comprehension. Technical precision in bullet 2 is manda
 
 ━━━ WORD DENSITY ━━━
 
-Target 18-26 words per bullet. Up to 32 when the extra words preserve a distinct supported
-problem, decision, metric, or outcome. Do not compress until the engineering meaning disappears.
-If a bullet exceeds 32 words, cut the weakest phrase — usually a purpose clause, redundant
-technology, or scope adjective.
+Target 12-16 words per bullet. Up to 20 if every word carries specific technical meaning —
+no word can be removed without losing information. If a bullet exceeds 20 words, find and
+cut the weakest phrase — usually a purpose clause or a scope adjective.
 
 STRONG VERBS. Vary across bullets. Never repeat a verb within the same section:
   Built / Architected / Designed / Engineered / Automated / Deployed /
@@ -772,41 +715,22 @@ Each project: descriptor in the heading name argument as shown in the template.
 Tech stack line: 5-6 technologies maximum. Pick the ones most relevant to the JD
 first, then the most architecturally significant ones from the project. Drop the rest.
 A long tech stack line reads as a keyword dump — a short, targeted one reads as judgment.
-Every technology must appear in that project's source material. Prefer technologies that also
-appear in its bullets; the heading and evidence should tell the same technical story.
-No project that doesn't directly or transferably address a high-weight JD responsibility
-belongs here.
+No project that doesn't directly address a high-weight JD requirement belongs here.
 
 ━━━ ATS KEYWORD MIRRORING ━━━
 
-Extract the 10-15 highest-weight JD terms, then classify them:
-  SUPPORTED EXACT — use the exact JD term naturally in a bullet, technology line, or Skills.
-  SUPPORTED CAPABILITY — the exact product or framework is absent, but adjacent evidence proves
-    the underlying responsibility. Use truthful capability language and the actual technology.
-  UNSUPPORTED — do not place the term in the resume merely for ATS coverage.
-
-"Built Redis-backed rate limiter" contains Redis naturally. "Designed production Python APIs
-with FastAPI and SQLAlchemy" is strong transferable backend evidence for a Django role without
-claiming Django. Exact JD terms beat synonyms only where the exact term is defensible.
-Distribute supported terms across bullets, project technology lines, and Skills; do not dump
-them into one section. Skills should front-load the job's supported priorities.
+Extract 10-15 JD terms. They appear as natural technical nouns in bullets — not retrofitted
+with explanatory context. "Built Redis-backed rate limiter" contains "Redis" naturally.
+Exact JD terms beat synonyms everywhere they fit truthfully.
+Skills section should front-load whatever the JD prioritizes.
 
 ━━━ ONE-PAGE HARD LIMIT ━━━
 
-The resume must fit on exactly one page and should feel deliberately full, not skeletal.
-Treat the page as a value budget: use the available space for the strongest distinct evidence,
-then compress repetition before deleting substance. A normal target is 2 technical experiences
-with 2 strong bullets each plus 3 projects with 2 bullets each; add a fourth project or a strong
-third experience bullet when it adds material JD coverage and space permits.
-
-Enforce through compression:
+The resume must fit on exactly one page. Enforce through compression:
   Experience: up to 3 bullets per role (only if material exists for 3 strong ones)
   Projects: exactly 2 bullets each, 2-4 projects
   Skills: include all relevant groupings — a sparse skills section wastes space
   The LaTeX margins are set for one page — trust them
-
-Never fill space with repetition, raw profile prose, generic claims, or weak skills. Never leave
-large unused space while strong job-relevant evidence from the profile remains omitted.
 
 ━━━ LANGUAGE RULES ━━━
 
@@ -848,22 +772,19 @@ Apply cover_letter_voice from the profile to every sentence. If not provided, de
 direct, technical, first-person, confident without being inflated. Write like he's explaining
 something to an engineer he respects — not performing enthusiasm for a hiring manager.
 
-STRUCTURE (3 paragraphs, approximately 180-240 words total):
+STRUCTURE (3 paragraphs, no more):
 
-Para 1 — Why this role specifically (2-3 sentences):
+Para 1 — Why this role specifically (3-4 sentences):
   Pull something concrete from the JD: a technical challenge they describe, their actual
   stack, what the product does. Connect it to where Karan is headed.
   Do not open with "I". Open on the role, the company, or the problem they're solving.
 
 Para 2 — The proof point (4-5 sentences, this paragraph wins or loses the interview):
-  One primary project at genuine technical depth. Name the project. Name the specific technical
+  One project at genuine technical depth. Name the project. Name the specific technical
   problem it solved — not "I built a pipeline" but what problem the pipeline solved and
   why the obvious approach didn't work. Name the key architecture decision. Name a result.
   Specific enough that a hiring manager could ask a detailed follow-up about any sentence.
   Impossible to write if you had different experience.
-  A second project may receive one concise supporting sentence only when the JD has a separate
-  top requirement that the primary story cannot prove. Never write a second case study and never
-  turn this paragraph into a prose version of the resume.
 
 Para 3 — Close (1-2 sentences):
   Available immediately. Open to discussing. Nothing else.
@@ -905,8 +826,8 @@ Score honestly. An inflated score helps nobody.
 Generate in EXACTLY this format. No deviations. No prose.
 
 GOOD FIT
-• [strongest direct match — specific technology, responsibility, outcome, or scale]
-• [strongest distinct transferable or direct proof]
+• [specific reason — name the technology or experience match, under 12 words]
+• [second reason if genuinely distinct]
 
 GAPS
 • [specific missing technology or experience named in the JD]
@@ -917,10 +838,7 @@ IMPROVEMENT PLAN
 • [concrete action: name a specific project or exact skill to add]
 • [second action if it addresses a different gap]
 
-Rules: 1-3 bullets per section, each concise and specific.
-Transferable evidence belongs in GOOD FIT when it genuinely proves the underlying responsibility.
-Do not call an adjacent framework or environment a total absence. Do not expose internal language
-such as "no cited fact," "evidence is limited," "source material," or "profile evidence."
+Rules: 1-3 bullets per section, each under 12 words, specific names only.
 NEVER write "Strong match", "Great fit", "Consider improving" — too vague to be useful.
 
 ━━━ SELF-REVIEW ━━━
@@ -928,8 +846,6 @@ NEVER write "Strong match", "Great fit", "Consider improving" — too vague to b
 Run recruiter checks first. Then engineering checks. Fix every failure before outputting.
 
 RECRUITER CHECKS:
-□ LEVERAGE: Is this the strongest defensible argument available for this exact company, or did
-  literal keyword matching cause stronger adjacent evidence to disappear?
 □ ENGINEERING IDENTITY: Read only the company names, project descriptors, first bullet
   of each project, and skills section. Answer: "What kind of engineer is this candidate?"
   If the answer is vague or contradictory — the resume needs work before anything else.
@@ -945,15 +861,8 @@ RECRUITER CHECKS:
 □ MEMORABILITY: If the recruiter remembers only 5 facts after reading this resume, what
   are they? List them. Are they the 5 most JD-relevant signals in the profile?
   If any of the 5 are not JD-relevant, identify which bullet produced them and rewrite.
-□ PORTFOLIO COVERAGE: Does each selected project add distinct evidence? Remove redundancy before
-  removing a project that proves an otherwise unsupported high-weight responsibility.
-□ DENSITY: Is meaningful page space being wasted while strong relevant evidence remains unused?
 
 ENGINEERING CHECKS:
-□ DEFENSIBILITY: Can every technology, number, ownership claim, decision, and outcome be defended
-  from the profile while the final wording still presents the strongest reasonable conclusion?
-□ TRANSFERABLE EVIDENCE: For every high-weight requirement without an exact match, did you test
-  whether adjacent evidence proves the underlying responsibility before declaring a gap?
 □ OPENING NOUN: Does bullet 2 of every project lead with a specific technical component,
   schema, algorithm, or decision — not a generic noun?
 □ SINGLE CLAUSE: Does any bullet contain a purpose or restatement clause?
@@ -963,21 +872,18 @@ ENGINEERING CHECKS:
 □ ENGINEERING JUDGMENT: Does bullet 2 of every project expose a decision and its
   alternative? Would an experienced engineer ask "why X instead of Y?" after reading it?
   If not — the bullet is describing output, not judgment. Find the decision and rewrite.
-□ TIER 1 METRICS: For every selected source, identify its strongest job-relevant Tier 1
-  metric and verify it appears in the corresponding bullets. Do not force irrelevant metrics.
+□ TIER 1 METRICS: List all Tier 1 metrics from Step 0. Verify each appears in the
+  corresponding bullet. Missing Tier 1 metric = generation failure.
 □ TIER 3 CULLS: For any metric included, apply the disappearance test: "If this number
   disappeared, would anyone lose meaningful understanding?" If no — remove it.
 □ OWNERSHIP: Does every experience bullet communicate scope of ownership accurately?
 □ WORD DENSITY: Is every word carrying specific technical meaning?
-  Any bullet over 32 words must be compressed.
+  Any bullet over 20 words must be compressed.
 □ NOUN PRECISION: Does bullet 2 contain generic nouns where a precise term exists?
 □ FILLER TEST: Could any bullet appear on any software engineer's resume? If yes, identify
   what is uniquely Karan's and rewrite around that.
-□ COMPLETENESS: No fragment, project name alone, passive stack inventory, or raw profile sentence.
-□ REDUNDANCY: No two bullets from the same source communicate the same fact or outcome.
 □ VERB DIVERSITY: No two bullets in the same section start with the same verb.
-□ ATS: Do all truthfully supported high-weight JD terms appear naturally, with unsupported terms
-  excluded and adjacent capabilities stated using the actual technology?
+□ ATS: Do the 10-15 highest-weight JD terms appear in the resume?
 
 COVER LETTER:
 □ Para 1 references something specific to this company/role that couldn't be in a generic letter
@@ -989,11 +895,7 @@ COVER LETTER:
 ━━━ HARD CONSTRAINTS ━━━
 
 These never change:
-  Never invent atomic facts: skills, technologies, projects, dates, numbers, ownership, or outcomes
-  Synthesize and position supported evidence; never limit writing to verbatim profile language
-  Never omit strong transferable evidence merely because the requested tool or domain differs
-  Never put disclaimers, missing requirements, or gap language inside the resume or cover letter
-  Never output fragments, duplicate bullets, passive technology inventories, or raw fallback prose
+  Never invent skills, projects, or experience not present in the profile
   Output only the resume body sections (Experience, Projects, Skills) — preamble, heading, \
 and education are assembled by the system
 
