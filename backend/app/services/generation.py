@@ -1,4 +1,5 @@
 import asyncio
+from difflib import SequenceMatcher
 import io
 import logging
 import re
@@ -13,7 +14,7 @@ from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
-GENERATION_VERSION = "ultimate-prompt-v1"
+GENERATION_VERSION = "ultimate-prompt-v2-quality-gated"
 
 # ── Shared LaTeX command set ──────────────────────────────────────────────────
 # All templates use the same command names so Claude's body output is template-
@@ -1174,6 +1175,217 @@ def _assemble_resume_latex(body: str, preamble: str | None = None) -> str:
     return (preamble or LATEX_PREAMBLE) + _extract_resume_body(body) + "\n\n\\end{document}\n"
 
 
+# ── Editorial acceptance gate ────────────────────────────────────────────────
+
+_PASSIVE_INVENTORY_PATTERNS = (
+    re.compile(r"^(?:the\s+)?(?:application|platform|project|solution|system)\s+(?:is|was)\b", re.IGNORECASE),
+    re.compile(r"\b(?:is|was)\s+(?:built|developed|implemented)\s+using\b", re.IGNORECASE),
+    re.compile(r"\bserving\s+as\s+the\s+authoritative\s+source\s+of\s+truth\b", re.IGNORECASE),
+)
+
+_BULLET_STOPWORDS = {
+    "a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "of",
+    "on", "or", "the", "to", "with", "using", "that", "this", "through",
+}
+
+
+def _balanced_brace_contents(text: str, marker: str) -> list[str]:
+    """Extract the balanced final argument following a literal LaTeX marker."""
+    values: list[str] = []
+    cursor = 0
+    while True:
+        start = text.find(marker, cursor)
+        if start == -1:
+            return values
+        start += len(marker)
+        depth = 1
+        index = start
+        while index < len(text) and depth:
+            if text[index] == "{" and (index == 0 or text[index - 1] != "\\"):
+                depth += 1
+            elif text[index] == "}" and (index == 0 or text[index - 1] != "\\"):
+                depth -= 1
+            index += 1
+        if depth == 0:
+            values.append(text[start:index - 1].strip())
+            cursor = index
+        else:
+            return values
+
+
+def _latex_to_plain(text: str) -> str:
+    """Collapse the small LaTeX subset permitted inside generated bullets."""
+    plain = str(text or "")
+    plain = re.sub(r"\\href\{[^{}]*\}\{([^{}]*)\}", r"\1", plain)
+    # Unwrap simple formatting commands repeatedly so nested text survives.
+    for _ in range(4):
+        updated = re.sub(r"\\(?:textbf|textit|emph|small)\{([^{}]*)\}", r"\1", plain)
+        if updated == plain:
+            break
+        plain = updated
+    plain = plain.replace(r"\&", "&").replace(r"\%", "%")
+    plain = re.sub(r"\\[A-Za-z]+\*?(?:\[[^\]]*\])?", " ", plain)
+    plain = plain.replace("{", " ").replace("}", " ").replace("~", " ")
+    return re.sub(r"\s+", " ", plain).strip()
+
+
+def _resume_item_blocks(body: str) -> list[list[str]]:
+    blocks: list[list[str]] = []
+    cursor = 0
+    start_marker = r"\resumeItemListStart"
+    end_marker = r"\resumeItemListEnd"
+    while True:
+        start = body.find(start_marker, cursor)
+        if start == -1:
+            return blocks
+        end = body.find(end_marker, start + len(start_marker))
+        if end == -1:
+            return blocks
+        blocks.append(_balanced_brace_contents(body[start:end], r"\item \small{"))
+        cursor = end + len(end_marker)
+
+
+def _bullet_terms(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9+#.-]+", text.casefold())
+        if token not in _BULLET_STOPWORDS and len(token) > 1
+    }
+
+
+def _bullet_similarity(left: str, right: str) -> float:
+    left_terms, right_terms = _bullet_terms(left), _bullet_terms(right)
+    token_overlap = (
+        len(left_terms & right_terms) / len(left_terms | right_terms)
+        if left_terms and right_terms else 0.0
+    )
+    sequence_overlap = SequenceMatcher(None, left.casefold(), right.casefold()).ratio()
+    return max(token_overlap, sequence_overlap)
+
+
+def _resume_quality_errors(body_latex: str, profile_text: str) -> list[str]:
+    """Reject visible editorial defects before a resume can be stored as generated.
+
+    This deliberately checks only high-confidence failure modes. Nuanced editorial
+    judgment stays with the model; fragments, passive stack inventories, fabricated
+    numbers, duplicate bullets, and malformed section structure do not.
+    """
+    body = _extract_resume_body(body_latex)
+    errors: list[str] = []
+    blocks = _resume_item_blocks(body)
+    bullets = [_latex_to_plain(item) for block in blocks for item in block]
+
+    if not blocks:
+        errors.append("no resume bullet lists were found")
+        return errors
+    if not bullets:
+        errors.append("no resume bullets were found")
+        return errors
+
+    profile_numbers = set(re.findall(r"(?<![A-Za-z])\d+(?:[.,]\d+)?%?\+?", profile_text))
+    for index, bullet in enumerate(bullets, start=1):
+        words = re.findall(r"[A-Za-z0-9][A-Za-z0-9+#./'-]*", bullet)
+        if not 12 <= len(words) <= 38:
+            errors.append(f"bullet {index} has {len(words)} words; expected 12-38")
+        if bullet and not re.search(r"[.!?]$", bullet):
+            errors.append(f"bullet {index} does not end with sentence punctuation")
+        if any(pattern.search(bullet) for pattern in _PASSIVE_INVENTORY_PATTERNS):
+            errors.append(f"bullet {index} is a passive project or technology inventory")
+        unsupported_numbers = sorted(
+            set(re.findall(r"(?<![A-Za-z])\d+(?:[.,]\d+)?%?\+?", bullet)) - profile_numbers
+        )
+        if unsupported_numbers:
+            errors.append(
+                f"bullet {index} contains numbers absent from the profile: {', '.join(unsupported_numbers)}"
+            )
+
+    for block_index, block in enumerate(blocks, start=1):
+        plain_block = [_latex_to_plain(item) for item in block]
+        for left_index, left in enumerate(plain_block):
+            for right_index, right in enumerate(plain_block[left_index + 1:], start=left_index + 1):
+                if _bullet_similarity(left, right) >= 0.58:
+                    errors.append(
+                        f"entry {block_index} bullets {left_index + 1} and {right_index + 1} are semantically repetitive"
+                    )
+
+    experience = body.partition(r"\section{Experience}")[2].partition(r"\section{Projects}")[0]
+    projects = body.partition(r"\section{Projects}")[2].partition(r"\section{Skills}")[0]
+    experience_blocks = _resume_item_blocks(experience)
+    project_blocks = _resume_item_blocks(projects)
+    if not experience_blocks:
+        errors.append("experience section contains no entries")
+    if len(project_blocks) < 2:
+        errors.append("projects section contains fewer than two entries")
+    for index, block in enumerate(experience_blocks, start=1):
+        if not 2 <= len(block) <= 3:
+            errors.append(f"experience entry {index} has {len(block)} bullets; expected 2-3")
+    for index, block in enumerate(project_blocks, start=1):
+        if len(block) != 2:
+            errors.append(f"project entry {index} has {len(block)} bullets; exactly 2 required")
+    return errors
+
+
+_QUALITY_REPAIR_SYSTEM = r"""You are repairing only the variable LaTeX body of a one-page
+software-engineering resume. The supplied candidate profile is the sole source of atomic facts.
+Preserve strong content and the selected project set, but rewrite every defect listed by the
+quality gate. Never copy a raw profile sentence verbatim merely to fill a bullet.
+
+Every experience and project bullet must be a complete, polished resume sentence ending in
+punctuation. Experience entries require 2-3 distinct bullets. Every project requires exactly
+2 complementary bullets: first, a recruiter-legible product or outcome statement; second, a
+specific engineering decision, constraint, failure boundary, or implementation that invites
+technical discussion. Each bullet must contain 12-38 words. Never output a project name alone,
+a passive technology inventory, two paraphrases of the same fact, an unsupported number, or a
+generic README description. Use only supported technologies, metrics, ownership, and outcomes.
+
+Return only Experience, Projects, and Skills sections using the supplied LaTeX command structure.
+Do not output a preamble, heading, education section, document wrapper, or explanation.""" + LATEX_TEMPLATE
+
+_QUALITY_REPAIR_TOOL = {
+    "name": "repair_resume_body",
+    "description": "A corrected, evidence-backed LaTeX resume body.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "resume_latex": {
+                "type": "string",
+                "description": "Corrected Experience, Projects, and Skills LaTeX sections only.",
+            }
+        },
+        "required": ["resume_latex"],
+    },
+}
+
+
+async def _repair_resume_quality(
+    body_latex: str,
+    errors: list[str],
+    profile_text: str,
+    jd_text: str,
+    selected_projects: list[str],
+    api_key: str,
+):
+    llm = get_llm_client(api_key)
+    result = await llm.call_tool(
+        model=CLAUDE_MODEL,
+        max_tokens=4000,
+        system=_QUALITY_REPAIR_SYSTEM,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"<candidate_profile>\n{profile_text}\n</candidate_profile>\n\n"
+                f"<job_description>\n{jd_text}\n</job_description>\n\n"
+                f"<selected_projects>{selected_projects}</selected_projects>\n\n"
+                f"<quality_gate_errors>\n- " + "\n- ".join(errors) + "\n</quality_gate_errors>\n\n"
+                f"<draft_resume_body>\n{_extract_resume_body(body_latex)}\n</draft_resume_body>"
+            ),
+        }],
+        tool=_QUALITY_REPAIR_TOOL,
+        timeout=90.0,
+    )
+    return result
+
+
 # ── Page-overflow compression ─────────────────────────────────────────────────
 
 _COMPRESS_SYSTEM = (
@@ -1346,12 +1558,60 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
         "cache_write_tokens": call_result.cache_write_tokens,
     }
 
+    quality_repairs = 0
+    initial_quality_errors: list[str] = []
+    if result.get("resume_latex"):
+        initial_quality_errors = _resume_quality_errors(result["resume_latex"], profile_text)
+        if initial_quality_errors:
+            logger.warning(
+                "Generated resume failed editorial acceptance gate (%d defects); requesting one evidence-backed rewrite",
+                len(initial_quality_errors),
+            )
+            repaired = await _repair_resume_quality(
+                result["resume_latex"],
+                initial_quality_errors,
+                profile_text,
+                jd_text,
+                result.get("selected_projects") or [],
+                api_key,
+            )
+            repaired_body = repaired.tool_input["resume_latex"]
+            remaining_errors = _resume_quality_errors(repaired_body, profile_text)
+            if remaining_errors:
+                logger.error(
+                    "Resume quality repair failed acceptance gate: %s",
+                    " | ".join(remaining_errors),
+                )
+                raise ValueError(
+                    "Generated resume did not meet the editorial quality gate after repair."
+                )
+            result["resume_latex"] = repaired_body
+            result["input_tokens"] += repaired.input_tokens
+            result["output_tokens"] += repaired.output_tokens
+            result["cache_read_tokens"] += repaired.cache_read_tokens
+            result["cache_write_tokens"] += repaired.cache_write_tokens
+            quality_repairs = 1
+
     # Assemble full document, then compress if it spills past one page
     if result.get("resume_latex"):
         assembled = _assemble_resume_latex(result["resume_latex"], preamble)
         final_latex, compression_attempts = await _compress_if_needed(assembled, api_key, preamble)
+        post_compression_errors = _resume_quality_errors(final_latex, profile_text)
+        if post_compression_errors:
+            logger.error(
+                "One-page compression damaged resume quality: %s",
+                " | ".join(post_compression_errors),
+            )
+            raise ValueError("One-page compression produced an editorially invalid resume.")
         result["resume_latex"] = final_latex
         result["compression_attempts"] = compression_attempts
+
+    result["generation_metadata"] = {
+        "pipeline": "full_context_quality_gated",
+        "quality_gate_version": 1,
+        "quality_repair_attempts": quality_repairs,
+        "initial_quality_errors": initial_quality_errors,
+    }
 
     return result
 

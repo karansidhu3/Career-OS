@@ -132,14 +132,12 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             if not api_key:
                 raise ValueError("No Anthropic API key on file")
             result = await generate_materials(db, jd_text, api_key)
-            # Temporary quality rollback: the original full-context prompt has
-            # no generation metadata of its own, but it compiles and verifies a
-            # one-page resume before returning.
             result["generation_version"] = GENERATION_VERSION
             result["page_count"] = 1
             result["generation_metadata"] = {
-                "pipeline": "original_full_context_prompt",
-                "temporary_quality_rollback": True,
+                **(result.get("generation_metadata") or {}),
+                "pipeline": "full_context_quality_gated",
+                "temporary_quality_rollback": False,
             }
             generated_pdf = result.pop("pdf_bytes", None)
             _apply_result(job, result)
