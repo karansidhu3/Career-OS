@@ -14,3 +14,7 @@ node_modules/
 *.log
 test-results/
 playwright-report/
+
+# Locally generated resume and PDF review artifacts
+/output/
+/tmp/

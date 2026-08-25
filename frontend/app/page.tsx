@@ -721,9 +721,11 @@ export default function Home() {
                       ) : (
                         /* Structured insight — scannable in seconds */
                         <>
-                          <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-snug mb-5">
-                            {insights.headline ?? `${insights.count} applications`}
-                          </p>
+                          {insights.headline && (
+                            <p className="text-xl font-semibold text-neutral-700 tracking-tight leading-snug mb-5">
+                              {insights.headline}
+                            </p>
+                          )}
                           <div className="space-y-4 max-w-lg">
                             {insights.observed && (
                               <div>
