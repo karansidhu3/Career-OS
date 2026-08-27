@@ -14,7 +14,7 @@ from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
-GENERATION_VERSION = "original-prompt-v1-quality-gated"
+GENERATION_VERSION = "original-prompt-v1-quality-gated-layout-rescue"
 
 # ── Shared LaTeX command set ──────────────────────────────────────────────────
 # All templates use the same command names so Claude's body output is template-
@@ -722,7 +722,9 @@ No project that doesn't directly address a high-weight JD requirement belongs he
 Extract 10-15 JD terms. They appear as natural technical nouns in bullets — not retrofitted
 with explanatory context. "Built Redis-backed rate limiter" contains "Redis" naturally.
 Exact JD terms beat synonyms everywhere they fit truthfully.
-Skills section should front-load whatever the JD prioritizes.
+Skills section should front-load whatever the JD prioritizes. Order both categories and
+the skills inside each category from most to least relevant to the JD. The least relevant
+content must always be last so deterministic one-page fitting can remove it safely.
 
 ━━━ ONE-PAGE HARD LIMIT ━━━
 
@@ -1331,7 +1333,167 @@ async def _call_compression(body_latex: str, api_key: str) -> str:
     return result.tool_input["resume_latex"]
 
 
-async def _compress_if_needed(assembled_latex: str, api_key: str, preamble: str | None = None, max_attempts: int = 2) -> tuple[str, int]:
+def _pdf_layout(pdf_bytes: bytes) -> tuple[int, str]:
+    """Return page count plus best-effort text that overflowed past page one."""
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    overflow_parts: list[str] = []
+    for page in reader.pages[1:]:
+        try:
+            text = page.extract_text()
+        except Exception:
+            text = ""
+        if isinstance(text, str) and text.strip():
+            overflow_parts.append(text.strip())
+    return len(reader.pages), "\n".join(overflow_parts)
+
+
+def _reduce_skills_once(body_latex: str) -> tuple[str, str] | None:
+    """Remove the least-relevant Skills row, or the section when one row remains.
+
+    The generation prompt requires categories and skills to be ordered by relevance,
+    so removal from the end is deterministic and job-aware without another model call.
+    Skills is the final body section by contract.
+    """
+    body = _extract_resume_body(body_latex)
+    section_start = body.find(r"\section{Skills}")
+    if section_start == -1:
+        return None
+
+    section = body[section_start:]
+    item_starts = [
+        match.start()
+        for match in re.finditer(r"(?m)^[ \t]*\\item(?:\s|$)", section)
+    ]
+    if len(item_starts) <= 1:
+        trimmed = body[:section_start].rstrip() + "\n"
+        return trimmed, "removed_skills_section"
+
+    last_start = item_starts[-1]
+    itemize_end = section.find(r"\end{itemize}", last_start)
+    if itemize_end == -1:
+        return None
+
+    removed_item = section[last_start:itemize_end]
+    label_match = re.search(r"\\textbf\{([^{}]+)\}", removed_item)
+    label = _latex_to_plain(label_match.group(1)).rstrip(":") if label_match else "last"
+    reduced_section = section[:last_start].rstrip() + "\n" + section[itemize_end:]
+    return body[:section_start] + reduced_section, f"removed_skill_row:{label}"
+
+
+def _remove_last_project(body_latex: str) -> tuple[str, str] | None:
+    """Remove the lowest-ranked project while preserving at least two projects."""
+    body = _extract_resume_body(body_latex)
+    projects_start = body.find(r"\section{Projects}")
+    if projects_start == -1:
+        return None
+    skills_start = body.find(r"\section{Skills}", projects_start)
+    projects_end = skills_start if skills_start != -1 else len(body)
+    section = body[projects_start:projects_end]
+
+    project_starts = [
+        match.start()
+        for match in re.finditer(r"(?m)^[ \t]*\\projectSubheading\b", section)
+    ]
+    if len(project_starts) <= 2:
+        return None
+
+    last_start = project_starts[-1]
+    item_list_end = section.find(r"\resumeItemListEnd", last_start)
+    if item_list_end == -1:
+        return None
+    removal_end = item_list_end + len(r"\resumeItemListEnd")
+    if removal_end < len(section) and section[removal_end] == "\n":
+        removal_end += 1
+
+    removed_block = section[last_start:removal_end]
+    name_match = re.search(r"\\projectSubheading\s*\{([^{}]+)\}", removed_block)
+    project_name = (
+        _latex_to_plain(name_match.group(1)).split("|", 1)[0].strip()
+        if name_match else "last"
+    )
+    reduced_section = section[:last_start] + section[removal_end:]
+    return (
+        body[:projects_start] + reduced_section + body[projects_end:],
+        f"removed_project:{project_name}",
+    )
+
+
+def _rendered_project_names(body_latex: str) -> list[str]:
+    """Return descriptor-free project names in their final rendered order."""
+    body = _extract_resume_body(body_latex)
+    projects_start = body.find(r"\section{Projects}")
+    if projects_start == -1:
+        return []
+    skills_start = body.find(r"\section{Skills}", projects_start)
+    projects_end = skills_start if skills_start != -1 else len(body)
+    section = body[projects_start:projects_end]
+    return [
+        _latex_to_plain(match.group(1)).split("|", 1)[0].strip()
+        for match in re.finditer(r"\\projectSubheading\s*\{([^{}]+)\}", section)
+    ]
+
+
+async def _deterministic_layout_rescue(
+    assembled_latex: str,
+    preamble: str | None,
+    overflow_text: str,
+    page_count: int,
+) -> tuple[str | None, list[str], int]:
+    """Try free, deterministic reductions after paid compression is exhausted."""
+    current_body = _extract_resume_body(assembled_latex)
+    current_pages = page_count
+    actions: list[str] = []
+
+    if overflow_text:
+        excerpt = re.sub(r"\s+", " ", overflow_text).strip()[:300]
+        logger.warning("One-page overflow begins with: %s", excerpt)
+
+    # Skills are lowest-cost to remove and already ordered by JD relevance.
+    while True:
+        reduction = _reduce_skills_once(current_body)
+        if reduction is None:
+            break
+        candidate_body, action = reduction
+        candidate = _assemble_resume_latex(candidate_body, preamble)
+        try:
+            pdf_bytes = await compile_latex_to_pdf(candidate)
+        except Exception as exc:
+            raise ValueError("Deterministic Skills layout rescue produced invalid LaTeX") from exc
+        current_pages, overflow_text = _pdf_layout(pdf_bytes)
+        current_body = candidate_body
+        actions.append(action)
+        logger.info("Layout rescue %s compiled to %d page(s)", action, current_pages)
+        if current_pages <= 1:
+            return candidate, actions, current_pages
+
+    # Projects are emitted highest-relevance first, so the last project is the
+    # only safe deterministic project removal. Never reduce below two projects.
+    while True:
+        reduction = _remove_last_project(current_body)
+        if reduction is None:
+            break
+        candidate_body, action = reduction
+        candidate = _assemble_resume_latex(candidate_body, preamble)
+        try:
+            pdf_bytes = await compile_latex_to_pdf(candidate)
+        except Exception as exc:
+            raise ValueError("Deterministic project layout rescue produced invalid LaTeX") from exc
+        current_pages, overflow_text = _pdf_layout(pdf_bytes)
+        current_body = candidate_body
+        actions.append(action)
+        logger.info("Layout rescue %s compiled to %d page(s)", action, current_pages)
+        if current_pages <= 1:
+            return candidate, actions, current_pages
+
+    return None, actions, current_pages
+
+
+async def _compress_if_needed(
+    assembled_latex: str,
+    api_key: str,
+    preamble: str | None = None,
+    max_attempts: int = 2,
+) -> tuple[str, int, list[str]]:
     """Compile the resume and compress via Claude if it exceeds one page.
 
     The resume body is AI-generated LaTeX (see the module docstring on
@@ -1349,7 +1511,7 @@ async def _compress_if_needed(assembled_latex: str, api_key: str, preamble: str 
       the failed compression attempt produced — never return LaTeX that hasn't
       itself been proven to compile.
 
-    Returns (final_latex, compression_attempts).
+    Returns (final_latex, paid_compression_attempts, deterministic_rescue_actions).
     """
     attempts = 0
     current = assembled_latex
@@ -1367,12 +1529,23 @@ async def _compress_if_needed(assembled_latex: str, api_key: str, preamble: str 
             raise ValueError("Compressed resume failed compilation; refusing an unverified or multi-page result")
 
         last_known_good = current
-        page_count = len(PdfReader(io.BytesIO(pdf_bytes)).pages)
+        page_count, overflow_text = _pdf_layout(pdf_bytes)
         if page_count <= 1:
-            return current, attempts
+            return current, attempts, []
 
         if check == max_attempts:
-            raise ValueError(f"Resume still renders to {page_count} pages after {attempts} compression attempts")
+            rescued, rescue_actions, rescued_pages = await _deterministic_layout_rescue(
+                current,
+                preamble,
+                overflow_text,
+                page_count,
+            )
+            if rescued is not None:
+                return rescued, attempts, rescue_actions
+            raise ValueError(
+                f"Resume still renders to {rescued_pages} pages after {attempts} "
+                f"compression attempts and deterministic layout rescue"
+            )
 
         logger.info("Resume compiled to %d pages — compressing (attempt %d)", page_count, attempts + 1)
         attempts += 1
@@ -1497,7 +1670,11 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
     # Assemble full document, then compress if it spills past one page
     if result.get("resume_latex"):
         assembled = _assemble_resume_latex(result["resume_latex"], preamble)
-        final_latex, compression_attempts = await _compress_if_needed(assembled, api_key, preamble)
+        final_latex, compression_attempts, layout_rescue_actions = await _compress_if_needed(
+            assembled,
+            api_key,
+            preamble,
+        )
         post_compression_errors = _resume_quality_errors(final_latex, profile_text)
         if post_compression_errors:
             logger.error(
@@ -1507,12 +1684,17 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
             raise ValueError("One-page compression produced an editorially invalid resume.")
         result["resume_latex"] = final_latex
         result["compression_attempts"] = compression_attempts
+        result["layout_rescue_actions"] = layout_rescue_actions
+        rendered_projects = _rendered_project_names(final_latex)
+        if rendered_projects:
+            result["selected_projects"] = rendered_projects
 
     result["generation_metadata"] = {
         "pipeline": "full_context_quality_gated",
         "quality_gate_version": 1,
         "quality_repair_attempts": quality_repairs,
         "initial_quality_errors": initial_quality_errors,
+        "layout_rescue_actions": result.get("layout_rescue_actions", []),
     }
 
     return result

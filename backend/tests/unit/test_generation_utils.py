@@ -14,6 +14,7 @@ from app.services.generation import (
     _extract_resume_body,
     _format_profile,
     _preprocess_jd,
+    _rendered_project_names,
 )
 
 
@@ -275,6 +276,18 @@ def test_assemble_produces_compilable_document_structure():
     result = _assemble_resume_latex(BODY_SECTION)
     assert "\\begin{document}" in result
     assert "\\end{document}" in result
+
+
+def test_rendered_project_names_follow_final_resume_after_layout_reduction():
+    body = r"""
+\section{Projects}
+  \resumeSubHeadingListStart
+    \projectSubheading{Relay | Event Platform}{2026}{TypeScript}{}{https://example.com}
+    \projectSubheading{Ledger | Transactional Backend}{2026}{Java}{}{https://example.com}
+  \resumeSubHeadingListEnd
+\section{Skills}
+"""
+    assert _rendered_project_names(body) == ["Relay", "Ledger"]
 
 
 # ── _extract_gaps (candidacy insights token optimization) ─────────────────────
