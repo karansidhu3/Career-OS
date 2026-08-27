@@ -8,9 +8,44 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.services.generation import _compress_if_needed
+from app.services.generation import _assemble_resume_latex, _compress_if_needed
 
 pytestmark = pytest.mark.asyncio
+
+
+RESCUE_BODY = r"""
+\section{Experience}
+  \resumeSubHeadingListStart
+    \resumeSubheading{Acme}{Jun 2026 -- Present}{Developer}{BC}
+      \resumeItemListStart
+        \item \small{Built a reliable application service with measurable operational results.}
+        \item \small{Designed transactional processing that preserved records during injected failures.}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+\section{Projects}
+  \resumeSubHeadingListStart
+    \projectSubheading{Project One | Platform}{2026}{Python}{}{https://example.com/one}
+      \resumeItemListStart
+        \item \small{Built the first relevant project for a clearly defined user workflow.}
+        \item \small{Designed its backend boundary around a specific operational constraint.}
+      \resumeItemListEnd
+    \projectSubheading{Project Two | Platform}{2026}{Java}{}{https://example.com/two}
+      \resumeItemListStart
+        \item \small{Built the second relevant project for another defined user workflow.}
+        \item \small{Designed its persistence boundary around transactional correctness requirements.}
+      \resumeItemListEnd
+    \projectSubheading{Project Three | Platform}{2026}{TypeScript}{}{https://example.com/three}
+      \resumeItemListStart
+        \item \small{Built the lowest-ranked project for an additional internal workflow.}
+        \item \small{Designed its queue boundary around recoverable asynchronous processing.}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+\section{Skills}
+\begin{itemize}
+  \item \textbf{Languages:} Python, Java, TypeScript
+  \item \textbf{Tools:} Docker, Git, Vercel
+\end{itemize}
+"""
 
 
 def _mock_pdf_reader(page_count: int):
@@ -22,9 +57,10 @@ def _mock_pdf_reader(page_count: int):
 async def test_returns_original_latex_when_it_fits_one_page():
     with patch("app.services.generation.compile_latex_to_pdf", return_value=b"%PDF-fake") as mock_compile, \
          patch("app.services.generation.PdfReader", return_value=_mock_pdf_reader(1)):
-        result, attempts = await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake")
+        result, attempts, rescue_actions = await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake")
     assert result == "ORIGINAL_LATEX"
     assert attempts == 0
+    assert rescue_actions == []
     mock_compile.assert_awaited_once_with("ORIGINAL_LATEX")
 
 
@@ -76,17 +112,83 @@ async def test_successful_compression_returns_compressed_latex():
          patch("app.services.generation.PdfReader", side_effect=fake_reader), \
          patch("app.services.generation._call_compression", return_value="COMPRESSED_BODY"), \
          patch("app.services.generation._assemble_resume_latex", return_value="ASSEMBLED_COMPRESSED"):
-        result, attempts = await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake")
+        result, attempts, rescue_actions = await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake")
 
     assert result == "ASSEMBLED_COMPRESSED"
     assert attempts == 1
+    assert rescue_actions == []
 
 
-async def test_final_compression_output_is_validated_and_rejected_if_still_two_pages():
+async def test_final_compression_uses_free_skill_row_rescue():
+    page_counts = [2, 2, 2, 1]
+
+    def fake_reader(pdf_bytes):
+        return _mock_pdf_reader(page_counts.pop(0))
+
+    original = _assemble_resume_latex(RESCUE_BODY)
+    with patch("app.services.generation.compile_latex_to_pdf", return_value=b"%PDF-fake") as compile_mock, \
+         patch("app.services.generation.PdfReader", side_effect=fake_reader), \
+         patch("app.services.generation._call_compression", return_value=RESCUE_BODY) as compression_mock:
+        result, attempts, rescue_actions = await _compress_if_needed(
+            original,
+            "sk-ant-fake",
+            max_attempts=2,
+        )
+
+    assert attempts == 2
+    assert rescue_actions == ["removed_skill_row:Tools"]
+    assert r"\textbf{Languages:}" in result
+    assert r"\textbf{Tools:}" not in result
+    assert compression_mock.await_count == 2
+    assert compile_mock.await_count == 4
+
+
+async def test_layout_rescue_removes_skills_before_lowest_ranked_project():
+    one_skill_row = RESCUE_BODY.replace(
+        "  \\item \\textbf{Tools:} Docker, Git, Vercel\n",
+        "",
+    )
+    page_counts = [2, 2, 2, 2, 1]
+
+    def fake_reader(pdf_bytes):
+        return _mock_pdf_reader(page_counts.pop(0))
+
+    original = _assemble_resume_latex(one_skill_row)
+    with patch("app.services.generation.compile_latex_to_pdf", return_value=b"%PDF-fake") as compile_mock, \
+         patch("app.services.generation.PdfReader", side_effect=fake_reader), \
+         patch("app.services.generation._call_compression", return_value=one_skill_row) as compression_mock:
+        result, attempts, rescue_actions = await _compress_if_needed(
+            original,
+            "sk-ant-fake",
+            max_attempts=2,
+        )
+
+    assert attempts == 2
+    assert rescue_actions == ["removed_skills_section", "removed_project:Project Three"]
+    assert r"\section{Skills}" not in result
+    assert "Project One" in result
+    assert "Project Two" in result
+    assert "Project Three" not in result
+    assert compression_mock.await_count == 2
+    assert compile_mock.await_count == 5
+
+
+async def test_layout_rescue_still_rejects_when_two_projects_without_skills_overflow():
+    minimal_body = RESCUE_BODY.replace(
+        RESCUE_BODY[RESCUE_BODY.index("    \\projectSubheading{Project Three"):RESCUE_BODY.index("  \\resumeSubHeadingListEnd\n\\section{Skills}")],
+        "",
+    )
+    minimal_body = minimal_body[:minimal_body.index(r"\section{Skills}")]
+
     with patch("app.services.generation.compile_latex_to_pdf", return_value=b"%PDF-two-pages") as compile_mock, \
          patch("app.services.generation.PdfReader", return_value=_mock_pdf_reader(2)), \
-         patch("app.services.generation._call_compression", return_value="COMPRESSED_BODY"), \
-         patch("app.services.generation._assemble_resume_latex", return_value="ASSEMBLED_COMPRESSED"):
-        with pytest.raises(ValueError, match="still renders to 2 pages"):
-            await _compress_if_needed("ORIGINAL_LATEX", "sk-ant-fake", max_attempts=2)
+         patch("app.services.generation._call_compression", return_value=minimal_body) as compression_mock:
+        with pytest.raises(ValueError, match="deterministic layout rescue"):
+            await _compress_if_needed(
+                _assemble_resume_latex(minimal_body),
+                "sk-ant-fake",
+                max_attempts=2,
+            )
+
+    assert compression_mock.await_count == 2
     assert compile_mock.await_count == 3

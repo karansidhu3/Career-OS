@@ -6,7 +6,10 @@ from app.services import generation
 
 def test_worker_uses_full_context_generator() -> None:
     assert worker.generate_materials is generation.generate_materials
-    assert generation.GENERATION_VERSION == "original-prompt-v1-quality-gated"
+    assert (
+        generation.GENERATION_VERSION
+        == "original-prompt-v1-quality-gated-layout-rescue"
+    )
 
 
 def test_prompt_restores_original_claude_editorial_system() -> None:
