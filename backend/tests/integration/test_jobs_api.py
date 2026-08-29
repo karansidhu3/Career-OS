@@ -125,13 +125,14 @@ async def test_stale_processing_job_does_not_permanently_block_new_generation(
     db_session.add(stale)
     await db_session.commit()
     await db_session.refresh(stale)
+    stale_id = stale.id
 
     response = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
 
     assert response.status_code == 201
     db_session.expire_all()
     recovered = (
-        await db_session.execute(select(Job).where(Job.id == stale.id))
+        await db_session.execute(select(Job).where(Job.id == stale_id))
     ).scalar_one()
     assert recovered.status == "failed"
     assert recovered.generation_metadata["failure_code"] == "generation_interrupted"
