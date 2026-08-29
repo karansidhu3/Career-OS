@@ -12,6 +12,11 @@ describe('generationFailureMessage', () => {
       .toBe('Claude took too long to respond. Try again.')
   })
 
+  it('explains that an interrupted generation is safe to retry', () => {
+    expect(generationFailureMessage({ failure_code: 'generation_interrupted' }))
+      .toBe('Generation was interrupted before it finished. Retry when you’re ready.')
+  })
+
   it('falls back safely for old failed jobs without metadata', () => {
     expect(generationFailureMessage(null)).toBe('Generation failed unexpectedly. Try again.')
   })

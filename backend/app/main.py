@@ -2,7 +2,7 @@ import logging
 import sys
 import time
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from arq import Worker as ArqWorker, create_pool
@@ -177,11 +177,14 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        # Stop polling first, then let ARQ cancel and await every active job.
+        # worker.close() is the critical piece: cancelling only worker.main()
+        # leaves its child generation tasks to be torn down by the event loop,
+        # which can strand their database rows at status="processing".
         worker_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await worker_task
-        except asyncio.CancelledError:
-            pass
+        await worker.close()
         await app.state.arq_pool.close()
 
 

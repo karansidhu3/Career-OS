@@ -1,5 +1,6 @@
 app = "careeros-backend"
 primary_region = "iad"
+kill_timeout = "30s"
 
 [build]
   dockerfile = "Dockerfile"

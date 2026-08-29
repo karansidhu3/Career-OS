@@ -50,9 +50,8 @@ _test_app.include_router(credentials.router, prefix="/admin")
 _test_app.include_router(waitlist.router)
 _test_app.include_router(account.router, prefix="/admin")
 
-# Generation now runs on a separate ARQ worker process (Phase 5) instead of
-# in-process BackgroundTasks — routes enqueue via request.app.state.arq_pool.
-# Tests never run a real worker; they assert against this mock instead.
+# Routes enqueue through request.app.state.arq_pool. Production consumes those
+# jobs in app.main's embedded ARQ worker; route tests use this mock instead.
 _test_app.state.arq_pool = AsyncMock()
 
 

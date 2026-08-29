@@ -1,7 +1,4 @@
-"""The worker runs as its own process — separate from app.main, which is where
-JSON logging / Sentry init actually get wired for the API. Without its own
-on_startup hook, the worker (arguably the most exception-prone code in the
-app — Anthropic calls, LaTeX compilation) would silently never get either."""
+"""Worker startup and generation-result lifecycle tests."""
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -40,6 +37,22 @@ def test_timeout_is_classified_separately_from_other_failures():
 
 def test_truncated_structured_output_has_actionable_failure_code():
     assert worker._generation_failure_code(StructuredOutputTruncatedError("too large")) == "generation_output_too_large"
+
+
+def test_interrupted_job_is_retryable_instead_of_remaining_processing():
+    job = SimpleNamespace(
+        status="processing",
+        title="Generating…",
+        generation_metadata={"started_at": "2026-08-27T00:00:00+00:00"},
+    )
+
+    worker._mark_job_failed(job, "generation_interrupted")
+
+    assert job.status == "failed"
+    assert job.title == "Generation failed"
+    assert job.generation_metadata["failure_code"] == "generation_interrupted"
+    assert job.generation_metadata["started_at"] == "2026-08-27T00:00:00+00:00"
+    assert "failed_at" in job.generation_metadata
 
 
 def test_apply_result_preserves_paragraphs_and_repairs_em_dash_spacing():

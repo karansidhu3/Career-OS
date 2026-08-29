@@ -1,12 +1,9 @@
-"""ARQ worker (Phase 5): runs generation jobs in a separate process from the API.
+"""ARQ generation jobs consumed by the worker embedded in app.main.
 
-The previous approach — FastAPI's in-process BackgroundTasks — silently dropped
-in-flight jobs on redeploy or crash. That was an acceptable risk with one user;
-it's a real trust problem once other people depend on it (losing someone's resume
-generation on an application deadline is bad). Redis-backed ARQ jobs survive an
-API restart: the worker just picks them back up.
-
-Run locally with: arq app.worker.WorkerSettings
+Redis still provides durable queueing, but the API and worker share one Fly
+machine to avoid paying for a second always-on process. Shutdown therefore must
+close ARQ cleanly and interrupted database rows must become retryable failures.
+The WorkerSettings class remains usable by tests or a future separate worker.
 """
 import asyncio
 import logging
@@ -56,14 +53,20 @@ def _generation_failure_code(error: Exception) -> str:
     return "generation_failed"
 
 
+def _mark_job_failed(job: Job, failure_code: str) -> None:
+    job.status = "failed"
+    job.title = job.title if job.title != "Generating…" else "Generation failed"
+    metadata = dict(job.generation_metadata) if isinstance(job.generation_metadata, dict) else {}
+    metadata["failure_code"] = failure_code
+    metadata["failed_at"] = datetime.now(timezone.utc).isoformat()
+    job.generation_metadata = metadata
+
+
 async def _on_startup(ctx) -> None:
-    """The worker runs as its own process (`arq app.worker.WorkerSettings`) —
-    it never imports app.main, so Phase 7's JSON logging / Sentry init (wired
-    there) would otherwise never run here. This is arguably where it matters
-    most: Anthropic calls, LaTeX compilation, and export/deletion sweeps are
-    the most exception-prone code in the app. Also validates ENCRYPTION_MASTER_KEY
-    eagerly (same reasoning as app.main's lifespan) — this is the process that
-    actually decrypts user API keys during generation.
+    """Initialize worker concerns independently of how ARQ is hosted.
+
+    Keeping this hook self-contained means the same WorkerSettings can run
+    embedded in app.main today or as a separate process again later.
     """
     configure_logging()
     init_error_tracking()
@@ -142,19 +145,25 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             generated_pdf = result.pop("pdf_bytes", None)
             _apply_result(job, result)
             job.status = "generated"
+        except asyncio.CancelledError:
+            # A Fly deploy or process shutdown cancels in-flight tasks. Treat the
+            # interrupted attempt as a visible, retryable failure instead of
+            # allowing ARQ retries to spend the user's key again or leaving the
+            # database row at "processing" forever.
+            logger.warning("Generation interrupted for job %d during worker shutdown", job_id)
+            if job is not None:
+                _mark_job_failed(job, "generation_interrupted")
         except Exception as e:
             logger.exception("Generation failed for job %d: %s", job_id, e)
             if job is not None:
-                job.status = "failed"
-                job.title = job.title if job.title != "Generating…" else "Generation failed"
-                metadata = dict(job.generation_metadata) if isinstance(job.generation_metadata, dict) else {}
-                metadata["failure_code"] = _generation_failure_code(e)
+                _mark_job_failed(job, _generation_failure_code(e))
+                metadata = dict(job.generation_metadata)
                 if (failed_cost := getattr(e, "recorded_cost_usd", None)) is not None:
                     job.total_cost_usd = float(job.total_cost_usd or 0) + float(failed_cost)
                     metadata["failed_call_cost_usd"] = float(failed_cost)
                 job.generation_metadata = metadata
         finally:
-            await db.commit()
+            await asyncio.shield(db.commit())
 
     if job is not None and job.status == "generated" and job.resume_latex:
         try:

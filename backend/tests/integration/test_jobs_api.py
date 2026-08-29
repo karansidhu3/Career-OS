@@ -9,7 +9,10 @@ Every request runs as `current_test_user` (see conftest.py). Job fixtures
 inserted directly via db_session must carry that user's id, otherwise the
 user-scoped routes correctly won't see them — that's the behavior under test.
 """
+from datetime import datetime, timedelta, timezone
+
 import pytest
+from sqlalchemy import select
 
 from app.models.ai_credential import AICredential
 from app.models.job import Job
@@ -45,9 +48,8 @@ async def _add_experience(db_session, user_id):
 
 
 # ── POST /admin/jobs/generate ─────────────────────────────────────────────────
-# Generation now runs on a separate ARQ worker process (Phase 5) — these routes
-# just enqueue and return immediately. arq_pool_mock (conftest.py) replaces the
-# real Redis-backed pool, so tests assert against enqueue_job calls directly.
+# Generation is consumed by the in-process ARQ worker. These route tests replace
+# Redis with arq_pool_mock and assert against enqueue_job calls directly.
 
 async def test_generate_returns_201_with_processing_status(client, db_session, current_test_user, arq_pool_mock):
     await _add_api_key(db_session, current_test_user.id)
@@ -57,6 +59,7 @@ async def test_generate_returns_201_with_processing_status(client, db_session, c
     data = resp.json()
     assert data["status"] == "processing"
     assert data["title"] == "Generating…"
+    assert datetime.fromisoformat(data["generation_metadata"]["started_at"])
     assert "id" in data
 
 
@@ -104,6 +107,35 @@ async def test_generate_allowed_after_previous_job_completed(client, db_session,
 
     second = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
     assert second.status_code == 201
+
+
+async def test_stale_processing_job_does_not_permanently_block_new_generation(
+    client, db_session, current_test_user
+):
+    await _add_api_key(db_session, current_test_user.id)
+    await _add_experience(db_session, current_test_user.id)
+    stale = Job(
+        title="Generating…",
+        status="processing",
+        user_id=current_test_user.id,
+        generation_metadata={
+            "started_at": (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
+        },
+    )
+    db_session.add(stale)
+    await db_session.commit()
+    await db_session.refresh(stale)
+    stale_id = stale.id
+
+    response = await client.post("/admin/jobs/generate", json={"description": SAMPLE_JD})
+
+    assert response.status_code == 201
+    db_session.expire_all()
+    recovered = (
+        await db_session.execute(select(Job).where(Job.id == stale_id))
+    ).scalar_one()
+    assert recovered.status == "failed"
+    assert recovered.generation_metadata["failure_code"] == "generation_interrupted"
 
 
 async def test_generate_requires_api_key(client):
@@ -219,6 +251,43 @@ async def test_get_job_returns_correct_job(client, db_session, current_test_user
     assert resp.status_code == 200
     assert resp.json()["title"] == "Target Job"
     assert resp.json()["company"] == "Acme"
+
+
+async def test_get_job_recovers_stale_processing_status(client, db_session, current_test_user):
+    job = Job(
+        title="Generating…",
+        status="processing",
+        user_id=current_test_user.id,
+        generation_metadata={
+            "started_at": (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
+        },
+    )
+    db_session.add(job)
+    await db_session.commit()
+    await db_session.refresh(job)
+
+    response = await client.get(f"/admin/jobs/{job.id}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert response.json()["generation_metadata"]["failure_code"] == "generation_interrupted"
+
+
+async def test_get_job_keeps_recent_processing_status(client, db_session, current_test_user):
+    job = Job(
+        title="Generating…",
+        status="processing",
+        user_id=current_test_user.id,
+        generation_metadata={"started_at": datetime.now(timezone.utc).isoformat()},
+    )
+    db_session.add(job)
+    await db_session.commit()
+    await db_session.refresh(job)
+
+    response = await client.get(f"/admin/jobs/{job.id}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "processing"
 
 
 async def test_get_nonexistent_job_returns_404(client):

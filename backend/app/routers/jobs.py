@@ -26,6 +26,13 @@ from app.services.pdf_storage import cache_cover_letter_pdf, cache_resume_pdf, c
 logger = logging.getLogger(__name__)
 
 
+# A complete generation can legitimately include a draft, an editorial repair,
+# two compression passes, and several Tectonic compiles. Fifteen minutes is well
+# beyond that expected envelope while still recovering an interrupted job quickly
+# enough that the user can retry instead of being locked out forever.
+GENERATION_STALE_AFTER = datetime.timedelta(minutes=15)
+
+
 limiter = Limiter(key_func=limiter_key)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -182,13 +189,85 @@ def _build_cover_letter_latex(job: Job, personal: PersonalInfo | None) -> str:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+def _generation_started_at(job: Job) -> datetime.datetime | None:
+    metadata = job.generation_metadata if isinstance(job.generation_metadata, dict) else {}
+    raw_started_at = metadata.get("started_at")
+    if isinstance(raw_started_at, str):
+        try:
+            started_at = datetime.datetime.fromisoformat(raw_started_at.replace("Z", "+00:00"))
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=datetime.timezone.utc)
+            return started_at.astimezone(datetime.timezone.utc)
+        except ValueError:
+            logger.warning("Ignoring invalid generation started_at for job %s", job.id)
+
+    if job.created_at is None:
+        return None
+    if job.created_at.tzinfo is None:
+        return job.created_at.replace(tzinfo=datetime.timezone.utc)
+    return job.created_at.astimezone(datetime.timezone.utc)
+
+
+def _start_generation(job: Job) -> None:
+    metadata = dict(job.generation_metadata) if isinstance(job.generation_metadata, dict) else {}
+    metadata.pop("failure_code", None)
+    metadata.pop("failed_at", None)
+    metadata["started_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    job.generation_metadata = metadata
+    job.status = "processing"
+
+
+def _fail_stale_generation(
+    job: Job,
+    *,
+    now: datetime.datetime | None = None,
+) -> bool:
+    if job.status != "processing":
+        return False
+    started_at = _generation_started_at(job)
+    if started_at is None:
+        return False
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    if now - started_at <= GENERATION_STALE_AFTER:
+        return False
+
+    metadata = dict(job.generation_metadata) if isinstance(job.generation_metadata, dict) else {}
+    metadata["failure_code"] = "generation_interrupted"
+    metadata["failed_at"] = now.isoformat()
+    job.generation_metadata = metadata
+    job.status = "failed"
+    if job.title == "Generating…":
+        job.title = "Generation interrupted"
+    logger.warning(
+        "Marked stale generation as failed",
+        extra={"job_id": job.id, "started_at": started_at.isoformat()},
+    )
+    return True
+
+
 async def _has_active_generation(db: AsyncSession, user_id) -> bool:
     """Per-user concurrency limit (Phase 5) — one active generation at a time, to
-    avoid two concurrent runs racing on the same profile/session state."""
-    existing = (
-        await db.execute(select(Job.id).where(Job.user_id == user_id, Job.status == "processing").limit(1))
-    ).scalar_one_or_none()
-    return existing is not None
+    avoid two concurrent runs racing on the same profile/session state. Stale
+    rows from a killed worker are failed here so they cannot permanently lock the
+    user out of retrying."""
+    processing_jobs = list(
+        (
+            await db.execute(
+                select(Job).where(Job.user_id == user_id, Job.status == "processing")
+            )
+        ).scalars()
+    )
+    has_active = False
+    changed = False
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for job in processing_jobs:
+        if _fail_stale_generation(job, now=now):
+            changed = True
+        else:
+            has_active = True
+    if changed:
+        await db.commit()
+    return has_active
 
 
 async def _has_generatable_content(db: AsyncSession, user_id) -> bool:
@@ -285,8 +364,7 @@ async def generate_job(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create the job record immediately (status=processing), enqueue generation
-    on the ARQ worker (runs in a separate process — survives an API redeploy)."""
+    """Create the job record immediately and enqueue it for the in-process ARQ worker."""
     if not await get_decrypted_key(db, current_user.id):
         raise HTTPException(status_code=400, detail="Add your Anthropic API key in Settings before generating.")
     if not await _has_generatable_content(db, current_user.id):
@@ -302,8 +380,8 @@ async def generate_job(
         description=body.description,
         url=body.url or None,
         title="Generating…",
-        status="processing",
     )
+    _start_generation(job)
     db.add(job)
     await db.commit()
     await db.refresh(job)
@@ -338,7 +416,7 @@ async def regenerate_job(
     if await _daily_generation_count(pool, current_user.id) >= settings.daily_generation_limit:
         raise HTTPException(status_code=429, detail=f"Daily generation limit reached ({settings.daily_generation_limit}/24h). Try again later.")
 
-    job.status = "processing"
+    _start_generation(job)
     await db.commit()
     await db.refresh(job)
 
@@ -585,6 +663,9 @@ async def get_job(
     ).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
+    if _fail_stale_generation(job):
+        await db.commit()
+        await db.refresh(job)
     return job
 
 
