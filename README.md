@@ -122,6 +122,13 @@ npm run dev
 
 Every user supplies their own Anthropic key through the interface after signing in. There's no shared key to configure, by design.
 
+You do **not** need a local profile or Anthropic key for unit tests, integration
+fixtures, frontend work, or PDF compilation checks. Set
+`NEXT_PUBLIC_DEV_SKIP_KEY_GATE=true` to inspect the local idle UI without a key.
+A real local generation is optional and should use a separate development
+database, Redis instance, Clerk test user, and user-supplied Anthropic key—never
+the production database.
+
 </details>
 
 <br>

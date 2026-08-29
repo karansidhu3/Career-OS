@@ -12,6 +12,8 @@ export function generationFailureMessage(metadata: JobFailureMetadata): string {
       return 'Claude is temporarily rate-limited. Wait a moment and try again.'
     case 'anthropic_unavailable':
       return 'Claude is temporarily unavailable. Try again shortly.'
+    case 'generation_interrupted':
+      return 'Generation was interrupted before it finished. Retry when you’re ready.'
     case 'generation_configuration':
       return 'Generation hit a configuration error. The app needs an update before retrying.'
     default:
