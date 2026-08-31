@@ -9,11 +9,13 @@ import pytest
 
 from app.services.generation import (
     LATEX_PREAMBLE,
+    _apply_project_headings,
     _assemble_resume_latex,
     _extract_gaps,
     _extract_resume_body,
     _format_profile,
     _preprocess_jd,
+    _project_heading,
     _rendered_project_names,
 )
 
@@ -117,7 +119,7 @@ def test_preprocess_strips_html_leaving_clean_text():
 
 def test_format_profile_contains_header():
     result = _format_profile(None, [], [], [])
-    assert "CANDIDATE FACT BANK" in result
+    assert "CANDIDATE PROFILE — FACTUAL SOURCE" in result
 
 
 def test_format_profile_includes_experience_role_and_company():
@@ -138,6 +140,30 @@ def test_format_profile_includes_project_name_and_description():
     result = _format_profile(None, [], [proj], [])
     assert "MarketMind" in result
     assert "Multi-agent" in result
+
+
+def test_format_profile_supplies_stable_brand_and_project_name_heading():
+    proj = make_project(
+        name="Serverless Event Processing Platform",
+        description="Relay\nDeployed event orchestration and observability platform.",
+    )
+
+    result = _format_profile(None, [], [proj], [])
+
+    assert (
+        "REQUIRED RESUME HEADING — copy exactly: "
+        "Relay | Serverless Event Processing Platform"
+    ) in result
+    assert _project_heading(proj) == "Relay | Serverless Event Processing Platform"
+
+
+def test_project_heading_falls_back_to_profile_name_without_standalone_brand():
+    proj = make_project(
+        name="Transactional Backend Infrastructure",
+        description="Ledger is a Java and Spring Boot transactional backend.",
+    )
+
+    assert _project_heading(proj) == "Transactional Backend Infrastructure"
 
 
 def test_format_profile_includes_github_url_when_present():
@@ -288,6 +314,35 @@ def test_rendered_project_names_follow_final_resume_after_layout_reduction():
 \section{Skills}
 """
     assert _rendered_project_names(body) == ["Relay", "Ledger"]
+
+
+def test_apply_project_headings_overrides_model_generated_descriptors():
+    relay = make_project(
+        name="Serverless Event Processing Platform",
+        description="Relay\nDeployed event orchestration platform.",
+    )
+    ledger = make_project(
+        name="Transactional Backend Infrastructure",
+        description="Ledger\nJava and Spring Boot transactional backend.",
+    )
+    body = r"""
+\section{Projects}
+  \resumeSubHeadingListStart
+    \projectSubheading{Invented Relay Label}{2026}{TypeScript}{}{https://example.com}
+    \projectSubheading{Invented Ledger Label}{2026}{Java}{}{https://example.com}
+  \resumeSubHeadingListEnd
+\section{Skills}
+"""
+
+    result = _apply_project_headings(
+        body,
+        ["Serverless Event Processing Platform", "Ledger"],
+        [relay, ledger],
+    )
+
+    assert r"\projectSubheading{Relay | Serverless Event Processing Platform}" in result
+    assert r"\projectSubheading{Ledger | Transactional Backend Infrastructure}" in result
+    assert "Invented" not in result
 
 
 # ── _extract_gaps (candidacy insights token optimization) ─────────────────────

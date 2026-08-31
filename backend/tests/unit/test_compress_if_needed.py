@@ -119,8 +119,8 @@ async def test_successful_compression_returns_compressed_latex():
     assert rescue_actions == []
 
 
-async def test_final_compression_uses_free_skill_row_rescue():
-    page_counts = [2, 2, 2, 1]
+async def test_final_compression_removes_lowest_ranked_project_before_skills():
+    page_counts = [2, 2, 1]
 
     def fake_reader(pdf_bytes):
         return _mock_pdf_reader(page_counts.pop(0))
@@ -132,23 +132,23 @@ async def test_final_compression_uses_free_skill_row_rescue():
         result, attempts, rescue_actions = await _compress_if_needed(
             original,
             "sk-ant-fake",
-            max_attempts=2,
         )
 
-    assert attempts == 2
-    assert rescue_actions == ["removed_skill_row:Tools"]
+    assert attempts == 1
+    assert rescue_actions == ["removed_project:Project Three"]
     assert r"\textbf{Languages:}" in result
-    assert r"\textbf{Tools:}" not in result
-    assert compression_mock.await_count == 2
-    assert compile_mock.await_count == 4
+    assert r"\textbf{Tools:}" in result
+    assert "Project Three" not in result
+    assert compression_mock.await_count == 1
+    assert compile_mock.await_count == 3
 
 
-async def test_layout_rescue_removes_skills_before_lowest_ranked_project():
+async def test_layout_rescue_removes_non_jd_skills_only_after_reducing_to_two_projects():
     one_skill_row = RESCUE_BODY.replace(
         "  \\item \\textbf{Tools:} Docker, Git, Vercel\n",
         "",
     )
-    page_counts = [2, 2, 2, 2, 1]
+    page_counts = [2, 2, 2, 1]
 
     def fake_reader(pdf_bytes):
         return _mock_pdf_reader(page_counts.pop(0))
@@ -160,17 +160,17 @@ async def test_layout_rescue_removes_skills_before_lowest_ranked_project():
         result, attempts, rescue_actions = await _compress_if_needed(
             original,
             "sk-ant-fake",
-            max_attempts=2,
+            jd_text="Rust backend engineer",
         )
 
-    assert attempts == 2
-    assert rescue_actions == ["removed_skills_section", "removed_project:Project Three"]
+    assert attempts == 1
+    assert rescue_actions == ["removed_project:Project Three", "removed_skills_section"]
     assert r"\section{Skills}" not in result
     assert "Project One" in result
     assert "Project Two" in result
     assert "Project Three" not in result
-    assert compression_mock.await_count == 2
-    assert compile_mock.await_count == 5
+    assert compression_mock.await_count == 1
+    assert compile_mock.await_count == 4
 
 
 async def test_layout_rescue_still_rejects_when_two_projects_without_skills_overflow():
@@ -187,8 +187,33 @@ async def test_layout_rescue_still_rejects_when_two_projects_without_skills_over
             await _compress_if_needed(
                 _assemble_resume_latex(minimal_body),
                 "sk-ant-fake",
-                max_attempts=2,
             )
 
-    assert compression_mock.await_count == 2
-    assert compile_mock.await_count == 3
+    assert compression_mock.await_count == 1
+    assert compile_mock.await_count == 2
+
+
+async def test_layout_rescue_removes_optional_experience_bullet_before_project_or_skills():
+    body = RESCUE_BODY.replace(
+        "        \\item \\small{Designed transactional processing that preserved records during injected failures.}\n",
+        "        \\item \\small{Designed transactional processing that preserved records during injected failures.}\n"
+        "        \\item \\small{Documented a lower-priority operational detail for future reference.}\n",
+    )
+    page_counts = [2, 2, 1]
+
+    def fake_reader(pdf_bytes):
+        return _mock_pdf_reader(page_counts.pop(0))
+
+    with patch("app.services.generation.compile_latex_to_pdf", return_value=b"%PDF-fake"), \
+         patch("app.services.generation.PdfReader", side_effect=fake_reader), \
+         patch("app.services.generation._call_compression", return_value=body):
+        result, attempts, rescue_actions = await _compress_if_needed(
+            _assemble_resume_latex(body),
+            "sk-ant-fake",
+        )
+
+    assert attempts == 1
+    assert rescue_actions == ["removed_optional_experience_bullet:1"]
+    assert "lower-priority operational detail" not in result
+    assert "Project Three" in result
+    assert r"\textbf{Tools:}" in result

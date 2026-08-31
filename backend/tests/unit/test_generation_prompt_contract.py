@@ -16,18 +16,27 @@ def test_worker_uses_full_context_generator() -> None:
     )
 
 
-def test_prompt_restores_original_claude_editorial_system() -> None:
+def test_prompt_contains_the_approved_editorial_system() -> None:
     prompt = generation.SYSTEM_PROMPT
 
-    assert "STEP 0 — Extract and tier all metrics" in prompt
-    assert "TIER 1 — Always include" in prompt
-    assert "STEP 1 — Classify the company and role type. State it explicitly." in prompt
-    assert "BULLET 1 — THE PROJECT SALE" in prompt
-    assert "BULLET 2 — THE ENGINEERING PROOF" in prompt
-    assert "Target 12-16 words per bullet" in prompt
-    assert "One project at genuine technical depth" in prompt
-    assert "ONE-PAGE HARD LIMIT" in prompt
+    assert "STEP 0 — Rank supported evidence before writing" in prompt
+    assert "Priority A: recruiter-legible scope or outcome" in prompt
+    assert "STEP 1 — Classify the JD internally" in prompt
+    assert "BULLET 1 — PROJECT SALE" in prompt
+    assert "BULLET 2 — ENGINEERING PROOF" in prompt
+    assert "target 18-28 words" in prompt
+    assert "exactly one project, named once" in prompt
+    assert "ONE-PAGE CONTENT BUDGET" in prompt
     assert "SELF-REVIEW" in prompt
+
+
+def test_prompt_removes_stale_project_and_keyword_rules() -> None:
+    prompt = generation.SYSTEM_PROMPT
+
+    assert "Generate a descriptor for every selected project" not in prompt
+    assert "Select 2-4 projects" not in prompt
+    assert "Extract 10-15 JD terms" not in prompt
+    assert generation.GENERATE_TOOL["input_schema"]["properties"]["selected_projects"]["maxItems"] == 3
 
 
 def test_quality_repair_prompt_keeps_margin_below_validator_ceiling() -> None:
@@ -35,7 +44,7 @@ def test_quality_repair_prompt_keeps_margin_below_validator_ceiling() -> None:
 
     assert "Target 16-24 words per bullet" in prompt
     assert "keep every bullet at 30 words or fewer" in prompt
-    assert "emergency ceiling is 38, not a writing target" in prompt
+    assert "validator's ceiling is 32, not a writing target" in prompt
 
 
 def test_prompt_does_not_contain_later_ultimate_prompt_rewrite() -> None:
@@ -105,6 +114,60 @@ def test_editorial_gate_rejects_the_exact_deployed_failure_modes() -> None:
     assert any("has 1 words" in error for error in errors)
 
 
+def test_editorial_gate_accepts_equivalent_numeric_wording() -> None:
+    body = (
+        r"\section{Experience}"
+        + _entry(
+            "Owned applicant workflow delivery within a 6-person team, replacing manual coordination for more than 10 recurring application steps.",
+            "Modeled planned shifts separately from actual time entries in PostgreSQL, preserving corrections without rewriting the original schedule.",
+        )
+        + r"\section{Projects}"
+        + _project(
+            "Built a transactional records service that centralizes approvals, audit history, and controlled state changes for business applications.",
+            "Enforced mutations and audit writes inside one transaction boundary, preventing partial records during concurrent workflow updates.",
+        )
+        + _project(
+            "Developed a document-generation product that converts persistent candidate evidence into tailored resumes and focused cover letters.",
+            "Moved long-running generation behind background workers after synchronous requests timed out, making interrupted jobs recoverable.",
+        )
+        + r"\section{Skills}\begin{itemize}\item \textbf{Languages:} Python\end{itemize}"
+    )
+
+    profile = "Owned the workflow in a six-person team and replaced 10+ recurring application steps."
+
+    assert generation._resume_quality_errors(body, profile) == []
+
+
+def test_editorial_gate_treats_33_to_36_words_as_soft_style_range() -> None:
+    long_but_complete = (
+        "Built a scheduling and attendance workflow for retail employees and administrators, "
+        "replacing weekly spreadsheet coordination with mobile shift access while preserving "
+        "planned schedules separately from corrected time records in PostgreSQL for daily "
+        "operational use."
+    )
+    assert 33 <= generation._bullet_word_count(long_but_complete) <= 36
+
+    body = (
+        r"\section{Experience}"
+        + _entry(
+            long_but_complete,
+            "Modeled planned shifts separately from actual time entries in PostgreSQL, preserving corrections without rewriting the original schedule.",
+        )
+        + r"\section{Projects}"
+        + _project(
+            "Built a transactional records service that centralizes approvals, audit history, and controlled state changes for business applications.",
+            "Enforced mutations and audit writes inside one transaction boundary, preventing partial records during concurrent workflow updates.",
+        )
+        + _project(
+            "Developed a document-generation product that converts persistent candidate evidence into tailored resumes and focused cover letters.",
+            "Moved long-running generation behind background workers after synchronous requests timed out, making interrupted jobs recoverable.",
+        )
+        + r"\section{Skills}\begin{itemize}\item \textbf{Languages:} Python\end{itemize}"
+    )
+
+    assert generation._resume_quality_errors(body, "PostgreSQL") == []
+
+
 def test_local_recovery_shortens_exact_40_word_production_failure() -> None:
     overlong = (
         "Architected a Redis-backed generation queue that moved document compilation "
@@ -157,7 +220,7 @@ def test_local_recovery_preserves_latex_special_characters() -> None:
     assert shortened is not None
     assert r"C\#" in shortened
     assert r"100\%" in shortened
-    assert generation._bullet_word_count(shortened) <= 38
+    assert generation._bullet_word_count(shortened) <= 32
 
 
 def test_local_recovery_refuses_arbitrary_mid_clause_truncation() -> None:
@@ -175,7 +238,7 @@ def test_local_recovery_removes_filler_without_damaging_grammar() -> None:
     )
 
 
-async def test_generation_pipeline_recovers_repaired_overflow_without_third_call() -> None:
+async def test_generation_pipeline_fixes_punctuation_locally_without_repair() -> None:
     valid_body = (
         r"\section{Experience}"
         + _entry(
@@ -194,16 +257,68 @@ async def test_generation_pipeline_recovers_repaired_overflow_without_third_call
         + r"\section{Skills}\begin{itemize}\item \textbf{Languages:} Python\end{itemize}"
     )
     initial_body = valid_body.replace("dependable attendance records.", "dependable attendance records")
-    overlong = (
-        "Architected a Redis-backed generation queue that moved document compilation "
-        "outside the request lifecycle and preserved application state across worker "
-        "retries, reducing initial feedback latency while preventing proxy timeouts "
-        "during long-running resume and cover-letter generation requests across all "
-        "submitted production jobs."
+    empty_rows = MagicMock()
+    empty_rows.scalars.return_value.all.return_value = []
+    no_personal = MagicMock()
+    no_personal.scalar_one_or_none.return_value = None
+    db = SimpleNamespace(execute=AsyncMock(side_effect=[no_personal, empty_rows, empty_rows, empty_rows, empty_rows]))
+    llm = SimpleNamespace(call_tool=AsyncMock(return_value=ToolCallResult(
+        tool_input={
+            "selected_projects": ["Project"],
+            "fit_score": 7,
+            "resume_latex": initial_body,
+            "cover_letter": "Focused cover letter.",
+            "job_title": "Software Engineer",
+            "job_company": "Acme",
+            "strategic_note": "GOOD FIT\n• Python\n\nGAPS\n• None\n\nIMPROVEMENT PLAN\n• Continue",
+        },
+        input_tokens=100,
+        output_tokens=50,
+    )))
+    async def keep_compiled_body(assembled, *_args, **_kwargs):
+        return assembled, 0, []
+
+    with patch("app.services.generation.get_llm_client", return_value=llm), \
+         patch("app.services.generation._repair_resume_quality", AsyncMock()) as repair_mock, \
+         patch("app.services.generation._compress_if_needed", side_effect=keep_compiled_body):
+        result = await generation.generate_materials(db, "Software Engineer with Python", "sk-ant-test")
+
+    repair_mock.assert_not_awaited()
+    llm.call_tool.assert_awaited_once()
+    assert result["generation_metadata"]["quality_repair_attempts"] == 0
+    assert result["generation_metadata"]["local_editorial_rescue_actions"] == [
+        "added_punctuation:1"
+    ]
+    assert result["input_tokens"] == 100
+    assert result["output_tokens"] == 50
+    assert generation._resume_quality_errors(result["resume_latex"], "") == []
+
+
+async def test_generation_pipeline_applies_targeted_repair_without_rewriting_passing_bullets() -> None:
+    passing_bullet = (
+        "Modeled planned shifts separately from actual time entries in PostgreSQL, "
+        "preserving corrections without rewriting the original schedule."
     )
-    repaired_body = valid_body.replace(
-        "Built a scheduling workflow for retail employees, replacing manual weekly coordination with mobile shift access and dependable attendance records.",
-        overlong,
+    initial_body = (
+        r"\section{Experience}"
+        + _entry(
+            "The platform was developed using Next.js, React, Node.js, PostgreSQL, and Docker infrastructure.",
+            passing_bullet,
+        )
+        + r"\section{Projects}"
+        + _project(
+            "Built a transactional records service that centralizes approvals, audit history, and controlled state changes for business applications.",
+            "Enforced mutations and audit writes inside one transaction boundary, preventing partial records during concurrent workflow updates.",
+        )
+        + _project(
+            "Developed a document-generation product that converts persistent candidate evidence into tailored resumes and focused cover letters.",
+            "Moved long-running generation behind background workers after synchronous requests timed out, making interrupted jobs recoverable.",
+        )
+        + r"\section{Skills}\begin{itemize}\item \textbf{Languages:} Python\end{itemize}"
+    )
+    replacement = (
+        "Built a scheduling workflow for retail employees, replacing manual weekly "
+        "coordination with mobile shift access and dependable attendance records."
     )
 
     empty_rows = MagicMock()
@@ -225,7 +340,7 @@ async def test_generation_pipeline_recovers_repaired_overflow_without_third_call
         output_tokens=50,
     )))
     repaired = ToolCallResult(
-        tool_input={"resume_latex": repaired_body},
+        tool_input={"repairs": [{"bullet_index": 1, "replacement_latex": replacement}]},
         input_tokens=20,
         output_tokens=10,
     )
@@ -239,11 +354,8 @@ async def test_generation_pipeline_recovers_repaired_overflow_without_third_call
         result = await generation.generate_materials(db, "Software Engineer with Python", "sk-ant-test")
 
     repair_mock.assert_awaited_once()
-    llm.call_tool.assert_awaited_once()
     assert result["generation_metadata"]["quality_repair_attempts"] == 1
-    assert result["generation_metadata"]["local_editorial_rescue_actions"] == [
-        "shortened_bullet:1:40->20"
-    ]
+    assert replacement in result["resume_latex"]
+    assert passing_bullet in result["resume_latex"]
     assert result["input_tokens"] == 120
     assert result["output_tokens"] == 60
-    assert generation._resume_quality_errors(result["resume_latex"], "") == []
