@@ -62,6 +62,85 @@ def _mark_job_failed(job: Job, failure_code: str) -> None:
     job.generation_metadata = metadata
 
 
+def _apply_failure_details(
+    job: Job,
+    error: BaseException,
+    *,
+    failure_code: str | None = None,
+) -> None:
+    """Apply a terminal failure and any cost already attached to the error."""
+    _mark_job_failed(job, failure_code or _generation_failure_code(error))
+    metadata = dict(job.generation_metadata)
+    if (failed_cost := getattr(error, "recorded_cost_usd", None)) is not None:
+        job.total_cost_usd = float(job.total_cost_usd or 0) + float(failed_cost)
+        metadata["failed_call_cost_usd"] = float(failed_cost)
+    job.generation_metadata = metadata
+
+
+async def _load_worker_job(db, job_id: int, user_id: str) -> Job | None:
+    """Set the worker's RLS identity and load its user-scoped job row."""
+    await db.execute(
+        text("SELECT set_config('app.current_user_id', :uid, false)"),
+        {"uid": str(user_id)},
+    )
+    return (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
+
+
+async def _persist_failure_fresh(
+    job_id: int,
+    user_id: str,
+    error: BaseException,
+    *,
+    failure_code: str | None = None,
+) -> None:
+    """Persist failure using a clean transaction after the main commit breaks.
+
+    A flush/commit error leaves SQLAlchemy's transaction unusable until rollback.
+    Reopening the row in a fresh session ensures the durable DB state becomes
+    retryable even when the generated payload itself violated a DB constraint.
+    """
+    async with AsyncSessionLocal() as recovery_db:
+        recovery_job = await _load_worker_job(recovery_db, job_id, user_id)
+        if recovery_job is None:
+            return
+        _apply_failure_details(recovery_job, error, failure_code=failure_code)
+        await recovery_db.commit()
+
+
+async def _persist_failure(
+    db,
+    job: Job | None,
+    job_id: int,
+    user_id: str,
+    error: BaseException,
+    *,
+    failure_code: str | None = None,
+) -> None:
+    """Save a failure, falling back to a clean transaction if commit is broken."""
+    if job is not None and db.is_active:
+        _apply_failure_details(job, error, failure_code=failure_code)
+        try:
+            await db.commit()
+            return
+        except Exception:
+            logger.exception(
+                "Failed to commit terminal state for job %d; retrying in a clean transaction",
+                job_id,
+            )
+
+    try:
+        await db.rollback()
+    except Exception:
+        logger.exception("Failed to roll back broken transaction for job %d", job_id)
+
+    await _persist_failure_fresh(
+        job_id,
+        user_id,
+        error,
+        failure_code=failure_code,
+    )
+
+
 async def _on_startup(ctx) -> None:
     """Initialize worker concerns independently of how ARQ is hosted.
 
@@ -119,16 +198,17 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
     async with AsyncSessionLocal() as db:
         job = None
         generated_pdf: bytes | None = None
+        saved_resume_latex: str | None = None
+        generation_saved = False
         try:
             # set_config/the job fetch live inside this try too — a dead pooled
-            # connection surfacing here previously escaped uncaught (see the
-            # `finally: await db.commit()` below, which never ran), leaving the
-            # job stuck at status="processing" forever with no way to retry.
+            # connection surfacing here previously escaped uncaught before the
+            # failure state could be committed, leaving the job stuck at
+            # status="processing" forever with no way to retry.
             # pool_pre_ping on the engine (app.database) should prevent the dead
             # connection in the first place; this is the backstop for anything else.
-            await db.execute(text("SELECT set_config('app.current_user_id', :uid, false)"), {"uid": str(user_id)})
             set_user_context(str(user_id))
-            job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
+            job = await _load_worker_job(db, job_id, user_id)
             if not job:
                 return
             api_key = await get_decrypted_key(db, uuid.UUID(str(user_id)))
@@ -145,32 +225,38 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             generated_pdf = result.pop("pdf_bytes", None)
             _apply_result(job, result)
             job.status = "generated"
+            saved_resume_latex = job.resume_latex
+            # Commit belongs inside the guarded block. A constraint failure is
+            # part of generation persistence and must be converted into a
+            # visible terminal state, not escape from an unconditional finally.
+            await db.commit()
+            generation_saved = True
         except asyncio.CancelledError:
             # A Fly deploy or process shutdown cancels in-flight tasks. Treat the
             # interrupted attempt as a visible, retryable failure instead of
             # allowing ARQ retries to spend the user's key again or leaving the
             # database row at "processing" forever.
             logger.warning("Generation interrupted for job %d during worker shutdown", job_id)
-            if job is not None:
-                _mark_job_failed(job, "generation_interrupted")
+            await asyncio.shield(
+                _persist_failure(
+                    db,
+                    job,
+                    job_id,
+                    user_id,
+                    asyncio.CancelledError(),
+                    failure_code="generation_interrupted",
+                )
+            )
         except Exception as e:
             logger.exception("Generation failed for job %d: %s", job_id, e)
-            if job is not None:
-                _mark_job_failed(job, _generation_failure_code(e))
-                metadata = dict(job.generation_metadata)
-                if (failed_cost := getattr(e, "recorded_cost_usd", None)) is not None:
-                    job.total_cost_usd = float(job.total_cost_usd or 0) + float(failed_cost)
-                    metadata["failed_call_cost_usd"] = float(failed_cost)
-                job.generation_metadata = metadata
-        finally:
-            await asyncio.shield(db.commit())
+            await _persist_failure(db, job, job_id, user_id, e)
 
-    if job is not None and job.status == "generated" and job.resume_latex:
+    if generation_saved and saved_resume_latex:
         try:
             if generated_pdf is not None:
                 await get_pdf_storage().save(resume_pdf_key(job_id), generated_pdf)
             else:
-                await cache_resume_pdf(job_id, job.resume_latex)
+                await cache_resume_pdf(job_id, saved_resume_latex)
         except Exception:
             logger.exception("Resume PDF caching failed for job %d — will compile on first request", job_id)
 
