@@ -8,6 +8,8 @@ import httpx
 import pytest
 
 from app import worker
+from app.models.job import Job
+from app.services.generation import GENERATION_VERSION
 from app.services.llm_client import StructuredOutputTruncatedError
 
 
@@ -22,6 +24,11 @@ async def test_on_startup_configures_logging_and_error_tracking():
 
 def test_worker_settings_wires_on_startup():
     assert worker.WorkerSettings.on_startup is worker._on_startup
+
+
+def test_generation_version_fits_persisted_schema():
+    max_length = Job.__table__.c.generation_version.type.length
+    assert len(GENERATION_VERSION) <= max_length
 
 
 def test_bad_anthropic_schema_is_classified_as_configuration_failure():
