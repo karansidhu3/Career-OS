@@ -304,6 +304,8 @@ The authoritative template is `LATEX_TEMPLATE` in `backend/app/services/generati
 
 **ADR-023** — Bounded generation lifecycle (2026-08-28). Every generate/regenerate attempt stores its own UTC `started_at` in `generation_metadata`. A `processing` attempt older than 15 minutes is stale: the job read path and per-user concurrency gate atomically convert it to `failed` with `failure_code=generation_interrupted`, allowing the existing Retry action instead of infinite frontend polling or a permanent 409 lockout. Worker cancellation during Fly shutdown is handled explicitly and committed under `asyncio.shield`; shutdown now closes ARQ so its active child tasks finish cancellation cleanup, and Fly grants a 30-second kill window. Interrupted attempts are not automatically rerun because an Anthropic response may already have incurred cost; retry remains an explicit user action.
 
+**ADR-024** — Deterministic editorial overflow recovery (2026-08-30). The full-context quality repair still receives one paid attempt, but its prompt now targets 16–24 words and caps its own output at 30 words rather than treating the validator's 38-word emergency ceiling as the writing target. If that repair leaves only an overlong bullet, CareerOS performs a free local rescue: it removes prompt-banned filler or a complete trailing sentence/clause, never slices arbitrary prose, and then reruns the complete editorial gate. The rescue cannot add evidence, numbers, technologies, or claims; any remaining structural, grounding, punctuation, repetition, or unsafe-length defect still fails visibly. Applied actions are stored in `generation_metadata.local_editorial_rescue_actions`, and new jobs are labeled `original-prompt-v1-quality-gated-local-recovery`.
+
 ---
 
 ## Hard constraints

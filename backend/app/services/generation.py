@@ -14,7 +14,7 @@ from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
-GENERATION_VERSION = "original-prompt-v1-quality-gated-layout-rescue"
+GENERATION_VERSION = "original-prompt-v1-quality-gated-local-recovery"
 
 # ── Shared LaTeX command set ──────────────────────────────────────────────────
 # All templates use the same command names so Claude's body output is template-
@@ -1127,7 +1127,13 @@ def _latex_to_plain(text: str) -> str:
         if updated == plain:
             break
         plain = updated
-    plain = plain.replace(r"\&", "&").replace(r"\%", "%")
+    plain = (
+        plain.replace(r"\&", "&")
+        .replace(r"\%", "%")
+        .replace(r"\#", "#")
+        .replace(r"\_", "_")
+        .replace(r"\$", "$")
+    )
     plain = re.sub(r"\\[A-Za-z]+\*?(?:\[[^\]]*\])?", " ", plain)
     plain = plain.replace("{", " ").replace("}", " ").replace("~", " ")
     return re.sub(r"\s+", " ", plain).strip()
@@ -1147,6 +1153,167 @@ def _resume_item_blocks(body: str) -> list[list[str]]:
             return blocks
         blocks.append(_balanced_brace_contents(body[start:end], r"\item \small{"))
         cursor = end + len(end_marker)
+
+
+def _resume_item_spans(body: str) -> list[tuple[int, int, str]]:
+    """Return the source spans and contents of every generated resume bullet."""
+    marker = r"\item \small{"
+    spans: list[tuple[int, int, str]] = []
+    cursor = 0
+    while True:
+        marker_start = body.find(marker, cursor)
+        if marker_start == -1:
+            return spans
+        content_start = marker_start + len(marker)
+        depth = 1
+        index = content_start
+        while index < len(body) and depth:
+            if body[index] == "{" and (index == 0 or body[index - 1] != "\\"):
+                depth += 1
+            elif body[index] == "}" and (index == 0 or body[index - 1] != "\\"):
+                depth -= 1
+            index += 1
+        if depth:
+            return spans
+        content_end = index - 1
+        spans.append((content_start, content_end, body[content_start:content_end]))
+        cursor = index
+
+
+_BULLET_WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9+#./'-]*")
+_INCOMPLETE_ENDINGS = {
+    "a", "an", "and", "as", "at", "because", "by", "for", "from", "in",
+    "into", "of", "on", "or", "the", "to", "using", "via", "with", "without",
+}
+_LOW_VALUE_BULLET_TERM = r"(?:comprehensive|robust|scalable|modular|reusable|successfully)"
+_SAFE_TRAILING_CLAUSE = re.compile(
+    r"[,;]\s+(?=(?:which|while|because|after|before|using|enabling|allowing|"
+    r"reducing|replacing|supporting|providing|ensuring|preserving|preventing|"
+    r"improving|eliminating|resulting)\b)",
+    re.IGNORECASE,
+)
+
+
+def _bullet_word_count(text: str) -> int:
+    return len(_BULLET_WORD_RE.findall(_latex_to_plain(text)))
+
+
+def _escape_latex_bullet(text: str) -> str:
+    """Escape locally recovered plain text for safe insertion into a bullet."""
+    replacements = {
+        "\\": r"\textbackslash{}",
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+    }
+    return "".join(replacements.get(char, char) for char in text)
+
+
+def _remove_low_value_bullet_words(text: str) -> str:
+    """Remove prompt-banned filler without leaving broken lists or conjunctions."""
+    cleaned = re.sub(
+        rf"\b{_LOW_VALUE_BULLET_TERM}\b\s*,\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        rf",\s*\b{_LOW_VALUE_BULLET_TERM}\b(?=\s+[A-Za-z0-9])",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        rf"\b{_LOW_VALUE_BULLET_TERM}\b\s+(?:and|or)\s+",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        rf"\b(?:and|or)\s+{_LOW_VALUE_BULLET_TERM}\b\s+",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        rf"\b{_LOW_VALUE_BULLET_TERM}\b\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _complete_bullet_candidate(text: str, *, max_words: int = 38) -> str | None:
+    candidate = re.sub(r"\s+", " ", text).strip().rstrip(" ,;:-")
+    words = _BULLET_WORD_RE.findall(candidate)
+    if not 12 <= len(words) <= max_words:
+        return None
+    if words[-1].casefold() in _INCOMPLETE_ENDINGS:
+        return None
+    return candidate if re.search(r"[.!?]$", candidate) else candidate + "."
+
+
+def _shorten_overlong_bullet(raw_latex: str, *, max_words: int = 38) -> str | None:
+    """Shorten one bullet without inventing or slicing through an arbitrary phrase.
+
+    Prefer removing prompt-banned filler while preserving the complete sentence. If
+    that is insufficient, retain a complete sentence or the longest complete leading
+    clause. Returning ``None`` is intentional: unsafe prose is left for the existing
+    acceptance failure rather than being truncated into a fragment.
+    """
+    plain = _latex_to_plain(raw_latex)
+    if _bullet_word_count(plain) <= max_words:
+        return None
+
+    without_filler = _remove_low_value_bullet_words(plain)
+    without_filler = re.sub(r"\bin order to\b", "to", without_filler, flags=re.IGNORECASE)
+    filler_candidate = _complete_bullet_candidate(without_filler, max_words=max_words)
+    if filler_candidate:
+        return _escape_latex_bullet(filler_candidate)
+
+    prefixes: list[str] = []
+    for match in re.finditer(r"(?<=[.!?])\s+", without_filler):
+        prefixes.append(without_filler[:match.start()])
+    for match in _SAFE_TRAILING_CLAUSE.finditer(without_filler):
+        prefixes.append(without_filler[:match.start()])
+
+    candidates = [
+        candidate
+        for prefix in prefixes
+        if (candidate := _complete_bullet_candidate(prefix, max_words=max_words))
+    ]
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda item: len(_BULLET_WORD_RE.findall(item)))
+    return _escape_latex_bullet(best)
+
+
+def _recover_overlong_bullets(body_latex: str) -> tuple[str, list[str]]:
+    """Apply free, deterministic recovery to overlong bullets and report actions."""
+    body = _extract_resume_body(body_latex)
+    replacements: list[tuple[int, int, str]] = []
+    actions: list[str] = []
+    for index, (start, end, raw) in enumerate(_resume_item_spans(body), start=1):
+        before = _bullet_word_count(raw)
+        if before <= 38:
+            continue
+        replacement = _shorten_overlong_bullet(raw)
+        if replacement is None:
+            continue
+        after = _bullet_word_count(replacement)
+        replacements.append((start, end, replacement))
+        actions.append(f"shortened_bullet:{index}:{before}->{after}")
+
+    for start, end, replacement in reversed(replacements):
+        body = body[:start] + replacement + body[end:]
+    return body, actions
 
 
 def _bullet_terms(text: str) -> set[str]:
@@ -1238,9 +1405,11 @@ Every experience and project bullet must be a complete, polished resume sentence
 punctuation. Experience entries require 2-3 distinct bullets. Every project requires exactly
 2 complementary bullets: first, a recruiter-legible product or outcome statement; second, a
 specific engineering decision, constraint, failure boundary, or implementation that invites
-technical discussion. Each bullet must contain 12-38 words. Never output a project name alone,
-a passive technology inventory, two paraphrases of the same fact, an unsupported number, or a
-generic README description. Use only supported technologies, metrics, ownership, and outcomes.
+technical discussion. Target 16-24 words per bullet and keep every bullet at 30 words or fewer;
+the validator's emergency ceiling is 38, not a writing target. Count the visible words before
+returning the document. Never output a project name alone, a passive technology inventory, two
+paraphrases of the same fact, an unsupported number, or a generic README description. Use only
+supported technologies, metrics, ownership, and outcomes.
 
 Return only Experience, Projects, and Skills sections using the supplied LaTeX command structure.
 Do not output a preamble, heading, education section, document wrapper, or explanation.""" + LATEX_TEMPLATE
@@ -1634,6 +1803,7 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
     }
 
     quality_repairs = 0
+    local_editorial_rescue_actions: list[str] = []
     initial_quality_errors: list[str] = []
     if result.get("resume_latex"):
         initial_quality_errors = _resume_quality_errors(result["resume_latex"], profile_text)
@@ -1653,13 +1823,25 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
             repaired_body = repaired.tool_input["resume_latex"]
             remaining_errors = _resume_quality_errors(repaired_body, profile_text)
             if remaining_errors:
-                logger.error(
-                    "Resume quality repair failed acceptance gate: %s",
-                    " | ".join(remaining_errors),
+                recovered_body, local_editorial_rescue_actions = _recover_overlong_bullets(
+                    repaired_body
                 )
-                raise ValueError(
-                    "Generated resume did not meet the editorial quality gate after repair."
-                )
+                recovered_errors = _resume_quality_errors(recovered_body, profile_text)
+                if local_editorial_rescue_actions and not recovered_errors:
+                    logger.warning(
+                        "Recovered repaired resume locally without another provider call: %s",
+                        " | ".join(local_editorial_rescue_actions),
+                    )
+                    repaired_body = recovered_body
+                    remaining_errors = []
+                else:
+                    logger.error(
+                        "Resume quality repair failed acceptance gate: %s",
+                        " | ".join(recovered_errors or remaining_errors),
+                    )
+                    raise ValueError(
+                        "Generated resume did not meet the editorial quality gate after repair."
+                    )
             result["resume_latex"] = repaired_body
             result["input_tokens"] += repaired.input_tokens
             result["output_tokens"] += repaired.output_tokens
@@ -1691,9 +1873,10 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
 
     result["generation_metadata"] = {
         "pipeline": "full_context_quality_gated",
-        "quality_gate_version": 1,
+        "quality_gate_version": 2,
         "quality_repair_attempts": quality_repairs,
         "initial_quality_errors": initial_quality_errors,
+        "local_editorial_rescue_actions": local_editorial_rescue_actions,
         "layout_rescue_actions": result.get("layout_rescue_actions", []),
     }
 
