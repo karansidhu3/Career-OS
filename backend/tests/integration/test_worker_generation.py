@@ -37,6 +37,8 @@ async def test_commit_constraint_failure_becomes_retryable_failure(
     db_session.add(job)
     await db_session.commit()
     await db_session.refresh(job)
+    job_id = job.id
+    job_description = job.description
 
     monkeypatch.setattr(worker_module, "GENERATION_VERSION", "x" * 33)
     monkeypatch.setattr(
@@ -63,8 +65,8 @@ async def test_commit_constraint_failure_becomes_retryable_failure(
 
     await worker_module.run_generation_job(
         {},
-        job.id,
-        job.description,
+        job_id,
+        job_description,
         str(current_test_user.id),
     )
 
@@ -72,7 +74,7 @@ async def test_commit_constraint_failure_becomes_retryable_failure(
     persisted = (
         await db_session.execute(
             select(Job)
-            .where(Job.id == job.id)
+            .where(Job.id == job_id)
             .execution_options(populate_existing=True)
         )
     ).scalar_one()
