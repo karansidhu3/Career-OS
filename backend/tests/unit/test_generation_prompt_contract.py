@@ -24,8 +24,15 @@ def test_prompt_contains_the_approved_editorial_system() -> None:
     assert "STEP 0 — Rank supported evidence before writing" in prompt
     assert "Time, work, or operational effort meaningfully reduced" in prompt
     assert "STEP 1 — Classify the JD internally" in prompt
-    assert "BULLET 1 — PROJECT SALE" in prompt
-    assert "BULLET 2 — ENGINEERING PROOF" in prompt
+    assert "PREFERRED BULLET COMPOSITION" in prompt
+    assert "EXPERIENCE — DEFAULT CONTRIBUTION BULLET" in prompt
+    assert "EXPERIENCE — TECHNICAL DECISION BULLET" in prompt
+    assert "PROJECT BULLET 1 — RECRUITER SALE" in prompt
+    assert "PROJECT BULLET 2 — ENGINEERING PROOF" in prompt
+    assert "preferred writing scaffolds, not rigid formulas" in prompt
+    assert "Use no more than two related measurements" in prompt
+    assert "each bullet must prove a distinct point" in prompt
+    assert "Do not turn participation" in prompt
     assert "targeting 20-28 words" in prompt
     assert "Allow up to 32" in prompt
     assert "Six is a hard maximum" in prompt
@@ -46,6 +53,8 @@ def test_prompt_removes_stale_project_and_keyword_rules() -> None:
     assert "Generate a descriptor for every selected project" not in prompt
     assert "Select 2-4 projects" not in prompt
     assert "Extract 10-15 JD terms" not in prompt
+    assert "CLAUSE CONTROL" not in prompt
+    assert "Each bullet may contain one primary mechanism" not in prompt
     assert generation.GENERATE_TOOL["input_schema"]["properties"]["selected_projects"]["maxItems"] == 3
 
 
