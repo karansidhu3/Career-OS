@@ -3,6 +3,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from app import worker
 from app.services import generation
 from app.services.llm_client import ToolCallResult
@@ -12,7 +14,7 @@ def test_worker_uses_full_context_generator() -> None:
     assert worker.generate_materials is generation.generate_materials
     assert (
         generation.GENERATION_VERSION
-        == "original-v1-qg-local-recovery"
+        == "original-v1-evidence-refined"
     )
 
 
@@ -20,12 +22,20 @@ def test_prompt_contains_the_approved_editorial_system() -> None:
     prompt = generation.SYSTEM_PROMPT
 
     assert "STEP 0 — Rank supported evidence before writing" in prompt
-    assert "Priority A: recruiter-legible scope or outcome" in prompt
+    assert "Time, work, or operational effort meaningfully reduced" in prompt
     assert "STEP 1 — Classify the JD internally" in prompt
     assert "BULLET 1 — PROJECT SALE" in prompt
     assert "BULLET 2 — ENGINEERING PROOF" in prompt
-    assert "target 18-28 words" in prompt
+    assert "targeting 20-28 words" in prompt
+    assert "Allow up to 32" in prompt
+    assert "Six is a hard maximum" in prompt
+    assert "Place the project with the strongest direct evidence" in prompt
+    assert "Skills are not a substitute for concrete evidence" in prompt
     assert "exactly one project, named once" in prompt
+    assert "Exactly 2 sentences" in prompt
+    assert "Exactly 5 sentences" in prompt
+    assert "Exactly 1 sentence" in prompt
+    assert "name only the missing members" in prompt
     assert "ONE-PAGE CONTENT BUDGET" in prompt
     assert "SELF-REVIEW" in prompt
 
@@ -42,18 +52,49 @@ def test_prompt_removes_stale_project_and_keyword_rules() -> None:
 def test_quality_repair_prompt_keeps_margin_below_validator_ceiling() -> None:
     prompt = generation._QUALITY_REPAIR_SYSTEM
 
-    assert "Target 16-24 words per bullet" in prompt
-    assert "keep every bullet at 30 words or fewer" in prompt
-    assert "validator's ceiling is 32, not a writing target" in prompt
+    assert "Target 20-28 words" in prompt
+    assert "32 words or fewer" in prompt
+    assert "emergency acceptance margin" in prompt
 
 
-def test_prompt_does_not_contain_later_ultimate_prompt_rewrite() -> None:
+def test_project_technology_lines_are_trimmed_to_six_ranked_items() -> None:
+    body = (
+        r"\section{Projects}"
+        r"\projectSubheading{Ledger | Backend}{Jun 2026 -- Present}"
+        r"{Java \textperiodcentered{} Spring Boot \textperiodcentered{} PostgreSQL "
+        r"\textperiodcentered{} Spring Security \textperiodcentered{} Testcontainers "
+        r"\textperiodcentered{} Docker \textperiodcentered{} Flyway \textperiodcentered{} Maven}"
+        r"{}{https://example.com}"
+    )
+
+    trimmed, actions = generation._limit_project_technology_lines(body)
+
+    assert actions == ["trimmed_project_technologies:1:8->6"]
+    assert "Docker" in trimmed
+    assert "Flyway" not in trimmed
+    assert "Maven" not in trimmed
+    arguments = generation._project_subheading_argument_spans(trimmed)
+    technologies = trimmed[arguments[0][2][0]:arguments[0][2][1]]
+    items, _ = generation._split_project_technologies(technologies)
+    assert len(items) == 6
+
+
+def test_prompt_does_not_restore_the_discarded_ultimate_prompt() -> None:
     prompt = generation.SYSTEM_PROMPT
 
     assert "MAXIMUM DEFENSIBLE LEVERAGE" not in prompt
     assert "POSITIONING THESIS" not in prompt
     assert "PORTFOLIO COVERAGE" not in prompt
-    assert "Target 18-26 words per bullet" not in prompt
+
+
+def test_generation_tool_requires_three_projects_when_profile_supports_them() -> None:
+    selected = generation._generation_tool_for_project_count(4)["input_schema"]["properties"]["selected_projects"]
+    assert selected["minItems"] == 3
+    assert selected["maxItems"] == 3
+
+    selected_for_two = generation._generation_tool_for_project_count(2)["input_schema"]["properties"]["selected_projects"]
+    assert selected_for_two["minItems"] == 2
+    assert selected_for_two["maxItems"] == 2
 
 
 def _entry(*bullets: str) -> str:
@@ -138,14 +179,14 @@ def test_editorial_gate_accepts_equivalent_numeric_wording() -> None:
     assert generation._resume_quality_errors(body, profile) == []
 
 
-def test_editorial_gate_treats_33_to_36_words_as_soft_style_range() -> None:
+def test_editorial_gate_accepts_complete_31_to_40_word_near_miss() -> None:
     long_but_complete = (
         "Built a scheduling and attendance workflow for retail employees and administrators, "
         "replacing weekly spreadsheet coordination with mobile shift access while preserving "
         "planned schedules separately from corrected time records in PostgreSQL for daily "
-        "operational use."
+        "operational use across recurring employee workflows."
     )
-    assert 33 <= generation._bullet_word_count(long_but_complete) <= 36
+    assert generation._bullet_word_count(long_but_complete) == 38
 
     body = (
         r"\section{Experience}"
@@ -166,6 +207,38 @@ def test_editorial_gate_treats_33_to_36_words_as_soft_style_range() -> None:
     )
 
     assert generation._resume_quality_errors(body, "PostgreSQL") == []
+
+
+def test_editorial_gate_rejects_bullets_over_emergency_40_word_limit() -> None:
+    excessive = (
+        "Built a scheduling and attendance workflow for retail employees and administrators, "
+        "replacing weekly spreadsheet coordination with mobile shift access while preserving "
+        "planned schedules separately from corrected time records in PostgreSQL for daily "
+        "operational use across several recurring administrative and employee workflows with "
+        "documented correction history for managers."
+    )
+    assert generation._bullet_word_count(excessive) > 40
+
+    body = (
+        r"\section{Experience}"
+        + _entry(
+            excessive,
+            "Modeled planned shifts separately from actual time entries in PostgreSQL, preserving corrections without rewriting the original schedule.",
+        )
+        + r"\section{Projects}"
+        + _project(
+            "Built a transactional records service that centralizes approvals, audit history, and controlled state changes for business applications.",
+            "Enforced mutations and audit writes inside one transaction boundary, preventing partial records during concurrent workflow updates.",
+        )
+        + _project(
+            "Developed a document-generation product that converts persistent candidate evidence into tailored resumes and focused cover letters.",
+            "Moved long-running generation behind background workers after synchronous requests timed out, making interrupted jobs recoverable.",
+        )
+        + r"\section{Skills}\begin{itemize}\item \textbf{Languages:} Python\end{itemize}"
+    )
+
+    errors = generation._resume_quality_errors(body, "PostgreSQL")
+    assert any("expected 8-40" in error for error in errors)
 
 
 def test_local_recovery_shortens_exact_40_word_production_failure() -> None:
@@ -220,7 +293,7 @@ def test_local_recovery_preserves_latex_special_characters() -> None:
     assert shortened is not None
     assert r"C\#" in shortened
     assert r"100\%" in shortened
-    assert generation._bullet_word_count(shortened) <= 32
+    assert generation._bullet_word_count(shortened) <= 30
 
 
 def test_local_recovery_refuses_arbitrary_mid_clause_truncation() -> None:
@@ -264,7 +337,7 @@ async def test_generation_pipeline_fixes_punctuation_locally_without_repair() ->
     db = SimpleNamespace(execute=AsyncMock(side_effect=[no_personal, empty_rows, empty_rows, empty_rows, empty_rows]))
     llm = SimpleNamespace(call_tool=AsyncMock(return_value=ToolCallResult(
         tool_input={
-            "selected_projects": ["Project"],
+            "selected_projects": ["Project One", "Project Two"],
             "fit_score": 7,
             "resume_latex": initial_body,
             "cover_letter": "Focused cover letter.",
@@ -328,7 +401,7 @@ async def test_generation_pipeline_applies_targeted_repair_without_rewriting_pas
     db = SimpleNamespace(execute=AsyncMock(side_effect=[no_personal, empty_rows, empty_rows, empty_rows, empty_rows]))
     llm = SimpleNamespace(call_tool=AsyncMock(return_value=ToolCallResult(
         tool_input={
-            "selected_projects": ["Project"],
+            "selected_projects": ["Project One", "Project Two"],
             "fit_score": 7,
             "resume_latex": initial_body,
             "cover_letter": "Focused cover letter.",
@@ -340,7 +413,7 @@ async def test_generation_pipeline_applies_targeted_repair_without_rewriting_pas
         output_tokens=50,
     )))
     repaired = ToolCallResult(
-        tool_input={"repairs": [{"bullet_index": 1, "replacement_latex": replacement}]},
+        tool_input={"repairs": [{"bullet_index": 1, "replacement_text": replacement}]},
         input_tokens=20,
         output_tokens=10,
     )
@@ -359,3 +432,100 @@ async def test_generation_pipeline_applies_targeted_repair_without_rewriting_pas
     assert passing_bullet in result["resume_latex"]
     assert result["input_tokens"] == 120
     assert result["output_tokens"] == 60
+
+
+def test_targeted_repair_escapes_latex_sensitive_characters_without_touching_list_structure() -> None:
+    body = (
+        r"\section{Experience}"
+        + _entry(
+            "Completed 100% of scheduled data exports for engineering teams during controlled validation.",
+            "Modeled planned shifts separately from actual time entries in PostgreSQL, preserving corrections without rewriting the original schedule.",
+        )
+        + r"\section{Projects}"
+        + _project(
+            "Built a transactional records service that centralizes approvals, audit history, and controlled state changes for business applications.",
+            "Enforced mutations and audit writes inside one transaction boundary, preventing partial records during concurrent workflow updates.",
+        )
+        + _project(
+            "Developed a document-generation product that converts persistent candidate evidence into tailored resumes and focused cover letters.",
+            "Moved long-running generation behind background workers after synchronous requests timed out, making interrupted jobs recoverable.",
+        )
+        + r"\section{Skills}\begin{itemize}\item \textbf{Languages:} Python\end{itemize}"
+    )
+
+    repaired = generation._apply_targeted_bullet_repairs(
+        body,
+        [{"bullet_index": 1, "replacement_text": "Completed 100% of scheduled data exports for R&D teams."}],
+    )
+
+    assert r"100\%" in repaired
+    assert r"R\&D" in repaired
+    assert repaired.count(r"\resumeItemListStart") == body.count(r"\resumeItemListStart")
+    assert repaired.count(r"\resumeItemListEnd") == body.count(r"\resumeItemListEnd")
+
+
+def test_targeted_repair_cannot_introduce_a_new_numeric_claim() -> None:
+    body = (
+        r"\section{Experience}"
+        + _entry(
+            "Built a scheduling workflow for employees, replacing manual coordination with mobile shift access and dependable attendance records.",
+            "Modeled planned shifts separately from actual time entries in PostgreSQL, preserving corrections without rewriting the original schedule.",
+        )
+        + r"\section{Projects}"
+        + _project(
+            "Built a transactional records service that centralizes approvals, audit history, and controlled state changes for business applications.",
+            "Enforced mutations and audit writes inside one transaction boundary, preventing partial records during concurrent workflow updates.",
+        )
+        + _project(
+            "Developed a document-generation product that converts candidate evidence into tailored resumes and focused cover letters.",
+            "Moved long-running generation behind background workers, making interrupted jobs recoverable after infrastructure failures.",
+        )
+        + r"\section{Skills}\begin{itemize}\item \textbf{Languages:} Python\end{itemize}"
+    )
+
+    with pytest.raises(ValueError, match="introduced new numeric claims"):
+        generation._apply_targeted_bullet_repairs(
+            body,
+            [{"bullet_index": 1, "replacement_text": "Completed 50 workflows at 10-way concurrency during a controlled benchmark."}],
+        )
+
+
+def test_editorial_gate_rejects_metrics_borrowed_from_another_project() -> None:
+    body = (
+        r"\section{Experience}"
+        + _entry(
+            "Built a scheduling workflow for employees, replacing manual coordination with mobile shift access and dependable attendance records.",
+            "Modeled planned shifts separately from actual time entries in PostgreSQL, preserving corrections without rewriting the original schedule.",
+        )
+        + r"\section{Projects}"
+        + r"\projectSubheading{Relay | Event Platform}{2026}{TypeScript}{}{https://example.com/relay}"
+        + r"\resumeItemListStart"
+        + r"\item \small{Built an event platform that authenticates ingestion and dispatches asynchronous work through queued serverless workers.}"
+        + r"\item \small{Completed 50 workflows at 10-way concurrency during a controlled benchmark with measured end-to-end latency.}"
+        + r"\resumeItemListEnd"
+        + r"\projectSubheading{Ledger | Transactional Backend}{2026}{Java}{}{https://example.com/ledger}"
+        + r"\resumeItemListStart"
+        + r"\item \small{Built a transactional records service that centralizes approvals, audit history, and controlled state changes.}"
+        + r"\item \small{Completed 50 workflows at 10-way concurrency while preserving atomic audit history during storage failures.}"
+        + r"\resumeItemListEnd"
+        + r"\section{Skills}\begin{itemize}\item \textbf{Languages:} Java\end{itemize}"
+    )
+    profile = """PROJECTS
+[1] Serverless Event Platform (2026 – Present) — GitHub: https://example.com/relay
+  REQUIRED RESUME HEADING — copy exactly: Relay | Event Platform
+  SOURCE MATERIAL — factual evidence, not copy-ready résumé prose:
+  Completed 50 workflows at 10-way concurrency during a controlled benchmark.
+[2] Transactional Backend (2026 – Present) — GitHub: https://example.com/ledger
+  REQUIRED RESUME HEADING — copy exactly: Ledger | Transactional Backend
+  SOURCE MATERIAL — factual evidence, not copy-ready résumé prose:
+  Validated atomic audit rollback across 20 contention trials.
+
+SKILLS
+Languages: Java, TypeScript"""
+
+    errors = generation._resume_quality_errors(body, profile)
+
+    assert any(
+        "bullet 6 contains numbers absent from its project source: 10, 50" in error
+        for error in errors
+    )

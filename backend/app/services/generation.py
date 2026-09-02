@@ -1,4 +1,5 @@
 import asyncio
+from copy import deepcopy
 from difflib import SequenceMatcher
 import io
 import logging
@@ -14,7 +15,7 @@ from app.services.llm_client import get_llm_client
 from app.services.pdf import compile_latex_to_pdf
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
-GENERATION_VERSION = "original-v1-qg-local-recovery"
+GENERATION_VERSION = "original-v1-evidence-refined"
 
 # ── Shared LaTeX command set ──────────────────────────────────────────────────
 # All templates use the same command names so Claude's body output is template-
@@ -507,18 +508,26 @@ identity, experience, target role, and evidence. Do not rely on assumptions outs
 
 STEP 0 — Rank supported evidence before writing.
 
-Priority A: recruiter-legible scope or outcome, such as people or workflows served,
-manual work replaced, meaningful data volume, or a product result.
-Priority B: engineering proof, such as a relevant latency, recovery, reliability,
-contention, or data-scale measurement.
-Priority C: supporting inventory, such as test, endpoint, file, migration, schema,
-or line counts.
+Prefer evidence that explains why the work mattered, not merely what was built. When a
+verified outcome, before-and-after comparison, operational scale, reliability result, or
+performance measurement materially strengthens the candidate's fit, preserve it.
 
-Prefer one coherent metric story to unrelated numbers. Use Priority C only when the job
-values it and stronger evidence cannot explain the work. A decision, failure boundary, or
-verified property can be stronger than a weak metric. Preserve qualifiers exactly: controlled
-is not production, local is not deployed, and intended use is not verified use. Include a
-number only when its absence would reduce understanding of fit.
+Prioritize meaningful evidence in this order:
+  1. Time, work, or operational effort meaningfully reduced
+  2. User, workflow, or business scope
+  3. Reliability, recovery, correctness, or latency improvement
+  4. Relevant data or concurrency scale
+  5. Supporting implementation counts only when the JD values them
+
+A project description without an outcome is acceptable only when the profile contains no
+relevant supported outcome or when a technical decision is more persuasive for this JD. Do
+not replace a strong verified result with a generic product description merely to make the
+bullet shorter.
+
+Use one coherent metric story per bullet. A before-and-after comparison or a measurement with
+its controlled scope counts as one story. Preserve qualifiers such as controlled, local,
+deployed, intended, and production exactly. A decision, failure boundary, or verified property
+can still be stronger than a weak metric.
 
 STEP 1 — Classify the JD internally, using the posting rather than company reputation.
 Choose one primary engineering environment and role family; add a secondary only when the
@@ -553,12 +562,27 @@ mechanism, constraint, failure boundary, implementation, or verified property; a
 best metric story, if stronger than a non-numeric result. Do not force a fixed narrative or
 rejected alternative.
 
-STEP 4 — Select the smallest complementary project set covering the highest-weight
-requirements. Default to exactly 3; use 2 only when a third adds no distinct required or
-repeated responsibility. Rank by direct role relevance, proof of primary work, recruiter-
-legible value, engineering depth, and evidence not already covered. Order strongest first.
-Do not select a fourth project; only CareerOS may later admit one without displacing relevant
-Skills, experience evidence, or a stronger project.
+STEP 4 — Select exactly 3 projects unless the profile contains fewer than 3 substantiated
+technical projects. Project count is based on relevance; layout compression happens later.
+
+Rank projects against the JD's highest-weight requirements before selecting or writing. When a
+project directly demonstrates a required language, framework, domain, or primary responsibility,
+it outranks projects offering broader transferable evidence, stronger deployment status, or
+generally impressive engineering.
+
+Place the project with the strongest direct evidence for the most important requirement first.
+Choose the next two projects to prove distinct remaining requirements so the complete set covers
+the role without unnecessary overlap.
+
+Prioritize, in order:
+  1. Direct evidence of required technologies, domains, or primary responsibilities
+  2. Evidence of repeatedly emphasized responsibilities
+  3. Relevant outcomes, reliability, or engineering decisions
+  4. Complementary breadth not already established
+
+GOOD FIT and the cover letter must use evidence from the selected portfolio; they must not
+influence selection toward a weaker project. Order projects by job relevance, never profile
+order, general complexity, deployment status, or overall impressiveness. Never select a fourth.
 
 ━━━ PROJECT HEADINGS ━━━
 
@@ -576,6 +600,10 @@ Write: [what it is/does] + [who or what it is for] + [strongest relevant support
 outcome, scope, or differentiator]. A recruiter must understand the project without its
 technology line or Bullet 2; lead with the product, workflow, or problem, not architecture.
 
+When a meaningful supported outcome or scope exists, include the strongest job-relevant one.
+The bullet should answer both "what is this?" and "why should a recruiter care?" A generic
+product description is insufficient when stronger verified evidence is available.
+
 Preserve status exactly: “used by” and “serves” require verified use; “deployed” requires
 a deployed capability; “production” requires explicit production operation. Intended or
 local work remains intended or local; a controlled benchmark remains controlled. Do not infer
@@ -583,10 +611,14 @@ users, adoption, impact, completed integrations, or production scale from archit
 
 BULLET 2 — ENGINEERING PROOF (hiring manager audience)
 
-Write: [specific component, decision, or mechanism] + [documented constraint, tradeoff,
-or failure boundary] + [supported result or technical property]. Prefer a concrete subject
-such as a transaction boundary, state machine, queue, schema, recovery path, authorization
-policy, ingestion gate, or benchmark harness. It should invite a useful follow-up question.
+Present one relevant engineering decision, mechanism, or verified property and explain the
+practical result. Use at most one primary technical mechanism and one related metric or outcome.
+The bullet must remain understandable to a technical recruiter without unpacking several
+benchmarks, failure modes, or implementation details. When multiple proofs are available,
+choose the one most relevant to the JD rather than combining them.
+
+Preserve the practical result of the decision. Do not reduce a documented decision-and-result
+story to the mechanism alone merely to save words.
 
 Do not claim a previous approach, rejected alternative, or failure unless documented. One
 coherent metric story is enough; a defensible decision or verified property can be stronger
@@ -613,11 +645,22 @@ qualifiers, or results.
 
 ━━━ BULLET DENSITY AND WRITING STYLE ━━━
 
-Write complete, natural, information-dense sentences: target 18-28 words, permit shorter
-complete high-value bullets, never exceed 32, and never truncate needed context to hit a count.
-One bullet may contain one product/result story, decision/constraint/result story, scoped
-contribution, or related metric story. When long, remove filler, repetition, secondary tools,
-or unrelated metrics before context, qualifiers, central reasoning, or outcome.
+Write complete, natural, information-dense sentences targeting 20-28 words. Allow up to 32
+words when necessary to preserve one coherent action, context, and result story or an essential
+evidence qualifier. The validator's wider emergency margin is not a writing target.
+
+A shorter bullet is better only when it still communicates what was built or changed, the
+relevant context, and why it mattered. Do not remove a meaningful supported outcome,
+differentiator, scale indicator, or necessary status qualifier solely to meet the preferred
+length.
+
+When shortening, remove filler, repeated context, secondary technologies, and unrelated evidence
+first. Preserve the central action, relevant mechanism, and practical result. Never truncate a
+sentence.
+
+Each bullet may contain one primary mechanism or decision and its directly related cause,
+constraint, metric, or result. Do not combine independent benchmarks, separate failure modes,
+or unrelated technical accomplishments merely to make the bullet appear more substantial.
 
 Use direct accurate verbs; avoid adjacent repetition when natural, but never use an inflated
 synonym for variety. Do not open with “Worked on,” “Helped,” “Assisted,” “Participated in,”
@@ -639,19 +682,33 @@ scoped ownership, process, testing, documentation, and stakeholders.
 ━━━ PROJECTS AND TECHNOLOGY LINES ━━━
 
 Include selected_projects in order. Each has its exact CareerOS heading, exactly 2 approved
-bullets, and a 3-6 technology line ordered by JD relevance. Include only technologies explicitly
-connected to that project; do not assign a candidate-wide skill to a project. Mention a technology
-in a bullet only when central to the evidence. Prefer a shorter line to irrelevant keywords.
+bullets, and a concise technology line containing 3-6 technologies. Six is a hard maximum.
+
+Use the technology line for, in order: exact supported technologies required or repeatedly named
+by the JD; the project's primary language, framework, database, or infrastructure; then one
+additional technology only when it materially explains the project's relevance. Do not reproduce
+the project's complete stack. Deployment providers, secondary libraries, testing tools, and
+supporting infrastructure belong in Skills unless central to the project's fit for this job.
+Order technologies by job relevance, not implementation order. Keep the line to one rendered line
+whenever practical. Mention a technology in a bullet only when central to the evidence.
 
 ━━━ SKILLS SECTION ━━━
 
-Build Skills from the complete profile, including stored Skills, project and experience evidence,
-and explicit education/coursework. A related framework, degree, or concept does not prove an exact
-technology. Include supported required/repeated JD terms, relevant demonstrated support, and useful
-architecture concepts; exclude unsupported tools, unrelated items, soft skills, generic concepts,
-and needless aliases. Use exact truthful JD terms and order categories/items by relevance. Use
-recruiter-legible existing categories rather than creating one for an isolated term. Skills are ATS
-evidence, not leftover space: preserve any category containing a supported required/repeated term.
+Build Skills as a compact ATS index of supported capabilities relevant to the JD. Always include
+supported required or repeated JD terms, even when they also appear in a project technology line
+or bullet. Recruiter-visible repetition of an exact required term is acceptable between evidence
+and Skills.
+
+Retain a category when it contains an exact supported JD term; a supported tool directly adjacent
+to a primary responsibility; or multiple supported capabilities that accurately summarize
+relevant project or experience evidence. Within each category, order exact JD terms first,
+followed by the strongest relevant supporting skills. Remove unrelated individual items before
+removing an otherwise relevant category. Do not create categories for isolated or unsupported
+terms.
+
+Skills are not a substitute for concrete evidence, but they are also not disposable leftover
+content. Preserve a compact relevant category when it improves ATS matching or lets a recruiter
+verify the candidate's stack quickly.
 
 ━━━ ATS KEYWORD ALIGNMENT ━━━
 
@@ -668,13 +725,25 @@ into keyword lists.
 Write to one page, then let PDF compilation determine actual fit. Default: every technical
 experience entry with 2 bullets; 2-3 selected projects with 2 bullets; every materially relevant
 Skills category. Add a third experience bullet only for distinct, otherwise unavailable evidence.
-Do not preemptively omit strong evidence or fill space with filler.
+Generate the complete relevant Skills section before layout fitting. Do not preemptively remove
+supported JD-relevant categories or fill space with filler. If the compiled resume fits on one
+page, retain useful Skills rather than leaving avoidable unused space.
 
-Preserve, in order: current/relevant experience, higher-ranked projects, required/repeated Skills,
-distinct engineering evidence, optional third bullets, then lower-relevance details. Reduce in order:
-filler/redundancy; overlong bullets without losing core evidence; optional third bullets; the lowest-
-ranked third project if core coverage remains; then Skills neither requested nor demonstrated by selected
-evidence. Never remove relevant Skills to preserve a lower-ranked project.
+If the initial resume exceeds one page, reduce content in this order:
+  1. Remove filler, repeated context, and unrelated clauses
+  2. Reduce project technology lines to the six strongest items
+  3. Shorten bullets above the preferred range while preserving action, context, and result
+  4. Remove an optional third experience bullet
+  5. Remove unrelated individual Skills entries
+  6. Remove a Skills category only when it contains no supported required term and adds less
+     value than every retained section
+  7. Remove the third project only when it provides no direct or distinct evidence for a core
+     requirement
+
+Treat a small overflow as a wording problem, not permission to delete an entire valuable
+category. Preserve three relevant projects, meaningful outcomes, and supported ATS terms whenever
+they can fit through concise wording and technology-line pruning. Concrete project evidence still
+outranks a Skills keyword naming the same capability.
 
 ━━━ RÉSUMÉ LANGUAGE RULES ━━━
 
@@ -699,14 +768,15 @@ Apply stored cover_letter_voice; otherwise write direct, conversational, profess
 prose: specific over persuasive, confident but grounded. Write like an engineer discussing real
 work, not a résumé inventory.
 
-Write exactly 3 paragraphs, about 160-220 words:
-  1. 2-3 sentences: a concrete JD responsibility, technology, product area, or problem and its
+Write exactly 3 paragraphs, about 160-220 words. Sentence counts are hard constraints; count them
+before returning:
+  1. Exactly 2 sentences: a concrete JD responsibility, technology, product area, or problem and its
      connection to the candidate's direction. Do not open with “I,” name a project, or invent
      company architecture, scale, customers, or priorities.
-  2. 4-5 sentences: exactly one project, named once; tell its documented problem/constraint,
+  2. Exactly 5 sentences: exactly one project, named once; tell its documented problem/constraint,
      decision, why it fit, supported result/property, and transfer to this role. Use at most two
      related metrics. No other project, test inventory, invented prior approach/failure, or stack list.
-  3. 1-2 sentences: current availability and a technical-conversation invitation, without generic
+  3. Exactly 1 sentence: current availability and a technical-conversation invitation, without generic
      enthusiasm, gratitude, or repeated fit summary.
 
 Prefer active voice when the candidate acted; passive is allowed when the result matters more.
@@ -757,17 +827,25 @@ IMPROVEMENT PLAN
 
 VISIBLE WRITING RULES:
 
-Use 1-2 GOOD FIT, 1-3 GAPS, and 1-2 IMPROVEMENT PLAN bullets. Each is one natural,
-plain-language sentence, normally 8-18 words and never over 24, naming one relevant
-technology, project, experience, or domain. No citations, source labels, audit language, or
-“Strong match,” “Great fit,” or “Consider improving.”
+Make the analysis understandable in one quick scan. Use 1-2 GOOD FIT, 1-3 GAPS, and 1-2
+IMPROVEMENT PLAN bullets. Each communicates one point, normally 8-14 words and never over 18.
+Use one evidence source or missing requirement per bullet; do not add a secondary explanation,
+list several related concepts, or use a semicolon. GOOD FIT connects one source directly to one
+JD requirement. GAPS names one meaningful missing requirement without repeating the candidate's
+history. IMPROVEMENT PLAN gives one realistic action with a concrete deliverable. Prefer familiar
+language over abstract phrases such as “platform engineering signals,” “incident accountability,”
+or “enterprise delivery practices.” No citations, source labels, audit language, “Strong match,”
+“Great fit,” or “Consider improving.”
 
 Before declaring a gap, search the complete profile. Every fit maps one real JD requirement to
 the strongest single supported source; preserve local/deployed/production/intended/verified/
 controlled status. Gaps are genuine missing requirements, not an entire area with evidence or a
 nice-to-have presented as critical; group related missing tools. Improvements are concise, specific,
-realistic, and not already demonstrated. For a fundamentally misaligned role, concise application
-strategy may replace an artificial side project.
+realistic, and not already demonstrated. When only part of a grouped requirement is missing,
+name only the missing members; never describe the whole group as absent. Do not combine a genuinely
+missing context with a capability demonstrated elsewhere in the profile: preserve the supported
+capability and name only the missing context. For a fundamentally misaligned role, concise
+application strategy may replace an artificial side project.
 
 ━━━ FINAL SELF-REVIEW ━━━
 
@@ -781,6 +859,21 @@ Confirm the cover letter is 3 paragraphs/160-220 words, JD-specific in paragraph
 project/one grounded story/two metrics maximum in paragraph 2, and free of a second project,
 test inventory, unsupported company detail, banned language, or em dashes. Confirm analysis has
 grounded concise fit/gap/action bullets in the required counts and lengths.
+
+Confirm that no omitted project proves a core JD requirement more directly than a selected
+project, and that primary project evidence is consistent across all outputs.
+
+Before returning the application, verify: the first project provides the strongest direct evidence
+for the JD's highest-weight requirement; a generally impressive project has not displaced a more
+exact match; each project-sale bullet includes the strongest relevant supported outcome or scope
+when one exists; no meaningful result was replaced by a generic description merely for brevity;
+each engineering-proof bullet contains one coherent decision or mechanism and its related result,
+not several independent benchmarks or failure modes; every project technology line contains no
+more than six items ordered by JD relevance; supported required and repeated JD terms remain
+visible in Skills; no meaningful outcome, exact supported JD term, or relevant Skills category was
+removed solely to satisfy a preferred word target; and the resume uses the available one-page
+content budget productively without adding filler. Rewrite only a material violation, not unrelated
+passing content.
 
 RESUME BODY TEMPLATE (output only these variable sections — do not include \\documentclass,
 preamble, heading, or education):
@@ -802,9 +895,8 @@ GENERATE_TOOL = {
                 "type": "array",
                 "description": (
                     "Exact project identifiers from the supplied profile, ordered from "
-                    "strongest overall job match to weakest. Select exactly 3 by default. "
-                    "Select 2 only when a third project would add no distinct evidence for "
-                    "a required or repeatedly emphasized job responsibility."
+                    "strongest overall job match to weakest. Select exactly 3 unless the "
+                    "profile contains fewer than 3 substantiated technical projects."
                 ),
                 "items": {"type": "string"},
                 "minItems": 2,
@@ -853,6 +945,22 @@ GENERATE_TOOL = {
         "required": ["selected_projects", "fit_score", "resume_latex", "cover_letter", "job_title", "job_company", "strategic_note"],
     },
 }
+
+
+def _generation_tool_for_project_count(project_count: int) -> dict:
+    """Require three selections when the profile can support them.
+
+    The static schema remains usable for incomplete profiles, while normal
+    generation gets a strict count so the model cannot treat layout as a
+    reason to stop at two projects.
+    """
+    tool = deepcopy(GENERATE_TOOL)
+    if project_count >= 2:
+        expected = min(3, project_count)
+        selected = tool["input_schema"]["properties"]["selected_projects"]
+        selected["minItems"] = expected
+        selected["maxItems"] = expected
+    return tool
 
 
 def _format_profile(
@@ -974,29 +1082,85 @@ def _resolve_selected_projects(selected_projects: list[str], projects: list) -> 
     return resolved
 
 
-def _project_heading_spans(body_latex: str) -> list[tuple[int, int]]:
-    """Return first-argument spans for every project heading in the resume body."""
+def _project_subheading_argument_spans(
+    body_latex: str,
+) -> list[list[tuple[int, int]]]:
+    """Return all five braced argument spans for each project subheading."""
     body = _extract_resume_body(body_latex)
-    marker = r"\projectSubheading{"
-    spans: list[tuple[int, int]] = []
+    marker = r"\projectSubheading"
+    commands: list[list[tuple[int, int]]] = []
     cursor = 0
     while True:
         marker_start = body.find(marker, cursor)
         if marker_start == -1:
-            return spans
-        content_start = marker_start + len(marker)
-        depth = 1
-        index = content_start
-        while index < len(body) and depth:
-            if body[index] == "{" and (index == 0 or body[index - 1] != "\\"):
-                depth += 1
-            elif body[index] == "}" and (index == 0 or body[index - 1] != "\\"):
-                depth -= 1
-            index += 1
-        if depth:
-            return spans
-        spans.append((content_start, index - 1))
+            return commands
+
+        index = marker_start + len(marker)
+        arguments: list[tuple[int, int]] = []
+        for _ in range(5):
+            while index < len(body) and body[index].isspace():
+                index += 1
+            if index >= len(body) or body[index] != "{":
+                return commands
+            content_start = index + 1
+            depth = 1
+            index = content_start
+            while index < len(body) and depth:
+                if body[index] == "{" and (index == 0 or body[index - 1] != "\\"):
+                    depth += 1
+                elif body[index] == "}" and (index == 0 or body[index - 1] != "\\"):
+                    depth -= 1
+                index += 1
+            if depth:
+                return commands
+            arguments.append((content_start, index - 1))
+
+        commands.append(arguments)
         cursor = index
+
+
+def _project_heading_spans(body_latex: str) -> list[tuple[int, int]]:
+    """Return first-argument spans for every project heading in the resume body."""
+    return [arguments[0] for arguments in _project_subheading_argument_spans(body_latex)]
+
+
+def _split_project_technologies(value: str) -> tuple[list[str], str]:
+    """Split the technology argument while preserving its existing separator style."""
+    centered = re.compile(r"\s*\\textperiodcentered\{\}\s*")
+    if centered.search(value):
+        return [item.strip() for item in centered.split(value) if item.strip()], "centered"
+    if "," in value:
+        return [item.strip() for item in value.split(",") if item.strip()], "comma"
+    return [value.strip()] if value.strip() else [], "single"
+
+
+def _limit_project_technology_lines(
+    body_latex: str,
+    *,
+    max_items: int = 6,
+) -> tuple[str, list[str]]:
+    """Keep the model-ranked first six technologies in every project heading."""
+    body = _extract_resume_body(body_latex)
+    replacements: list[tuple[int, int, str]] = []
+    actions: list[str] = []
+    for project_index, arguments in enumerate(
+        _project_subheading_argument_spans(body),
+        start=1,
+    ):
+        start, end = arguments[2]
+        items, style = _split_project_technologies(body[start:end])
+        if len(items) <= max_items:
+            continue
+        kept = items[:max_items]
+        separator = r" \textperiodcentered{} " if style == "centered" else ", "
+        replacements.append((start, end, separator.join(kept)))
+        actions.append(
+            f"trimmed_project_technologies:{project_index}:{len(items)}->{max_items}"
+        )
+
+    for start, end, replacement in reversed(replacements):
+        body = body[:start] + replacement + body[end:]
+    return body, actions
 
 
 def _apply_project_headings(
@@ -1018,6 +1182,20 @@ def _apply_project_headings(
     for (start, end), replacement in reversed(list(zip(spans, replacements))):
         body = body[:start] + replacement + body[end:]
     return body
+
+
+def _selected_project_structure_errors(
+    body_latex: str,
+    selected_projects: list[str],
+) -> list[str]:
+    """Keep the planned project set and rendered resume structurally aligned."""
+    rendered_count = len(_project_heading_spans(body_latex))
+    selected_count = len(selected_projects)
+    if rendered_count != selected_count:
+        return [
+            f"projects section has {rendered_count} entries; selected_projects has {selected_count}"
+        ]
+    return []
 
 
 def _preprocess_jd(text: str, max_chars: int = 6000) -> str:
@@ -1179,6 +1357,8 @@ def _resume_item_spans(body: str) -> list[tuple[int, int, str]]:
 
 
 _BULLET_WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9+#./'-]*")
+_BULLET_TARGET_MAX_WORDS = 30
+_BULLET_EMERGENCY_MAX_WORDS = 40
 _INCOMPLETE_ENDINGS = {
     "a", "an", "and", "as", "at", "because", "by", "for", "from", "in",
     "into", "of", "on", "or", "the", "to", "using", "via", "with", "without",
@@ -1248,7 +1428,11 @@ def _remove_low_value_bullet_words(text: str) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
-def _complete_bullet_candidate(text: str, *, max_words: int = 36) -> str | None:
+def _complete_bullet_candidate(
+    text: str,
+    *,
+    max_words: int = _BULLET_TARGET_MAX_WORDS,
+) -> str | None:
     candidate = re.sub(r"\s+", " ", text).strip().rstrip(" ,;:-")
     words = _BULLET_WORD_RE.findall(candidate)
     if not 12 <= len(words) <= max_words:
@@ -1258,7 +1442,11 @@ def _complete_bullet_candidate(text: str, *, max_words: int = 36) -> str | None:
     return candidate if re.search(r"[.!?]$", candidate) else candidate + "."
 
 
-def _shorten_overlong_bullet(raw_latex: str, *, max_words: int = 36) -> str | None:
+def _shorten_overlong_bullet(
+    raw_latex: str,
+    *,
+    max_words: int = _BULLET_TARGET_MAX_WORDS,
+) -> str | None:
     """Shorten one bullet without inventing or slicing through an arbitrary phrase.
 
     Prefer removing prompt-banned filler while preserving the complete sentence. If
@@ -1300,7 +1488,7 @@ def _recover_overlong_bullets(body_latex: str) -> tuple[str, list[str]]:
     actions: list[str] = []
     for index, (start, end, raw) in enumerate(_resume_item_spans(body), start=1):
         before = _bullet_word_count(raw)
-        if before <= 36:
+        if before <= _BULLET_TARGET_MAX_WORDS:
             continue
         replacement = _shorten_overlong_bullet(raw)
         if replacement is None:
@@ -1316,9 +1504,8 @@ def _recover_overlong_bullets(body_latex: str) -> tuple[str, list[str]]:
 
 def _recover_local_quality_defects(body_latex: str) -> tuple[str, list[str]]:
     """Fix harmless visible defects before considering any paid editorial repair."""
-    body = _extract_resume_body(body_latex)
+    body, actions = _limit_project_technology_lines(body_latex)
     replacements: list[tuple[int, int, str]] = []
-    actions: list[str] = []
 
     for index, (start, end, raw) in enumerate(_resume_item_spans(body), start=1):
         replacement = raw.strip()
@@ -1335,8 +1522,11 @@ def _recover_local_quality_defects(body_latex: str) -> tuple[str, list[str]]:
             actions.append(f"added_punctuation:{index}")
 
         before = _bullet_word_count(replacement)
-        if before > 36:
-            shortened = _shorten_overlong_bullet(replacement, max_words=36)
+        if before > _BULLET_TARGET_MAX_WORDS:
+            shortened = _shorten_overlong_bullet(
+                replacement,
+                max_words=_BULLET_TARGET_MAX_WORDS,
+            )
             if shortened is not None:
                 replacement = shortened
                 after = _bullet_word_count(replacement)
@@ -1387,6 +1577,46 @@ def _numeric_claims(text: str, *, include_written_counts: bool = False) -> set[s
     return claims
 
 
+def _project_profile_evidence(profile_text: str) -> dict[str, str]:
+    """Index each project's own profile block by its accepted heading aliases.
+
+    Global grounding is not enough for a resume: a real Relay benchmark is
+    still false when attached to Ledger. The formatted profile deliberately
+    carries stable project headings, so keep a cheap source boundary here and
+    use it for project-local numeric validation.
+    """
+    projects_marker = re.search(r"(?m)^PROJECTS\s*$", profile_text)
+    if not projects_marker:
+        return {}
+    skills_marker = re.search(r"(?m)^SKILLS\s*$", profile_text[projects_marker.end():])
+    projects_end = (
+        projects_marker.end() + skills_marker.start()
+        if skills_marker else len(profile_text)
+    )
+    projects = profile_text[projects_marker.end():projects_end]
+    starts = list(re.finditer(
+        r"(?m)^\[(?:\d+)\]\s+(.+?)\s+\([^\n)]*\)(?:\s+—[^\n]*)?\s*$",
+        projects,
+    ))
+    evidence: dict[str, str] = {}
+    for index, match in enumerate(starts):
+        end = starts[index + 1].start() if index + 1 < len(starts) else len(projects)
+        block = projects[match.start():end].strip()
+        aliases = [match.group(1).strip()]
+        heading_match = re.search(
+            r"(?m)^\s*REQUIRED RESUME HEADING\s+—\s+copy exactly:\s*(.+?)\s*$",
+            block,
+        )
+        if heading_match:
+            heading = heading_match.group(1).strip()
+            aliases.extend(part.strip() for part in heading.split("|") if part.strip())
+            aliases.append(heading)
+        for alias in aliases:
+            if key := _project_key(alias):
+                evidence[key] = block
+    return evidence
+
+
 def _bullet_terms(text: str) -> set[str]:
     return {
         token
@@ -1427,8 +1657,14 @@ def _resume_quality_errors(body_latex: str, profile_text: str) -> list[str]:
     profile_numbers = _numeric_claims(profile_text, include_written_counts=True)
     for index, bullet in enumerate(bullets, start=1):
         words = re.findall(r"[A-Za-z0-9][A-Za-z0-9+#./'-]*", bullet)
-        if not 8 <= len(words) <= 36:
-            errors.append(f"bullet {index} has {len(words)} words; expected 8-36")
+        # Thirty words remains the writing target and local shortening threshold.
+        # A complete 31-40 word bullet is an editorial near miss, not grounds to
+        # discard an otherwise usable application after a paid generation call.
+        if not 8 <= len(words) <= _BULLET_EMERGENCY_MAX_WORDS:
+            errors.append(
+                f"bullet {index} has {len(words)} words; expected 8-"
+                f"{_BULLET_EMERGENCY_MAX_WORDS}"
+            )
         if bullet and not re.search(r"[.!?]$", bullet):
             errors.append(f"bullet {index} does not end with sentence punctuation")
         if any(pattern.search(bullet) for pattern in _PASSIVE_INVENTORY_PATTERNS):
@@ -1456,6 +1692,31 @@ def _resume_quality_errors(body_latex: str, profile_text: str) -> list[str]:
     projects = body.partition(r"\section{Projects}")[2].partition(r"\section{Skills}")[0]
     experience_blocks = _resume_item_blocks(experience)
     project_blocks = _resume_item_blocks(projects)
+
+    # A number must be supported by the project it describes, not merely exist
+    # somewhere in the candidate's profile. This blocks cross-project metric
+    # borrowing during both initial generation and targeted repair.
+    project_evidence = _project_profile_evidence(profile_text)
+    project_arguments = _project_subheading_argument_spans(projects)
+    global_bullet_index = sum(len(block) for block in experience_blocks)
+    for arguments, block in zip(project_arguments, project_blocks):
+        heading_start, heading_end = arguments[0]
+        heading = projects[heading_start:heading_end]
+        source = project_evidence.get(_project_key(heading))
+        for raw_bullet in block:
+            global_bullet_index += 1
+            if not source:
+                continue
+            source_numbers = _numeric_claims(source, include_written_counts=True)
+            unsupported = sorted(
+                _numeric_claims(raw_bullet, include_written_counts=True) - source_numbers
+            )
+            if unsupported:
+                errors.append(
+                    f"bullet {global_bullet_index} contains numbers absent from its "
+                    f"project source: {', '.join(unsupported)}"
+                )
+
     if not experience_blocks:
         errors.append("experience section contains no entries")
     if len(project_blocks) < 2:
@@ -1476,13 +1737,13 @@ quality gate. Never copy a raw profile sentence verbatim merely to fill a bullet
 
 Every experience and project bullet must be a complete, polished resume sentence ending in
 punctuation. Experience entries require 2-3 distinct bullets. Every project requires exactly
-2 complementary bullets: first, a recruiter-legible product or outcome statement; second, a
-specific engineering decision, constraint, failure boundary, or implementation that invites
-technical discussion. Target 16-24 words per bullet and keep every bullet at 30 words or fewer;
-the validator's ceiling is 32, not a writing target. Count the visible words before
-returning the document. Never output a project name alone, a passive technology inventory, two
-paraphrases of the same fact, an unsupported number, or a generic README description. Use only
-supported technologies, metrics, ownership, and outcomes.
+2 complementary bullets: first, a recruiter-legible product or outcome statement; second, one
+relevant engineering mechanism or decision with one related result. Target 20-28 words and keep
+every bullet at 32 words or fewer. Count visible words before returning the document. CareerOS has
+a narrow emergency acceptance margin for complete near misses; do not write toward that margin.
+Never output a project name alone, a passive technology inventory, several unrelated technical
+proofs in one bullet, two paraphrases of the same fact, an unsupported number, or a generic README
+description. Use only supported technologies, metrics, ownership, and outcomes.
 
 Return only Experience, Projects, and Skills sections using the supplied LaTeX command structure.
 Do not output a preamble, heading, education section, document wrapper, or explanation.""" + LATEX_TEMPLATE
@@ -1507,11 +1768,13 @@ software-engineering resume. The candidate profile is the sole source of facts. 
 replacement only for a bullet that must change to resolve a listed quality-gate defect.
 Preserve every passing bullet exactly as written.
 
-Each replacement must be the LaTeX-safe content inside \item \small{...}, not the surrounding
-item command. It must be one complete sentence, normally 18-28 words and never more than
-32 words. Use only supported technologies, metrics, ownership, outcomes, and operational
-status. Do not introduce a new project, heading, technology line, or section. For a duplicate
-pair, replace only the weaker bullet and preserve the stronger one.
+Each replacement must be plain text for the content inside \item \small{...}, not LaTeX and
+not the surrounding item command. Do not use backslashes, braces, LaTeX commands, or manual
+escaping; CareerOS safely escapes the text before inserting it. It must be one complete
+sentence, normally 20-28 words and never more than 32 words. Use only supported technologies,
+metrics, ownership, outcomes, and operational status. Do not introduce a new project, heading,
+technology line, or section. For a duplicate pair, replace only the weaker bullet and preserve
+the stronger one.
 
 Return no full resume, explanation, or unchanged bullets."""
 
@@ -1531,12 +1794,12 @@ _TARGETED_QUALITY_REPAIR_TOOL = {
                             "description": "One-based global bullet index in the supplied resume body.",
                             "minimum": 1,
                         },
-                        "replacement_latex": {
+                        "replacement_text": {
                             "type": "string",
-                            "description": "Replacement content inside the bullet's LaTeX braces.",
+                            "description": "Plain-text replacement content for the bullet. Do not include LaTeX.",
                         },
                     },
-                    "required": ["bullet_index", "replacement_latex"],
+                    "required": ["bullet_index", "replacement_text"],
                 },
             },
         },
@@ -1554,7 +1817,13 @@ def _quality_errors_require_full_body_repair(errors: list[str]) -> bool:
 
 
 def _apply_targeted_bullet_repairs(body_latex: str, repairs: list[dict]) -> str:
-    """Apply model replacements without allowing passing bullets to change."""
+    """Apply model replacements without allowing passing bullets to change.
+
+    Targeted repair is the one model call that writes inside a pre-existing
+    LaTeX argument. Treat its output as plain text and escape it here. In
+    particular, a raw percent sign would otherwise comment out the closing
+    brace and make the whole document fail compilation.
+    """
     body = _extract_resume_body(body_latex)
     spans = _resume_item_spans(body)
     replacements: list[tuple[int, int, str]] = []
@@ -1562,16 +1831,29 @@ def _apply_targeted_bullet_repairs(body_latex: str, repairs: list[dict]) -> str:
 
     for repair in repairs:
         index = int(repair.get("bullet_index", 0))
-        replacement = str(repair.get("replacement_latex", "") or "").strip()
+        replacement_text = str(repair.get("replacement_text", "") or "").strip()
         if index < 1 or index > len(spans):
             raise ValueError(f"Targeted quality repair referenced invalid bullet {index}")
         if index in seen:
             raise ValueError(f"Targeted quality repair repeated bullet {index}")
-        if not replacement or r"\item" in replacement:
+        if not replacement_text:
             raise ValueError(f"Targeted quality repair returned invalid content for bullet {index}")
+        if any(token in replacement_text for token in ("\\", "{", "}")):
+            raise ValueError(
+                f"Targeted quality repair returned LaTeX or structural content for bullet {index}"
+            )
         seen.add(index)
-        start, end, _ = spans[index - 1]
-        replacements.append((start, end, replacement))
+        start, end, original = spans[index - 1]
+        introduced_numbers = sorted(
+            _numeric_claims(replacement_text, include_written_counts=True)
+            - _numeric_claims(original, include_written_counts=True)
+        )
+        if introduced_numbers:
+            raise ValueError(
+                f"Targeted quality repair introduced new numeric claims for bullet {index}: "
+                f"{', '.join(introduced_numbers)}"
+            )
+        replacements.append((start, end, _escape_latex_bullet(replacement_text)))
 
     for start, end, replacement in sorted(replacements, reverse=True):
         body = body[:start] + replacement + body[end:]
@@ -1614,11 +1896,14 @@ _COMPRESS_SYSTEM = (
     "You are compressing a LaTeX resume body to fit exactly one page. "
     "You will receive the current Experience, Projects, and Skills sections. "
     "Preserve every passing claim and heading. Apply one minimal compression pass in this order:\n"
-    "1. Remove repetition and redundant clauses without turning a bullet into a fragment\n"
-    "2. Shorten only overlong bullets while preserving their product context, decision, qualifiers, and result\n"
-    "3. Remove an optional third experience bullet when it adds less value than the surrounding evidence\n"
-    "4. Remove the lowest-ranked third project when it adds less value than the Skills evidence it displaces\n\n"
-    "Do not target 16-word bullets. Do not remove a relevant Skills category. Do not alter "
+    "1. Remove filler, repeated context, and unrelated clauses without creating a fragment\n"
+    "2. Reduce every project technology line to its six strongest JD-relevant items\n"
+    "3. Shorten bullets above 28 words while preserving their action, context, qualifier, and result\n"
+    "4. Remove an optional third experience bullet when it adds less value than the surrounding evidence\n"
+    "5. Remove unrelated individual Skills before removing a complete category\n\n"
+    "Do not remove any selected project; CareerOS handles project reduction only after Skills rescue. "
+    "Do not remove a Skills category containing a supported required JD term. "
+    "Treat small overflow as a wording or technology-line problem. Do not target 16-word bullets. Do not alter "
     "CareerOS-supplied project headings. Never invent, substitute, or weaken technical specifics, "
     "numbers, or proper nouns. "
     "Output only the corrected Experience, Projects, and Skills LaTeX sections. "
@@ -1668,8 +1953,11 @@ def _pdf_layout(pdf_bytes: bytes) -> tuple[int, str]:
     return len(reader.pages), "\n".join(overflow_parts)
 
 
-def _skill_row_contains_jd_term(row_latex: str, jd_text: str | None) -> bool:
-    """Protect a Skills row when it contains an exact capability named in the JD."""
+def _skill_row_contains_jd_term(
+    row_latex: str,
+    jd_text: str | None,
+) -> bool:
+    """Return whether a Skills row contains a supported exact JD phrase."""
     if not jd_text:
         return False
     row_plain = _latex_to_plain(row_latex)
@@ -1684,38 +1972,96 @@ def _skill_row_contains_jd_term(row_latex: str, jd_text: str | None) -> bool:
     return False
 
 
-def _reduce_skills_once(
-    body_latex: str,
-    jd_text: str | None = None,
-) -> tuple[str, str] | None:
-    """Remove the lowest-ranked Skills row not protected by an exact JD term."""
-    body = _extract_resume_body(body_latex)
-    section_start = body.find(r"\section{Skills}")
-    if section_start == -1:
-        return None
-
-    section = body[section_start:]
+def _skill_row_bounds(section: str) -> list[tuple[int, int]]:
     item_starts = [
         match.start()
         for match in re.finditer(r"(?m)^[ \t]*\\item(?:\s|$)", section)
     ]
     itemize_end = section.find(r"\end{itemize}")
     if itemize_end == -1:
-        return None
-
-    row_bounds = [
+        return []
+    return [
         (start, item_starts[index + 1] if index + 1 < len(item_starts) else itemize_end)
         for index, start in enumerate(item_starts)
     ]
+
+
+def _reduce_skill_item_once(
+    body_latex: str,
+    jd_text: str | None = None,
+) -> tuple[str, str] | None:
+    """Remove one lowest-ranked non-JD skill before deleting a whole category."""
+    body = _extract_resume_body(body_latex)
+    section_start = body.find(r"\section{Skills}")
+    if section_start == -1:
+        return None
+    section = body[section_start:]
+    jd = (jd_text or "").casefold()
+
+    for row_start, row_end in reversed(_skill_row_bounds(section)):
+        row = section[row_start:row_end]
+        label_match = re.search(r"\\textbf\{([^{}]+)\}", row)
+        if not label_match:
+            continue
+        value_region = row[label_match.end():]
+        leading = len(value_region) - len(value_region.lstrip())
+        trailing = len(value_region.rstrip())
+        value_start = label_match.end() + leading
+        value_end = label_match.end() + trailing
+        values = [item.strip() for item in row[value_start:value_end].split(",") if item.strip()]
+        if len(values) <= 1:
+            continue
+
+        removable_index = next(
+            (
+                index
+                for index in range(len(values) - 1, -1, -1)
+                if len(re.sub(r"\s+", " ", _latex_to_plain(values[index])).strip()) >= 2
+                and re.sub(r"\s+", " ", _latex_to_plain(values[index])).strip().casefold()
+                not in jd
+            ),
+            None,
+        )
+        if removable_index is None:
+            continue
+
+        removed = _latex_to_plain(values.pop(removable_index))
+        replacement_row = row[:value_start] + ", ".join(values) + row[value_end:]
+        reduced_section = section[:row_start] + replacement_row + section[row_end:]
+        label = _latex_to_plain(label_match.group(1)).rstrip(":")
+        return (
+            body[:section_start] + reduced_section,
+            f"removed_skill_item:{label}:{removed}",
+        )
+    return None
+
+
+def _reduce_skills_once(
+    body_latex: str,
+    jd_text: str | None = None,
+    *,
+    protect_jd_terms: bool = True,
+) -> tuple[str, str] | None:
+    """Remove the lowest-ranked Skills row, optionally protecting exact JD terms."""
+    body = _extract_resume_body(body_latex)
+    section_start = body.find(r"\section{Skills}")
+    if section_start == -1:
+        return None
+
+    section = body[section_start:]
+    row_bounds = _skill_row_bounds(section)
+    if not row_bounds:
+        return None
     removable = [
         bounds for bounds in row_bounds
-        if not _skill_row_contains_jd_term(section[bounds[0]:bounds[1]], jd_text)
+        if not protect_jd_terms
+        or not _skill_row_contains_jd_term(section[bounds[0]:bounds[1]], jd_text)
     ]
     if not removable:
         return None
 
     last_start, removal_end = removable[-1]
-    if len(item_starts) == 1:
+    if len(row_bounds) == 1:
         trimmed = body[:section_start].rstrip() + "\n"
         return trimmed, "removed_skills_section"
 
@@ -1753,13 +2099,17 @@ def _remove_optional_experience_bullet_once(body_latex: str) -> tuple[str, str] 
         if len(items) != 3:
             continue
         item_start, item_end, _ = items[2]
-        marker_start = item_start - len(r"\item \small{")
+        # `item_start` / `item_end` are relative to the individual item-list
+        # slice, while `section` begins at Experience. Convert them to one
+        # coordinate system before slicing. Mixing those offsets removed text
+        # from the wrong location once a list did not start at column zero.
+        marker_start = list_start + item_start - len(r"\item \small{")
         line_start = section.rfind("\n", 0, marker_start) + 1
-        removal_end = item_end + 1
+        removal_end = list_start + item_end + 1
         if removal_end < len(section) and section[removal_end] == "\n":
             removal_end += 1
-        absolute_start = experience_start + list_start + line_start
-        absolute_end = experience_start + list_start + removal_end
+        absolute_start = experience_start + line_start
+        absolute_end = experience_start + removal_end
         return (
             body[:absolute_start] + body[absolute_end:],
             f"removed_optional_experience_bullet:{entry_index}",
@@ -1836,6 +2186,26 @@ async def _deterministic_layout_rescue(
         excerpt = re.sub(r"\s+", " ", overflow_text).strip()[:300]
         logger.warning("One-page overflow begins with: %s", excerpt)
 
+    # Enforce the approved six-item project technology budget before removing
+    # any evidence. The model ranks these items by JD relevance, so retaining
+    # the first six is deterministic and cheaper than deleting a Skills row.
+    trimmed_body, technology_actions = _limit_project_technology_lines(current_body)
+    if technology_actions:
+        candidate = _assemble_resume_latex(trimmed_body, preamble)
+        try:
+            pdf_bytes = await compile_latex_to_pdf(candidate)
+        except Exception as exc:
+            raise ValueError("Deterministic technology-line rescue produced invalid LaTeX") from exc
+        current_pages, overflow_text = _pdf_layout(pdf_bytes)
+        current_body = trimmed_body
+        actions.extend(technology_actions)
+        logger.info(
+            "Layout rescue trimmed project technology lines and compiled to %d page(s)",
+            current_pages,
+        )
+        if current_pages <= 1:
+            return candidate, actions, current_pages
+
     # Optional third bullets are lower-value than the core experience evidence.
     while True:
         reduction = _remove_optional_experience_bullet_once(current_body)
@@ -1854,24 +2224,29 @@ async def _deterministic_layout_rescue(
         if current_pages <= 1:
             return candidate, actions, current_pages
 
-    while True:
-        reduction = _remove_last_project(current_body)
-        if reduction is None:
-            break
+    # Try one low-value Skills item as an atomic rescue. If that single deletion
+    # does not solve the overflow, discard the experiment instead of retaining
+    # it and nibbling through the section item by item. The previous cumulative
+    # loop removed 25 useful skills from one Stripe resume without changing its
+    # page count once.
+    reduction = _reduce_skill_item_once(current_body, jd_text)
+    if reduction is not None:
         candidate_body, action = reduction
         candidate = _assemble_resume_latex(candidate_body, preamble)
         try:
             pdf_bytes = await compile_latex_to_pdf(candidate)
         except Exception as exc:
-            raise ValueError("Deterministic project layout rescue produced invalid LaTeX") from exc
-        current_pages, overflow_text = _pdf_layout(pdf_bytes)
-        current_body = candidate_body
-        actions.append(action)
-        logger.info("Layout rescue %s compiled to %d page(s)", action, current_pages)
-        if current_pages <= 1:
-            return candidate, actions, current_pages
+            raise ValueError("Deterministic Skills item rescue produced invalid LaTeX") from exc
+        candidate_pages, _ = _pdf_layout(pdf_bytes)
+        logger.info("Layout rescue %s compiled to %d page(s)", action, candidate_pages)
+        if candidate_pages <= 1:
+            return candidate, [*actions, action], candidate_pages
+        # The candidate did not fix layout, so keep the complete original Skills
+        # section for the more meaningful row-level decision below.
 
-    # Once only two projects remain, remove only Skills rows with no exact JD term.
+    # Remove whole rows without an exact JD term only after the atomic item
+    # experiment. Row deletion has enough spatial effect to justify retaining a
+    # step while the document is still overflowing.
     while True:
         reduction = _reduce_skills_once(current_body, jd_text)
         if reduction is None:
@@ -1882,6 +2257,49 @@ async def _deterministic_layout_rescue(
             pdf_bytes = await compile_latex_to_pdf(candidate)
         except Exception as exc:
             raise ValueError("Deterministic Skills layout rescue produced invalid LaTeX") from exc
+        current_pages, overflow_text = _pdf_layout(pdf_bytes)
+        current_body = candidate_body
+        actions.append(action)
+        logger.info("Layout rescue %s compiled to %d page(s)", action, current_pages)
+        if current_pages <= 1:
+            return candidate, actions, current_pages
+
+    # If preserving a remaining exact-term row would force removal of stronger
+    # project evidence or prevent a one-page result, the row is the final Skills
+    # reduction before considering the third project.
+    while True:
+        reduction = _reduce_skills_once(
+            current_body,
+            jd_text,
+            protect_jd_terms=False,
+        )
+        if reduction is None:
+            break
+        candidate_body, action = reduction
+        candidate = _assemble_resume_latex(candidate_body, preamble)
+        try:
+            pdf_bytes = await compile_latex_to_pdf(candidate)
+        except Exception as exc:
+            raise ValueError("Deterministic required-Skills rescue produced invalid LaTeX") from exc
+        current_pages, overflow_text = _pdf_layout(pdf_bytes)
+        current_body = candidate_body
+        actions.append(action)
+        logger.info("Layout rescue %s compiled to %d page(s)", action, current_pages)
+        if current_pages <= 1:
+            return candidate, actions, current_pages
+
+    # The third project is the final content reduction and is retained whenever
+    # Skills rescue is enough to reach one page.
+    while True:
+        reduction = _remove_last_project(current_body)
+        if reduction is None:
+            break
+        candidate_body, action = reduction
+        candidate = _assemble_resume_latex(candidate_body, preamble)
+        try:
+            pdf_bytes = await compile_latex_to_pdf(candidate)
+        except Exception as exc:
+            raise ValueError("Deterministic project layout rescue produced invalid LaTeX") from exc
         current_pages, overflow_text = _pdf_layout(pdf_bytes)
         current_body = candidate_body
         actions.append(action)
@@ -1921,6 +2339,7 @@ async def _compress_if_needed(
     attempts = 0
     current = assembled_latex
     last_known_good: str | None = None
+    layout_actions: list[str] = []
 
     # max_attempts counts paid rewrite calls, so validation needs one additional
     # compile after the final rewrite. The old loop skipped that last validation
@@ -1936,7 +2355,7 @@ async def _compress_if_needed(
         last_known_good = current
         page_count, overflow_text = _pdf_layout(pdf_bytes)
         if page_count <= 1:
-            return current, attempts, []
+            return current, attempts, layout_actions
 
         if check == max_attempts:
             rescued, rescue_actions, rescued_pages = await _deterministic_layout_rescue(
@@ -1947,7 +2366,7 @@ async def _compress_if_needed(
                 jd_text,
             )
             if rescued is not None:
-                return rescued, attempts, rescue_actions
+                return rescued, attempts, layout_actions + rescue_actions
             raise ValueError(
                 f"Resume still renders to {rescued_pages} pages after {attempts} "
                 f"compression attempts and deterministic layout rescue"
@@ -1961,6 +2380,21 @@ async def _compress_if_needed(
         except Exception:
             logger.exception("Compression call failed")
             raise ValueError("Resume compression failed; refusing a multi-page result")
+
+        planned_project_count = len(_project_heading_spans(current))
+        compressed_project_count = len(_project_heading_spans(compressed_body))
+        if compressed_project_count != planned_project_count:
+            logger.warning(
+                "Ignoring compression output that changed project count from %d to %d",
+                planned_project_count,
+                compressed_project_count,
+            )
+            compressed_body = _extract_resume_body(current)
+        else:
+            compressed_body, technology_actions = _limit_project_technology_lines(
+                compressed_body
+            )
+            layout_actions.extend(technology_actions)
 
         current = _assemble_resume_latex(compressed_body, preamble)
 
@@ -2025,7 +2459,7 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
                     ],
                 }
             ],
-            tool=GENERATE_TOOL,
+            tool=_generation_tool_for_project_count(len(projects)),
             timeout=120.0,
         )
     except asyncio.TimeoutError:
@@ -2053,6 +2487,12 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
             _recover_local_quality_defects(result["resume_latex"])
         )
         initial_quality_errors = _resume_quality_errors(result["resume_latex"], profile_text)
+        initial_quality_errors.extend(
+            _selected_project_structure_errors(
+                result["resume_latex"],
+                result.get("selected_projects") or [],
+            )
+        )
         if initial_quality_errors:
             logger.warning(
                 "Generated resume has %d material quality defects after local recovery; "
@@ -2084,6 +2524,12 @@ async def generate_materials(db: AsyncSession, jd_text: str, api_key: str) -> di
                     list(projects),
                 )
             remaining_errors = _resume_quality_errors(repaired_body, profile_text)
+            remaining_errors.extend(
+                _selected_project_structure_errors(
+                    repaired_body,
+                    result.get("selected_projects") or [],
+                )
+            )
             if remaining_errors:
                 logger.error(
                     "Resume quality repair failed acceptance gate: %s",

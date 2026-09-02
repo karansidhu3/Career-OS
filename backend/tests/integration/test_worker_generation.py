@@ -62,6 +62,8 @@ async def test_commit_constraint_failure_becomes_retryable_failure(
     )
     cache_mock = AsyncMock()
     monkeypatch.setattr(worker_module, "cache_resume_pdf", cache_mock)
+    storage = AsyncMock()
+    monkeypatch.setattr(worker_module, "get_pdf_storage", lambda: storage)
 
     await worker_module.run_generation_job(
         {},
@@ -85,3 +87,4 @@ async def test_commit_constraint_failure_becomes_retryable_failure(
     assert persisted.generation_metadata["failure_code"] == "generation_failed"
     assert "failed_at" in persisted.generation_metadata
     cache_mock.assert_not_awaited()
+    assert storage.delete.await_count == 2
