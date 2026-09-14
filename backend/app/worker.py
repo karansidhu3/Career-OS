@@ -29,7 +29,12 @@ from app.services.error_tracking import init_error_tracking, set_user_context
 from app.services.generation import GENERATION_VERSION, generate_materials
 from app.services.generation_v2 import _normalize_generated_prose
 from app.services.llm_client import StructuredOutputError, StructuredOutputTruncatedError
-from app.services.pdf_storage import cache_resume_pdf, get_pdf_storage, resume_pdf_key
+from app.services.pdf_storage import (
+    cache_resume_pdf,
+    cover_letter_pdf_key,
+    get_pdf_storage,
+    resume_pdf_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +229,14 @@ async def run_generation_job(ctx, job_id: int, jd_text: str, user_id: str) -> No
             }
             generated_pdf = result.pop("pdf_bytes", None)
             _apply_result(job, result)
+            # Local databases can be reset while deterministic PDF-cache keys
+            # survive on disk (and test/staging environments can reuse IDs for
+            # the same reason). Invalidate both old documents before the new
+            # generated row becomes visible; otherwise an immediate preview can
+            # serve a perfectly valid PDF belonging to an earlier company.
+            storage = get_pdf_storage()
+            await storage.delete(resume_pdf_key(job_id))
+            await storage.delete(cover_letter_pdf_key(job_id))
             job.status = "generated"
             saved_resume_latex = job.resume_latex
             # Commit belongs inside the guarded block. A constraint failure is

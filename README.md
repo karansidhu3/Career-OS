@@ -105,11 +105,14 @@ Requires Python 3.12+, Node 20+, a Postgres instance, a Redis instance, and a Cl
 git clone https://github.com/karansidhu3/Career-OS.git
 cd Career-OS
 
+# Local Postgres + Redis (isolated Docker services, bound to this machine only)
+docker compose -f docker-compose.local.yml up -d
+
 # Backend
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # DATABASE_URL, CLERK_*, ENCRYPTION_MASTER_KEY
+cp .env.example .env   # DATABASE_URL, APP_DATABASE_URL, CLERK_*, ENCRYPTION_MASTER_KEY
 uvicorn app.main:app --reload
 # Starts the API and its in-process ARQ worker.
 
@@ -118,6 +121,15 @@ cd frontend
 npm install
 cp .env.local.example .env.local   # Clerk keys
 npm run dev
+```
+
+The Docker stack maps Postgres to `localhost:5434` and Redis to `localhost:6380`,
+matching the example backend environment file. It also creates the restricted
+`careeros_app` database role so local requests exercise the same row-level security
+path as production. Stop the local services with:
+
+```bash
+docker compose -f docker-compose.local.yml down
 ```
 
 Every user supplies their own Anthropic key through the interface after signing in. There's no shared key to configure, by design.

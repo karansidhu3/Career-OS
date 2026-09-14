@@ -1,0 +1,38 @@
+name: careeros-local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: careeros
+      POSTGRES_USER: careeros
+      # This database is bound to 127.0.0.1 only. Authentication is intentionally
+      # simple so it accepts the non-secret local URL already in backend/.env.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - careeros-postgres-data:/var/lib/postgresql/data
+      - ./docker/local-postgres-init.sql:/docker-entrypoint-initdb.d/01-careeros-role.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U careeros -d careeros"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - careeros-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  careeros-postgres-data:
+  careeros-redis-data:
