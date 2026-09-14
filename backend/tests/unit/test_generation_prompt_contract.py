@@ -30,11 +30,11 @@ def test_prompt_contains_the_approved_editorial_system() -> None:
     assert "PROJECT BULLET 1 — RECRUITER SALE" in prompt
     assert "PROJECT BULLET 2 — ENGINEERING PROOF" in prompt
     assert "preferred writing scaffolds, not rigid formulas" in prompt
-    assert "Use no more than two related measurements" in prompt
+    assert "A measurement pair from the same benchmark" in prompt
     assert "each bullet must prove a distinct point" in prompt
     assert "Do not turn participation" in prompt
-    assert "targeting 20-28 words" in prompt
-    assert "Allow up to 32" in prompt
+    assert "targeting 18-26 words" in prompt
+    assert "Allow up to 30" in prompt
     assert "Six is a hard maximum" in prompt
     assert "Place the project with the strongest direct evidence" in prompt
     assert "Skills are not a substitute for concrete evidence" in prompt
@@ -43,6 +43,8 @@ def test_prompt_contains_the_approved_editorial_system() -> None:
     assert "Exactly 5 sentences" in prompt
     assert "Exactly 1 sentence" in prompt
     assert "name only the missing members" in prompt
+    assert "does not volunteer gaps" in prompt
+    assert "Each GAPS bullet must have a different root cause" in prompt
     assert "ONE-PAGE CONTENT BUDGET" in prompt
     assert "SELF-REVIEW" in prompt
 
@@ -61,8 +63,8 @@ def test_prompt_removes_stale_project_and_keyword_rules() -> None:
 def test_quality_repair_prompt_keeps_margin_below_validator_ceiling() -> None:
     prompt = generation._QUALITY_REPAIR_SYSTEM
 
-    assert "Target 20-28 words" in prompt
-    assert "32 words or fewer" in prompt
+    assert "Target 18-26 words" in prompt
+    assert "30 words or fewer" in prompt
     assert "emergency acceptance margin" in prompt
 
 

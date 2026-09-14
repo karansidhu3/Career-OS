@@ -616,8 +616,8 @@ component ownership, or team delivery into whole-system ownership.
 
 PROJECT BULLET 1 — RECRUITER SALE
 
-[What the project is or does] + [who or what it is for] +
-[strongest job-relevant supported outcome, scope, or differentiator]
+[Direct candidate action] + [what was built or changed] +
+[strongest relevant supported outcome, scope, or practical value]
 
 PROJECT BULLET 2 — ENGINEERING PROOF
 
@@ -627,17 +627,29 @@ PROJECT BULLET 2 — ENGINEERING PROOF
 
 Every selected project receives exactly two bullets in the project order above.
 
-The first project bullet must make the project understandable and valuable without relying on
-its technology line or engineering-proof bullet. Prefer the strongest relevant supported
-outcome or scope over a generic product description. Preserve status and evidence qualifiers
-exactly.
+Begin the first project bullet with a direct action verb such as Built, Designed, Developed,
+Automated, or Replaced. Do not begin with a label-style noun phrase such as “A platform that”
+or “Production system that.” The bullet must make the project understandable and valuable
+without relying on its technology line or engineering-proof bullet.
 
-The second project bullet should give a hiring manager one coherent, interviewable technical
-story. Related decisions, context, and measurements may appear together when they prove the
-same result. Use no more than two related measurements in one bullet, and only when they
-describe the same benchmark, comparison, or result. Otherwise select the more persuasive
-measurement. Do not combine independent benchmarks, unrelated failure modes, or separate
-accomplishments merely to increase density.
+When the profile supplies a meaningful supported outcome, scope indicator, or before-and-after
+comparison, the first project bullet must use it. A general project description is allowed only
+when no stronger practical evidence exists. Preserve status and evidence qualifiers exactly.
+
+The second project bullet proves exactly one technical accomplishment:
+
+[One decision, mechanism, or failure boundary] +
+[only the context necessary to understand it] +
+[one supported result or verified property]
+
+Choose one proof category per bullet: performance or scale; reliability or recovery; correctness
+or data integrity; architecture or technical tradeoff; or security or isolation. Do not combine
+two categories merely because both are relevant. When multiple strong results exist, select the
+one that most directly supports the JD.
+
+A measurement pair from the same benchmark, such as p50 and p95, counts as one result. Do not
+append a second benchmark, recovery trial, payload threshold, unrelated failure mode, or separate
+accomplishment. Otherwise select the more persuasive measurement.
 
 Within one experience or project entry, each bullet must prove a distinct point. Do not repeat
 the same outcome, metric, mechanism, or scope unless the second bullet adds necessary technical
@@ -659,9 +671,13 @@ supported by the profile; do not hide a specific contribution behind “contribu
 
 ━━━ BULLET DENSITY AND WRITING STYLE ━━━
 
-Write complete, natural, information-dense sentences targeting 20-28 words. Allow up to 32
-words when necessary to preserve one coherent action, context, and result story or an essential
-evidence qualifier. The validator's wider emergency margin is not a writing target.
+Write complete, natural, information-dense sentences targeting 18-26 words. Allow up to 30
+words only when an essential status qualifier or before-and-after result cannot be expressed
+naturally within 26 words. The validator's wider emergency margin is not a writing target.
+
+Each bullet may contain one central accomplishment, one supporting mechanism, and one result.
+Prefer two readable sentences across two bullets over one bullet containing several
+accomplishments. Never shorten a bullet into a fragment.
 
 A shorter bullet is better only when it still communicates what was built or changed, the
 relevant context, and why it mattered. Do not remove a meaningful supported outcome,
@@ -688,6 +704,11 @@ Emphasize backend APIs/data/transactions/reliability; AI/data ingestion, retriev
 and quality; full-stack workflows, integration, validation, and persistence; infrastructure
 asynchronous systems, deployment, security, observability, and recovery; and collaborative work
 scoped ownership, process, testing, documentation, and stakeholders.
+
+An experience technical-decision bullet must end in a recruiter-understandable operational
+result. Do not spend an entire bullet describing an implementation preference unless the profile
+supplies a concrete reliability, usability, maintainability, or workflow consequence. When
+several mechanisms support the same result, name only the one or two most relevant to the JD.
 
 ━━━ PROJECTS AND TECHNOLOGY LINES ━━━
 
@@ -803,6 +824,11 @@ closes such as “I look forward to hearing from you” or “Thank you for your
 an em dash. Every substantive sentence must be role-, evidence-, or proof-story-specific; the close is
 exempt.
 
+The cover letter sells supported transferable evidence. Never volunteer missing languages,
+tools, domains, years of experience, learning needs, or other candidate deficiencies. When the
+candidate lacks an exact technology, describe the underlying relevant engineering experience
+positively without implying exact experience. Leave explicit gaps for Strategic Analysis.
+
 ━━━ FIT SCORE ━━━
 
 Score current interview readiness, not prestige, enthusiasm, or application quality. Weight, in
@@ -847,6 +873,15 @@ language over abstract phrases such as “platform engineering signals,” “in
 or “enterprise delivery practices.” No citations, source labels, audit language, “Strong match,”
 “Great fit,” or “Consider improving.”
 
+Each GAPS bullet must have a different root cause. Missing a language and missing work performed
+in that language are normally one gap, not two. Group a missing language with its directly
+dependent context when both can be stated concisely. Do not repeat the same deficiency at
+increasing specificity.
+
+Write each improvement as one action verb, one concrete deliverable, and the missing capability.
+Do not use parenthetical examples, motivational explanations, or phrases such as “to demonstrate,”
+“to signal,” or “to gain exposure.” The deliverable should make its purpose obvious.
+
 Before declaring a gap, search the complete profile. Every fit maps one real JD requirement to
 the strongest single supported source; preserve local/deployed/production/intended/verified/
 controlled status. Gaps are genuine missing requirements, not an entire area with evidence or a
@@ -859,31 +894,18 @@ application strategy may replace an artificial side project.
 
 ━━━ FINAL SELF-REVIEW ━━━
 
-Silently verify and fix only material failures; do not output review notes. Confirm: every claim,
-status qualifier, heading, date, location, project order, and required term is accurate; project
-selection is complementary; Bullet 1 provides recruiter clarity and Bullet 2 interviewable proof;
-each experience entry establishes accurate personal scope; bullets are complete, non-generic,
-grounded, and within the approved density; and relevant Skills are retained.
+Silently check only for material failures:
 
-Confirm the cover letter is 3 paragraphs/160-220 words, JD-specific in paragraph 1, one named
-project/one grounded story/two metrics maximum in paragraph 2, and free of a second project,
-test inventory, unsupported company detail, banned language, or em dashes. Confirm analysis has
-grounded concise fit/gap/action bullets in the required counts and lengths.
+  • Every claim, qualifier, heading, date, and ownership statement is grounded
+  • Project selection and ordering follow the JD
+  • Every project has one recruiter-sale bullet and one distinct technical-proof bullet
+  • Meaningful supported outcomes were not replaced with generic descriptions
+  • Bullets are complete, readable, and contain one central accomplishment
+  • The cover letter uses one project, does not volunteer gaps, and follows its structure
+  • Fit-analysis bullets are concise, distinct, and grounded
+  • The résumé retains three projects and relevant ATS terms whenever they fit
 
-Confirm that no omitted project proves a core JD requirement more directly than a selected
-project, and that primary project evidence is consistent across all outputs.
-
-Before returning the application, verify: the first project provides the strongest direct evidence
-for the JD's highest-weight requirement; a generally impressive project has not displaced a more
-exact match; each project-sale bullet includes the strongest relevant supported outcome or scope
-when one exists; no meaningful result was replaced by a generic description merely for brevity;
-each engineering-proof bullet contains one coherent decision or mechanism and its related result,
-not several independent benchmarks or failure modes; every project technology line contains no
-more than six items ordered by JD relevance; supported required and repeated JD terms remain
-visible in Skills; no meaningful outcome, exact supported JD term, or relevant Skills category was
-removed solely to satisfy a preferred word target; and the resume uses the available one-page
-content budget productively without adding filler. Rewrite only a material violation, not unrelated
-passing content.
+Correct only the failing field. Do not rewrite unrelated content that already passes.
 
 RESUME BODY TEMPLATE (output only these variable sections — do not include \\documentclass,
 preamble, heading, or education):
@@ -1748,8 +1770,8 @@ quality gate. Never copy a raw profile sentence verbatim merely to fill a bullet
 Every experience and project bullet must be a complete, polished resume sentence ending in
 punctuation. Experience entries require 2-3 distinct bullets. Every project requires exactly
 2 complementary bullets: first, a recruiter-legible product or outcome statement; second, one
-relevant engineering mechanism or decision with one related result. Target 20-28 words and keep
-every bullet at 32 words or fewer. Count visible words before returning the document. CareerOS has
+relevant engineering mechanism or decision with one related result. Target 18-26 words and keep
+every bullet at 30 words or fewer. Count visible words before returning the document. CareerOS has
 a narrow emergency acceptance margin for complete near misses; do not write toward that margin.
 Never output a project name alone, a passive technology inventory, several unrelated technical
 proofs in one bullet, two paraphrases of the same fact, an unsupported number, or a generic README
@@ -1781,7 +1803,7 @@ Preserve every passing bullet exactly as written.
 Each replacement must be plain text for the content inside \item \small{...}, not LaTeX and
 not the surrounding item command. Do not use backslashes, braces, LaTeX commands, or manual
 escaping; CareerOS safely escapes the text before inserting it. It must be one complete
-sentence, normally 20-28 words and never more than 32 words. Use only supported technologies,
+sentence, normally 18-26 words and never more than 30 words. Use only supported technologies,
 metrics, ownership, outcomes, and operational status. Do not introduce a new project, heading,
 technology line, or section. For a duplicate pair, replace only the weaker bullet and preserve
 the stronger one.
